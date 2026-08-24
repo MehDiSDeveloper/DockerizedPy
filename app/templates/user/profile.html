@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>چالش | پروفایل</title>
+<link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
+
+</head>
+<body>
+<div class="app-bg"></div>
+
+<div class="shell">
+
+  <header class="topbar">
+    <div class="brand-name">پروفایل</div>
+    <button class="icon-btn" aria-label="ویرایش" data-icon="edit"></button>
+  </header>
+
+  <div class="profile-head">
+    <div class="profile-avatar">
+      م
+      <div class="edit-badge"><span data-icon="camera"></span></div>
+    </div>
+    <h1>{{user.name}}</h1>
+    <p>عضو از {{user.member_since.strftime('%Y-%m-%d')}}</p>
+  </div>
+
+  <section class="stats">
+    <div class="stat-card glass accent">
+      <span class="stat-num" id="statActive">{{user.enrollments|length}}</span>
+      <span class="stat-label">چالش فعال</span>
+    </div>
+    <div class="stat-card glass mohr">
+      <span class="stat-num" id="statDone">0</span>
+      <span class="stat-label">تکمیل‌شده</span>
+    </div>
+    <div class="stat-card glass gold">
+      <span class="stat-num" id="statStreak">0</span>
+      <span class="stat-label">روز پیاپی</span>
+    </div>
+  </section>
+
+  <section class="menu-list">
+    <div class="menu-item glass">
+      <div class="mi-icon"><span data-icon="user"></span></div>
+      <span class="mi-label">اطلاعات حساب</span>
+      <span class="mi-chev" data-icon="chevronLeft"></span>
+    </div>
+    <div class="menu-item glass">
+      <div class="mi-icon"><span data-icon="chart"></span></div>
+      <span class="mi-label">تاریخچهٔ چالش‌ها</span>
+      <span class="mi-chev" data-icon="chevronLeft"></span>
+    </div>
+    <div class="menu-item glass">
+      <div class="mi-icon"><span data-icon="bell"></span></div>
+      <span class="mi-label">تنظیمات اعلان‌ها</span>
+      <span class="mi-chev" data-icon="chevronLeft"></span>
+    </div>
+    <div class="menu-item glass">
+      <div class="mi-icon"><span data-icon="info"></span></div>
+      <span class="mi-label">دربارهٔ چالش</span>
+      <span class="mi-chev" data-icon="chevronLeft"></span>
+    </div>
+    <div class="menu-item glass danger" id="logoutBtn">
+      <div class="mi-icon"><span data-icon="logout"></span></div>
+      <span class="mi-label">خروج از حساب</span>
+      <span class="mi-chev" data-icon="chevronLeft"></span>
+    </div>
+  </section>
+
+  <nav class="bottom-nav">
+    <a href="index.html" class="nav-item">
+      <span data-icon="home"></span>
+      خانه
+    </a>
+    <a href="explore.html" class="nav-item">
+      <span data-icon="list"></span>
+      چالش‌ها
+    </a>
+    <div class="nav-item active">
+      <span data-icon="user"></span>
+      پروفایل
+    </div>
+  </nav>
+
+</div>
+
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script>
+  document.getElementById("logoutBtn").addEventListener("click", () => {
+    if (confirm("از حساب کاربری خارج بشی؟")) window.location.href = "auth.html";
+  });
+</script>
+</body>
+</html>

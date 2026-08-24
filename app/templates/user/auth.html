@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>چالش | ورود</title>
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+<div class="app-bg"></div>
+
+<div class="shell" style="padding-bottom:0;">
+  <div class="auth-wrap">
+
+    <div class="auth-logo">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#06231f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
+      <h1>به چالش خوش اومدی</h1>
+      <p>خودتو محک بزن، پیشرفت کن، ادامه بده</p>
+    </div>
+
+    <div class="auth-card glass">
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="login">ورود</button>
+        <button class="auth-tab" data-tab="register">ثبت‌نام</button>
+      </div>
+
+      <!-- login form -->
+      <form id="loginForm">
+        <div class="field">
+          <label>ایمیل یا شماره موبایل</label>
+          <div class="field-input">
+            <span data-icon="mail"></span>
+            <input type="text" placeholder="you@example.com" required />
+          </div>
+        </div>
+        <div class="field">
+          <label>رمز عبور</label>
+          <div class="field-input">
+            <span data-icon="lock"></span>
+            <input type="password" id="loginPass" placeholder="••••••••" required />
+            <span class="field-toggle" data-icon="eye" data-toggle="loginPass"></span>
+          </div>
+        </div>
+        <div style="text-align:left; margin-bottom:6px;">
+          <a href="#" style="font-size:12px; color:var(--fayrouzeh); font-weight:600;">فراموشی رمز عبور؟</a>
+        </div>
+        <button type="submit" class="btn-primary">ورود به حساب <span data-icon="chevronLeft"></span></button>
+      </form>
+
+      <!-- register form -->
+      <form id="registerForm" style="display:none;">
+        <div class="field">
+          <label>نام و نام خانوادگی</label>
+          <div class="field-input">
+            <span data-icon="user"></span>
+            <input type="text" placeholder="مهدی رضایی" required />
+          </div>
+        </div>
+        <div class="field">
+          <label>ایمیل یا شماره موبایل</label>
+          <div class="field-input">
+            <span data-icon="mail"></span>
+            <input type="text" placeholder="you@example.com" required />
+          </div>
+        </div>
+        <div class="field">
+          <label>رمز عبور</label>
+          <div class="field-input">
+            <span data-icon="lock"></span>
+            <input type="password" id="regPass" placeholder="حداقل ۸ کاراکتر" required />
+            <span class="field-toggle" data-icon="eye" data-toggle="regPass"></span>
+          </div>
+        </div>
+        <button type="submit" class="btn-primary">ساخت حساب کاربری <span data-icon="chevronLeft"></span></button>
+      </form>
+
+      <div class="divider">یا</div>
+      <button class="btn-primary" style="background:var(--glass); color:var(--text-1); box-shadow:none; border:1px solid var(--border);">
+        ورود مهمان (بدون ثبت‌نام)
+      </button>
+    </div>
+
+    <p class="auth-foot" id="authFoot">
+      حساب نداری؟ <a href="#" data-switch="register">بساز</a>
+    </p>
+
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+  const tabs = document.querySelectorAll(".auth-tab");
+  const loginForm = document.getElementById("loginForm");
+  const registerForm = document.getElementById("registerForm");
+  const authFoot = document.getElementById("authFoot");
+
+  function switchTo(mode) {
+    tabs.forEach(t => t.classList.toggle("active", t.dataset.tab === mode));
+    loginForm.style.display = mode === "login" ? "block" : "none";
+    registerForm.style.display = mode === "register" ? "block" : "none";
+    authFoot.innerHTML = mode === "login"
+      ? `حساب نداری؟ <a href="#" data-switch="register">بساز</a>`
+      : `قبلاً ثبت‌نام کردی؟ <a href="#" data-switch="login">وارد شو</a>`;
+    authFoot.querySelector("a").addEventListener("click", (e) => { e.preventDefault(); switchTo(e.target.dataset.switch); });
+  }
+
+  tabs.forEach(t => t.addEventListener("click", () => switchTo(t.dataset.tab)));
+  authFoot.querySelector("a").addEventListener("click", (e) => { e.preventDefault(); switchTo(e.target.dataset.switch); });
+
+  document.querySelectorAll("[data-toggle]").forEach(el => {
+    el.addEventListener("click", () => {
+      const input = document.getElementById(el.dataset.toggle);
+      const show = input.type === "password";
+      input.type = show ? "text" : "password";
+      el.dataset.icon = show ? "eyeOff" : "eye";
+      el.innerHTML = show ? icons.eyeOff : icons.eye;
+    });
+  });
+
+  loginForm.addEventListener("submit", (e) => { e.preventDefault(); window.location.href = "index.html"; });
+  registerForm.addEventListener("submit", (e) => { e.preventDefault(); window.location.href = "index.html"; });
+</script>
+</body>
+</html>

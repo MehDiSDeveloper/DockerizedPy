@@ -3,5 +3,12 @@ __pycache__/
 *.pyc
 *.db
 .env
+.env.*
+!.env.example
 .vscode/
 *.egg-info/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+*.session.sql
+.DS_Store

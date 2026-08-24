@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>چالش | ساخت چالش جدید</title>
+<link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
+
+<style>
+  .shell{padding-bottom:96px;}
+  .form-page{display:none; padding:0 20px;}
+  .form-page.active{display:block;}
+</style>
+</head>
+<body>
+<div class="app-bg"></div>
+
+<div class="shell">
+
+  <div class="page-header">
+    <a href="index.html" class="back-btn" aria-label="بازگشت"><span data-icon="chevronRight"></span></a>
+    <h1>ساخت چالش جدید</h1>
+    <span style="width:38px;"></span>
+  </div>
+
+  <div class="stepper" style="margin-top:12px;">
+    <div class="step active" data-step="1"><div class="step-dot">۱</div><span>اطلاعات</span></div>
+    <div class="step" data-step="2"><div class="step-dot">۲</div><span>دسته‌بندی</span></div>
+    <div class="step" data-step="3"><div class="step-dot">۳</div><span>تایید</span></div>
+  </div>
+
+  <!-- step 1 -->
+  <div class="form-page active" data-page="1">
+    <div class="field">
+      <label>عنوان چالش</label>
+      <div class="field-input">
+        <span data-icon="edit"></span>
+        <input type="text" id="cTitle" placeholder="مثلاً: ۳۰ روز بدون شکر" />
+      </div>
+    </div>
+    <div class="field">
+      <label>توضیحات</label>
+      <div class="textarea-field">
+        <textarea id="cDesc" placeholder="این چالش دربارهٔ چیه؟ قوانینش چیه؟"></textarea>
+      </div>
+    </div>
+    <div class="field">
+      <label>مدت چالش (روز)</label>
+      <div class="field-input">
+        <span data-icon="calendar"></span>
+        <input type="number" id="cDays" placeholder="۳۰" min="1" />
+      </div>
+    </div>
+    <button class="btn-primary" data-next>مرحلهٔ بعد <span data-icon="chevronLeft"></span></button>
+  </div>
+
+  <!-- step 2 -->
+  <div class="form-page" data-page="2">
+    <div class="field">
+      <label>دسته‌بندی</label>
+      <div class="category-grid" id="categoryGrid"></div>
+    </div>
+    <div class="field" style="margin-top:18px;">
+      <label>نوع چالش</label>
+      <div class="field-input">
+        <span data-icon="target"></span>
+        <select id="cType">
+          <option>یک‌باره (تنها گزینهٔ فعال در نسخهٔ فعلی)</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex; gap:10px; margin-top:8px;">
+      <button class="btn-primary" style="background:var(--glass); color:var(--text-1); box-shadow:none; border:1px solid var(--border);" data-prev>قبلی</button>
+      <button class="btn-primary" data-next>مرحلهٔ بعد <span data-icon="chevronLeft"></span></button>
+    </div>
+  </div>
+
+  <!-- step 3 -->
+  <div class="form-page" data-page="3">
+    <div class="challenge-card glass" style="margin-bottom:18px;">
+      <div class="cc-top"><span class="cc-tag" id="reviewCat">دسته‌بندی</span></div>
+      <h3 class="cc-title" id="reviewTitle">عنوان چالش</h3>
+      <p class="cc-desc" id="reviewDesc">توضیحات چالش</p>
+      <div class="cc-meta">
+        <span class="cc-meta-item" data-icon="calendar"></span>
+        <span class="cc-meta-item" id="reviewDays">— روز</span>
+      </div>
+    </div>
+    <div class="rule-item glass" style="margin-bottom:18px;">
+      <span data-icon="info"></span>
+      <span>بعد از انتشار، چالش برای همه در فهرست عمومی قابل مشاهده و ثبت‌نامه.</span>
+    </div>
+    <div style="display:flex; gap:10px;">
+      <button class="btn-primary" style="background:var(--glass); color:var(--text-1); box-shadow:none; border:1px solid var(--border);" data-prev>ویرایش</button>
+      <button class="btn-primary" id="publishBtn"><span data-icon="check"></span> انتشار چالش</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+
+<script>
+const cats = [
+  { name: "سلامت جسمانی", icon: "target" },
+  { name: "تغذیه", icon: "flame" },
+  { name: "سلامت ذهنی", icon: "seal" },
+  { name: "بهره‌وری", icon: "list" },
+  { name: "مسئولیت اجتماعی", icon: "home" },
+  { name: "سایر", icon: "plus" },
+];
+  let selectedCat = cats[0].name;
+
+  const grid = document.getElementById("categoryGrid");
+  grid.innerHTML = cats.map(c => `
+    <div class="category-pill ${c.name === selectedCat ? "active" : ""}" data-cat="${c.name}">
+      ${icons[c.icon]}
+      ${c.name}
+    </div>`).join("");
+
+  grid.querySelectorAll(".category-pill").forEach(pill => {
+    pill.addEventListener("click", () => {
+      selectedCat = pill.dataset.cat;
+      grid.querySelectorAll(".category-pill").forEach(p => p.classList.remove("active"));
+      pill.classList.add("active");
+    });
+  });
+
+  const steps = document.querySelectorAll(".step");
+  const pages = document.querySelectorAll(".form-page");
+  let current = 1;
+
+  function goTo(n) {
+    current = n;
+    steps.forEach(s => {
+      const idx = Number(s.dataset.step);
+      s.classList.toggle("active", idx === n);
+      s.classList.toggle("done", idx < n);
+    });
+    pages.forEach(p => p.classList.toggle("active", Number(p.dataset.page) === n));
+
+    if (n === 3) {
+      document.getElementById("reviewCat").textContent = selectedCat;
+      document.getElementById("reviewTitle").textContent = document.getElementById("cTitle").value || "بدون عنوان";
+      document.getElementById("reviewDesc").textContent = document.getElementById("cDesc").value || "بدون توضیحات";
+      document.getElementById("reviewDays").textContent = (document.getElementById("cDays").value || "—") + " روز";
+    }
+  }
+
+  document.querySelectorAll("[data-next]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      if (current === 1 && !document.getElementById("cTitle").value.trim()) {
+        alert("لطفاً عنوان چالش رو وارد کن.");
+        return;
+      }
+      goTo(current + 1);
+    });
+  });
+  document.querySelectorAll("[data-prev]").forEach(btn => {
+    btn.addEventListener("click", () => goTo(current - 1));
+  });
+
+  // document.getElementById("publishBtn").addEventListener("click", () => {
+  //   window.location.href = "index.html";
+  // });
+  document.getElementById("publishBtn").addEventListener("click", async () => {
+  const dueDate = new Date();
+  dueDate.setDate(dueDate.getDate() + Number(document.getElementById("cDays").value || 0));
+
+  const payload = {
+    title: document.getElementById("cTitle").value,
+    description: document.getElementById("cDesc").value || null,
+    due_date: dueDate.toISOString(),
+    rules: null,
+    category: selectedCat,
+    challenge_type: "چالش یکباره"
+  };
+
+  try {
+    const res = await fetch("/views/challenges/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      alert("خطا در ثبت چالش: " + JSON.stringify(err));
+      return;
+    }
+
+    window.location.href = "/views/challenges/";
+  } catch (e) {
+    alert("خطای شبکه: " + e.message);
+  }
+});
+</script>
+</body>
+</html>

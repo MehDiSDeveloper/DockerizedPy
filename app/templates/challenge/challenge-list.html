@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>چالش | فهرست چالش‌ها</title>
+<link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
+</head>
+<body>
+<div class="app-bg"></div>
+
+<div class="shell">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#06231f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
+      <div class="brand-name">چالش<span>.</span></div>
+    </div>
+    <button class="icon-btn has-dot" aria-label="اعلان‌ها" data-icon="bell"></button>
+  </header>
+
+  <section class="hero">
+    <p class="hero-eyebrow">کاوش</p>
+    <h1 class="hero-title">دنبال چه چالشی هستی؟</h1>
+  </section>
+
+  <div class="search-bar">
+    <span data-icon="search"></span>
+    <input type="text" id="clSearch" placeholder="جستجوی چالش..." />
+  </div>
+
+  <div class="chip-row" id="clCategoryChips">
+    <button class="chip active" data-cat="همه">همه</button>
+    {% for cat in categories %}
+    <button class="chip" data-cat="{{ cat.value }}">{{ cat.value }}</button>
+    {% endfor %}
+  </div>
+
+  <section>
+    <div class="challenge-list" id="clList">
+      {% for c in challenges %}
+      <a href="/views/challenges/{{ c.id }}" class="challenge-card glass explore-card" data-cat="{{ c.category.value }}" data-title="{{ c.title }}">
+        <div class="explore-thumb"><span data-icon="target"></span></div>
+        <div class="explore-body">
+          <h3>{{ c.title }}</h3>
+          <p>
+            <span>{{ c.category.value }}</span>
+            <span data-icon="users"></span><span>{{ c.enrollments|length }}</span>
+            {% if c.due_date %}<span data-icon="calendar"></span><span>{{ c.due_date.strftime('%Y-%m-%d') }}</span>{% endif %}
+          </p>
+        </div>
+      </a>
+      {% else %}
+      <div class="empty"><span data-icon="empty"></span><p>هنوز چالشی ثبت نشده.</p></div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <a href="/views/challenges/create" class="fab" aria-label="ساخت چالش جدید">
+    <span data-icon="plus"></span>
+  </a>
+
+  <nav class="bottom-nav">
+    <div class="nav-item">
+      <span data-icon="home"></span>
+      خانه
+    </div>
+    <div class="nav-item active">
+      <span data-icon="list"></span>
+      چالش‌ها
+    </div>
+    <div class="nav-item">
+      <span data-icon="user"></span>
+      پروفایل
+    </div>
+  </nav>
+
+</div>
+
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const chips = document.querySelectorAll("#clCategoryChips .chip");
+    const search = document.getElementById("clSearch");
+    const cards = document.querySelectorAll("#clList .explore-card");
+    let activeCat = "همه";
+
+    function applyFilter() {
+      const q = search.value.trim();
+      cards.forEach(card => {
+        const matchCat = activeCat === "همه" || card.dataset.cat === activeCat;
+        const matchQuery = !q || card.dataset.title.includes(q);
+        card.style.display = (matchCat && matchQuery) ? "" : "none";
+      });
+    }
+
+    chips.forEach(chip => {
+      chip.addEventListener("click", () => {
+        chips.forEach(c => c.classList.remove("active"));
+        chip.classList.add("active");
+        activeCat = chip.dataset.cat;
+        applyFilter();
+      });
+    });
+
+    search.addEventListener("input", applyFilter);
+  });
+</script>
+</body>
+</html>

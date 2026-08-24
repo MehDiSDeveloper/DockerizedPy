@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>چالش | جزئیات چالش</title>
+<link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
+<style>
+  .shell{padding-bottom:96px;}
+</style>
+</head>
+<body>
+<div class="app-bg"></div>
+
+<div class="shell">
+
+  <div class="page-header">
+    <a href="explore.html" class="back-btn" aria-label="بازگشت"><span data-icon="chevronRight"></span></a>
+    <h1>جزئیات چالش</h1>
+    <button class="back-btn" aria-label="اشتراک‌گذاری" data-icon="share"></button>
+  </div>
+
+  <div class="detail-hero glass">
+    <div class="detail-icon"><span data-icon="target"></span></div>
+    <span class="cc-tag">سلامتی</span>
+    <h1>{{challenge.title}}</h1>
+    <div class="detail-stats">
+      
+      <div><b>۳۰</b><span>روزه</span></div>
+      <div><b>۶۲٪</b><span>{{challenge.due_date}}</span></div>
+    </div>
+  </div>
+
+  <section class="detail-section">
+    <h2>درباره چالش</h2>
+    <p>
+      {{challenge.description}}
+    </p>
+  </section>
+
+  <section class="detail-section">
+    <h2>قوانین</h2>
+    <div class="rule-list">
+     {{challenge.rules}}
+    </div>
+  </section>
+
+  <section class="detail-section">
+    <h2>شرکت‌کننده‌ها</h2>
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <div class="avatar-stack">
+        {% if challenge and challenge.enrollments %}
+          <div class="avatar-stack">
+            {% for enrollment in challenge.enrollments[:4] %}
+              <div class="av">{{ enrollment.user.name[:1] if enrollment.user else "" }}</div>
+            {% endfor %}
+          </div>
+          {% if challenge.enrollments|length > 4 %}
+            <span style="font-size:12px; color:var(--text-3);">و {{ challenge.enrollments|length - 4 }} نفر دیگه</span>
+          {% endif %}
+        {% else %}
+          <span style="font-size:12px; color:var(--text-3);">هنوز شرکت‌کننده‌ای نیست</span>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <div class="sticky-cta">
+    <button class="btn-primary" id="detailCta">
+      <span data-icon="x"></span>
+      انصراف از چالش
+    </button>
+  </div>
+
+</div>
+
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script>
+  const cta = document.getElementById("detailCta");
+  let enrolled = true;
+
+  function renderCta() {
+    cta.innerHTML = enrolled
+      ? `${icons.x} انصراف از چالش`
+      : `${icons.check} ثبت‌نام در چالش`;
+    cta.style.background = enrolled ? "rgba(193,67,67,0.16)" : "";
+    cta.style.color = enrolled ? "#ff9d9d" : "";
+    cta.style.boxShadow = enrolled ? "none" : "";
+    cta.style.border = enrolled ? "1px solid rgba(255,120,120,0.3)" : "none";
+  }
+
+  cta.addEventListener("click", () => {
+    const msg = enrolled ? "از این چالش انصراف می‌دی؟" : "می‌خوای در این چالش ثبت‌نام کنی؟";
+    if (confirm(msg)) {
+      enrolled = !enrolled;
+      renderCta();
+    }
+  });
+
+  renderCta();
+</script>
+</body>
+</html>

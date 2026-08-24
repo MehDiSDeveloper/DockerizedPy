@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>چالش | خانه</title>
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+<div class="app-bg"></div>
+
+<div class="shell">
+
+  <!-- top bar -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#06231f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
+      <div class="brand-name">چالش<span>.</span></div>
+    </div>
+    <div style="display:flex; gap:8px; position:relative;">
+      <button class="icon-btn" aria-label="جستجو" data-icon="search"></button>
+      <button class="icon-btn has-dot" aria-label="اعلان‌ها" data-icon="bell"></button>
+    </div>
+  </header>
+
+  <!-- greeting -->
+  <section class="hero">
+    <p class="hero-eyebrow">خوش برگشتی</p>
+    <h1 class="hero-title">سلام <b>مهدی</b> 👋<br/>امروز نوبت کدوم چالشه؟</h1>
+  </section>
+
+  <!-- stats -->
+  <section class="stats">
+    <div class="stat-card glass accent">
+      <span class="stat-num" id="statActive">0</span>
+      <span class="stat-label">چالش فعال</span>
+    </div>
+    <div class="stat-card glass mohr">
+      <span class="stat-num" id="statDone">0</span>
+      <span class="stat-label">تکمیل‌شده</span>
+    </div>
+    <div class="stat-card glass gold">
+      <span class="stat-num" id="statStreak">0</span>
+      <span class="stat-label">روز پیاپی</span>
+    </div>
+  </section>
+
+  <!-- my challenges -->
+  <section>
+    <div class="section-head">
+      <h2>چالش‌های من</h2>
+      <div class="tabs">
+        <button class="tab active" data-filter="active">فعال</button>
+        <button class="tab" data-filter="completed">تکمیل‌شده</button>
+      </div>
+    </div>
+
+    <div class="challenge-list" id="challengeList">
+      <!-- rendered by app.js -->
+    </div>
+  </section>
+
+  <!-- FAB: create challenge -->
+  <a href="create-challenge.html" class="fab" aria-label="ساخت چالش جدید">
+    <span data-icon="plus"></span>
+  </a>
+
+  <!-- bottom nav -->
+  <nav class="bottom-nav">
+    <div class="nav-item active">
+      <span data-icon="home"></span>
+      خانه
+    </div>
+    <a href="explore.html" class="nav-item">
+      <span data-icon="list"></span>
+      چالش‌ها
+    </a>
+    <a href="profile.html" class="nav-item">
+      <span data-icon="user"></span>
+      پروفایل
+    </a>
+  </nav>
+
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
