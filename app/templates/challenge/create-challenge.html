@@ -185,6 +185,10 @@
 {% block scripts %}
 
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
+{# Replaces the native (Gregorian) date/datetime widgets with a Jalali one.
+   It keeps each <input>'s value in the same ISO format, so the payload
+   builders further down read `.value` exactly as before. #}
+<script src="{{ url_for('static', path='/js/jalali-picker.js') }}"></script>
 
 <script>
 document.getElementById("wizardCloseBtn").addEventListener("click", () => {
@@ -298,6 +302,7 @@ function addScheduleRow() {
   });
   scheduleList.appendChild(row);
   renderIcons(row);
+  enhanceJalaliInputs(row);
 }
 document.getElementById("addScheduleBtn").addEventListener("click", () => {
   if (scheduleList.children.length < 20) addScheduleRow();

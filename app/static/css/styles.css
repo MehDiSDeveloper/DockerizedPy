@@ -189,6 +189,17 @@ ul{list-style:none; margin:0; padding:0;}
 .cc-meta-item{display:flex; align-items:center; gap:5px;}
 .cc-meta-item svg{width:13px; height:13px; opacity:.8;}
 
+/* Today's check-in window: a fixed label from the server ("تا پایان امروز")
+   plus a live remainder that renderDeadlines() in app.js writes every minute.
+   The remainder ships empty, so :empty hides it -- separator and all -- when
+   JS hasn't run yet or the occurrence has no closing instant at all. */
+.cc-window{white-space:nowrap;}
+.cc-remaining{white-space:nowrap; font-variant-numeric:tabular-nums;}
+.cc-remaining::before{content:"·"; margin-inline-end:5px; opacity:.55;}
+.cc-remaining:empty{display:none;}
+.cc-remaining.is-urgent{color:var(--gold); font-weight:600;}
+.cc-remaining.is-passed{color:var(--mohr); font-weight:600;}
+
 .cc-progress{
   height:6px; border-radius:999px; background:rgba(255,255,255,0.08);
   overflow:hidden; margin-top:12px;
@@ -495,28 +506,81 @@ ul{list-style:none; margin:0; padding:0;}
 }
 .avatar-stack .av:first-child{margin-inline-start:0;}
 
-/* --- history heatmap (Saturday-first weeks) --- */
-.heatmap{display:flex; flex-direction:column; gap:6px;}
-.heatmap-week{display:grid; grid-template-columns:repeat(7,1fr); gap:6px;}
-.heatmap-cell{
-  aspect-ratio:1; border-radius:6px; border:1px solid var(--border);
-  background:rgba(255,255,255,0.05); padding:0; cursor:default;
+/* --- history summary strip --- */
+.history-summary{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px;}
+.history-metric{
+  background:rgba(255,255,255,0.04); border-radius:var(--radius-sm); padding:10px 6px; text-align:center;
 }
-.heatmap-cell.completed{background:var(--fayrouzeh); border-color:var(--fayrouzeh);}
-.heatmap-cell.skipped{background:rgba(255,255,255,0.16); border-color:var(--border-strong);}
-.heatmap-cell.missed{background:rgba(193,67,67,0.32); border-color:rgba(193,67,67,0.45);}
-.heatmap-cell.pending{background:rgba(212,175,106,0.22); border-color:rgba(212,175,106,0.45);}
-.heatmap-cell.future,
-.heatmap-cell.none{background:transparent; border-style:dashed;}
-.heatmap-cell.writable{cursor:pointer;}
-.heatmap-cell.writable:active{transform:scale(.9);}
-.heatmap-legend{display:flex; flex-wrap:wrap; gap:12px; margin-top:10px;}
-.heatmap-legend-item{display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-3);}
-.heatmap-legend-dot{width:9px; height:9px; border-radius:3px; display:inline-block; border:1px solid var(--border);}
-.heatmap-legend-dot.completed{background:var(--fayrouzeh); border-color:var(--fayrouzeh);}
-.heatmap-legend-dot.skipped{background:rgba(255,255,255,0.16); border-color:var(--border-strong);}
-.heatmap-legend-dot.missed{background:rgba(193,67,67,0.32); border-color:rgba(193,67,67,0.45);}
-.heatmap-legend-dot.pending{background:rgba(212,175,106,0.22); border-color:rgba(212,175,106,0.45);}
+.history-metric b{display:block; font-size:17px; font-weight:800; line-height:1.2;}
+.history-metric b .dim{color:var(--text-3); font-weight:600; font-size:13px;}
+.history-metric span{font-size:10.5px; color:var(--text-3); margin-top:3px; display:block;}
+.history-metric.gold b{color:var(--gold); display:flex; align-items:center; justify-content:center; gap:4px;}
+.history-metric.gold b svg{width:14px; height:14px;}
+
+/* --- history: occurrence timeline ---
+   One row per occurrence the cadence actually asks for, newest first --
+   NOT one per calendar day. A weekly challenge has ~1 occurrence a week,
+   so a day grid would render 6/7 empty cells per row. */
+.timeline{
+  display:flex; flex-direction:column;
+  background:var(--glass); border:1px solid var(--border); border-radius:var(--radius-md);
+  overflow:hidden;
+}
+.tl-row{
+  display:flex; align-items:center; gap:11px; padding:11px 13px;
+  border-bottom:1px solid var(--border); cursor:pointer; min-height:52px;
+}
+.tl-row:last-child{border-bottom:none;}
+.tl-row.today{background:rgba(34,201,189,0.06);}
+.tl-row:active{background:rgba(255,255,255,0.04);}
+
+.tl-badge{
+  flex:none; width:28px; height:28px; border-radius:9px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:14px; font-weight:700; line-height:1;
+  border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text-3);
+}
+.tl-row.completed .tl-badge{background:var(--fayrouzeh); border-color:var(--fayrouzeh); color:var(--bg-0);}
+.tl-row.completed .tl-badge::before{content:"✓";}
+.tl-row.skipped .tl-badge{background:rgba(255,255,255,0.14); border-color:var(--border-strong); color:var(--text-2);}
+.tl-row.skipped .tl-badge::before{content:"–";}
+.tl-row.missed .tl-badge{background:rgba(193,67,67,0.20); border-color:rgba(193,67,67,0.5); color:#ff9d9d;}
+.tl-row.missed .tl-badge::before{content:"✕";}
+.tl-row.pending .tl-badge{background:rgba(212,175,106,0.14); border-color:var(--gold); color:var(--gold);}
+.tl-row.pending .tl-badge::before{content:"•";}
+
+.tl-main{flex:1; min-width:0;}
+.tl-date{font-size:13px; font-weight:600; color:var(--text-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.tl-meta{font-size:11px; color:var(--text-3); margin-top:2px;}
+.tl-row.completed .tl-meta{color:var(--fayrouzeh);}
+.tl-row.missed .tl-meta{color:#ff9d9d;}
+
+.tl-action{
+  flex:none; border:1px solid rgba(34,201,189,0.4); background:rgba(34,201,189,0.12);
+  color:var(--fayrouzeh); border-radius:999px; font-family:inherit; font-size:12px; font-weight:700;
+  padding:7px 16px; cursor:pointer;
+}
+.tl-action.solid{width:100%; border-radius:var(--radius-sm); padding:10px; margin-top:10px;}
+.tl-action:active{transform:scale(.96);}
+
+.tl-empty{padding:22px 14px; text-align:center; font-size:12.5px; color:var(--text-3);}
+.tl-more{font-size:11px; color:var(--text-3); margin:9px 2px 0; text-align:center;}
+
+/* --- history: recurring_quota period rows ---
+   A quota has no per-day slot of its own, so the period is the unit. */
+.quota-history{display:flex; flex-direction:column; gap:8px;}
+.quota-row{
+  background:var(--glass); border:1px solid var(--border); border-radius:var(--radius-md);
+  padding:12px 13px;
+}
+.quota-row.current{background:rgba(34,201,189,0.06); border-color:rgba(34,201,189,0.25);}
+.quota-row-head{display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:9px;}
+.quota-row-label{font-weight:600;}
+.quota-row.current .quota-row-label{color:var(--fayrouzeh);}
+.quota-row-count{color:var(--text-3); font-size:11.5px;}
+.quota-pips{display:flex; gap:4px;}
+.quota-pip{flex:1; height:8px; border-radius:4px; background:rgba(255,255,255,0.10);}
+.quota-pip.done{background:var(--fayrouzeh);}
 
 .sticky-cta{
   /* sits flush above the bottom nav, not over it -- the device safe-area
@@ -633,3 +697,86 @@ ul{list-style:none; margin:0; padding:0;}
 .menu-item.danger .mi-icon{background:rgba(193,67,67,0.12); color:#ff9d9d;}
 .menu-item span.mi-label{flex:1; font-size:13.5px; font-weight:600;}
 .menu-item .mi-chev{width:16px; height:16px; color:var(--text-3);}
+
+/* ==========================================================================
+   Jalali date / datetime picker  (app/static/js/jalali-picker.js)
+   ==========================================================================
+   The native <input type="date"> stays in the DOM as the value holder but is
+   taken out of the visual and tab flow; `.jp-trigger` is what the user sees
+   and operates. Not `display:none` -- a hidden input is skipped by some form
+   validation paths, and the element still has to be reachable to scripts. */
+.jp-native{
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0;
+}
+.jp-trigger{
+  flex:1; min-width:0; text-align:start; cursor:pointer;
+  border:none; background:transparent; outline:none;
+  color:var(--text-1); font-family:inherit; font-size:13.5px; padding:12px 2px;
+}
+.jp-trigger.is-empty{color:var(--text-3);}
+
+.jp-panel{max-width:min(var(--shell-max), 420px);}
+
+.jp-nav{display:flex; align-items:center; gap:4px; margin-bottom:12px;}
+.jp-nav-btn{
+  display:flex; align-items:center; justify-content:center;
+  width:34px; height:34px; flex-shrink:0; padding:0;
+  border-radius:var(--radius-sm); border:1px solid var(--border);
+  background:var(--glass); color:var(--text-2); cursor:pointer;
+  transition:background .15s var(--ease), color .15s var(--ease);
+}
+.jp-nav-btn:hover{background:var(--glass-strong); color:var(--text-1);}
+.jp-nav-btn:active{transform:scale(.93);}
+.jp-nav-btn svg{width:15px; height:15px;}
+/* the year chevrons are a stacked pair, so pull them together */
+.jp-prev-year svg, .jp-next-year svg{margin-inline:-4px;}
+
+.jp-title{
+  flex:1; padding:8px; border:none; background:transparent; cursor:pointer;
+  color:var(--text-1); font-family:inherit; font-size:14px; font-weight:800;
+  border-radius:var(--radius-sm); transition:background .15s var(--ease);
+}
+.jp-title:hover{background:var(--glass);}
+
+.jp-weekdays,
+.jp-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:4px;}
+.jp-weekdays{
+  margin-bottom:6px; font-size:11px; font-weight:700; color:var(--text-3);
+  text-align:center;
+}
+.jp-cell{
+  aspect-ratio:1; display:flex; align-items:center; justify-content:center;
+  border-radius:var(--radius-sm); border:1px solid transparent;
+  background:var(--glass); color:var(--text-1);
+  font-family:inherit; font-size:13px; cursor:pointer;
+  transition:background .13s var(--ease), border-color .13s var(--ease);
+}
+.jp-cell:hover:not(:disabled){background:var(--glass-strong);}
+.jp-cell:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:1px;}
+.jp-blank{background:transparent; border:none; cursor:default;}
+.jp-cell.is-holiday{color:var(--mohr);}
+.jp-cell.is-today{border-color:var(--border-strong); font-weight:800;}
+.jp-cell.is-selected{
+  background:linear-gradient(145deg, var(--fayrouzeh), var(--fayrouzeh-dim));
+  border-color:transparent; color:#06231f; font-weight:800;
+}
+.jp-cell:disabled{opacity:.28; cursor:not-allowed;}
+
+.jp-time{
+  display:flex; align-items:center; gap:8px; margin-top:14px;
+  background:rgba(255,255,255,0.04); border:1px solid var(--border);
+  border-radius:var(--radius-sm); padding:8px 12px;
+}
+.jp-time svg{width:16px; height:16px; color:var(--text-3); flex-shrink:0;}
+.jp-time-label{font-size:12.5px; color:var(--text-2); font-weight:600;}
+.jp-select{
+  border:none; background:transparent; outline:none; cursor:pointer;
+  color:var(--text-1); font-family:inherit; font-size:14px; font-weight:700;
+  padding:4px 2px;
+}
+.jp-select option{background:var(--bg-2); color:var(--text-1);}
+.jp-colon{color:var(--text-3); font-weight:700;}
+.jp-time .jp-select:first-of-type{margin-inline-start:auto;}
+
+.jp-actions .jp-clear{flex:0 0 auto; color:var(--text-3);}

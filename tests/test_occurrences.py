@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 
+from app.jalali import from_jalali
 from app.occurrences import (
     compute_streaks,
     derive_state,
@@ -9,6 +10,7 @@ from app.occurrences import (
     is_key_writable,
     is_occurrence_day,
     occurrences_due,
+    period_bounds,
     period_key,
     to_ir_weekday,
     week_start,
@@ -194,25 +196,52 @@ def test_every_n_weeks():
 
 
 def test_every_n_months_pattern():
+    """Months step in the *Jalali* calendar, so the Gregorian gap between
+    occurrences is not a constant number of days."""
     cadence = RecurringDaysCadence(mode="every_n_months", n=2)
-    start = date(2026, 1, 15)
-    assert is_occurrence_day(cadence, start, date(2026, 1, 15)) is True
-    assert is_occurrence_day(cadence, start, date(2026, 2, 15)) is False
-    assert is_occurrence_day(cadence, start, date(2026, 3, 15)) is True
-    assert is_occurrence_day(cadence, start, date(2026, 4, 15)) is False
-    assert is_occurrence_day(cadence, start, date(2026, 5, 15)) is True
+    start = from_jalali(1405, 1, 15)  # 2026-04-04
+    assert is_occurrence_day(cadence, start, from_jalali(1405, 1, 15)) is True
+    assert is_occurrence_day(cadence, start, from_jalali(1405, 2, 15)) is False
+    assert is_occurrence_day(cadence, start, from_jalali(1405, 3, 15)) is True
+    assert is_occurrence_day(cadence, start, from_jalali(1405, 4, 15)) is False
+    assert is_occurrence_day(cadence, start, from_jalali(1405, 5, 15)) is True
+    # the 15th of a *Gregorian* month is not what recurs
+    assert is_occurrence_day(cadence, start, date(2026, 6, 15)) is False
 
 
 def test_every_n_months_end_of_month_clamp():
     cadence = RecurringDaysCadence(mode="every_n_months", n=1)
-    # 2026 is not a leap year
-    start_non_leap = date(2026, 1, 31)
-    assert is_occurrence_day(cadence, start_non_leap, date(2026, 2, 28)) is True
-    assert is_occurrence_day(cadence, start_non_leap, date(2026, 2, 27)) is False
-    # 2028 is a leap year
-    start_leap = date(2028, 1, 31)
-    assert is_occurrence_day(cadence, start_leap, date(2028, 2, 29)) is True
-    assert is_occurrence_day(cadence, start_leap, date(2028, 2, 28)) is False
+    # Shahrivar has 31 days, Mehr only 30 -- the 31st clamps to the 30th.
+    start_31 = from_jalali(1405, 6, 31)
+    assert is_occurrence_day(cadence, start_31, from_jalali(1405, 7, 30)) is True
+    assert is_occurrence_day(cadence, start_31, from_jalali(1405, 7, 29)) is False
+    # Esfand 1404 is 29 days (not a leap year), Esfand 1408 is 30.
+    start_bahman = from_jalali(1404, 11, 30)
+    assert is_occurrence_day(cadence, start_bahman, from_jalali(1404, 12, 29)) is True
+    assert is_occurrence_day(cadence, start_bahman, from_jalali(1404, 12, 28)) is False
+    start_leap = from_jalali(1408, 11, 30)
+    assert is_occurrence_day(cadence, start_leap, from_jalali(1408, 12, 30)) is True
+    assert is_occurrence_day(cadence, start_leap, from_jalali(1408, 12, 29)) is False
+
+
+def test_month_period_follows_jalali_not_gregorian():
+    """The bug this replaced: a quota month used to reset on 1 August, which
+    falls in the middle of Shahrivar and split the user's month in two."""
+    # 1405-06 (Shahrivar) runs 2026-08-23 .. 2026-09-22
+    first, last = date(2026, 8, 23), date(2026, 9, 22)
+    assert period_key(first, "month") == "M1405-06"
+    assert period_key(last, "month") == "M1405-06"
+    assert period_bounds(date(2026, 8, 27), "month") == (first, last)
+    # 1 August and 1 September land in *different* Jalali months than each
+    # other's neighbours -- and neither opens a period.
+    assert period_key(date(2026, 8, 1), "month") == "M1405-05"
+    assert period_key(date(2026, 8, 22), "month") == "M1405-05"
+    assert period_key(date(2026, 9, 23), "month") == "M1405-07"
+    # Nowruz opens Farvardin
+    assert period_bounds(date(2026, 3, 21), "month") == (
+        date(2026, 3, 21),
+        date(2026, 4, 20),
+    )
 
 
 # ---------- recurring_quota ----------

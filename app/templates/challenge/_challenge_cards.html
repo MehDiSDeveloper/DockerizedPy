@@ -6,7 +6,8 @@
     <p>
       <span>{{ c.category.value }}</span>
       <span data-icon="users"></span><span>{{ c.enrollments|length }}</span>
-      {% if c.due_date %}<span data-icon="calendar"></span><span>{{ c.due_date.strftime('%Y-%m-%d') }}</span>{% endif %}
+      {% if c.due_date %}<span data-icon="calendar"></span><span data-jalali="{{ c.due_date.isoformat() }}"
+        data-jalali-format="day-month-year">{{ c.due_date.strftime('%Y-%m-%d') }}</span>{% endif %}
     </p>
   </div>
 </a>

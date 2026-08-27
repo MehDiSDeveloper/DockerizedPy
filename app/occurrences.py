@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import calendar
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
+from app.jalali import days_in_month, from_jalali, to_jalali
+from app.jalali import month_bounds as jalali_month_bounds
 from app.schemas.cadence import (
     CadenceUnion,
     OnceCadence,
@@ -14,6 +15,9 @@ from app.schemas.cadence import (
 )
 
 BACKFILL_DAYS = 2
+# Guard rail for `M<year>-<month>` period keys, which are Jalali. Wide enough
+# to never reject real data, narrow enough to reject a Gregorian year.
+PLAUSIBLE_JALALI_YEARS = (1200, 1700)
 IR_WEEK_OFFSET = 2
 MAX_STREAK_WALK = 400
 
@@ -42,7 +46,14 @@ def week_key(d: date) -> str:
 
 
 def month_key(d: date) -> str:
-    return f"M{d.year:04d}-{d.month:02d}"
+    """`M<jalali year>-<jalali month>`.
+
+    Months are Jalali, not Gregorian: a "10 times a month" challenge has to
+    reset when the user's calendar says a new month started (شهریور), not on
+    1 August. Weeks are already Iranian (Saturday-start) for the same reason.
+    """
+    jy, jm, _ = to_jalali(d)
+    return f"M{jy:04d}-{jm:02d}"
 
 
 def period_key(d: date, period: str) -> str:
@@ -58,9 +69,7 @@ def period_bounds(d: date, period: str) -> tuple[date, date]:
         start = week_start(d)
         return start, start + timedelta(days=6)
     if period == "month":
-        start = d.replace(day=1)
-        last_day = calendar.monthrange(d.year, d.month)[1]
-        return start, d.replace(day=last_day)
+        return jalali_month_bounds(d)
     raise ValueError(f"unknown period: {period}")
 
 
@@ -87,7 +96,14 @@ def _parse_period_key(period: str, pkey: str) -> date | None:
             if not pkey.startswith("M"):
                 return None
             year_str, month_str = pkey[1:].split("-")
-            period_start = date(int(year_str), int(month_str), 1)
+            jy = int(year_str)
+            # A pre-migration key (`M2026-08`, Gregorian) is a *syntactically*
+            # valid Jalali year, so without this it would resolve ~600 years
+            # out instead of being rejected. Fail closed on anything outside a
+            # plausible Jalali year rather than silently mis-bucketing it.
+            if not PLAUSIBLE_JALALI_YEARS[0] <= jy <= PLAUSIBLE_JALALI_YEARS[1]:
+                return None
+            period_start = from_jalali(jy, int(month_str), 1)
         else:
             return None
     except (ValueError, IndexError):
@@ -112,11 +128,15 @@ def is_occurrence_day(cadence: RecurringDaysCadence, start_date: date, d: date) 
         weeks_between = (week_start(d) - week_start(start_date)).days // 7
         return weeks_between % cadence.n == 0
     if cadence.mode == "every_n_months":
-        months_between = (d.year - start_date.year) * 12 + (d.month - start_date.month)
+        # Jalali months here too -- "every 2 months" from ۱ شهریور must land on
+        # ۱ آبان, not on the 1st of some Gregorian month the user never sees.
+        jy, jm, jd = to_jalali(d)
+        sy, sm, sd = to_jalali(start_date)
+        months_between = (jy - sy) * 12 + (jm - sm)
         if months_between % cadence.n != 0:
             return False
-        target_day = min(start_date.day, calendar.monthrange(d.year, d.month)[1])
-        return d.day == target_day
+        target_day = min(sd, days_in_month(jy, jm))
+        return jd == target_day
     return False
 
 

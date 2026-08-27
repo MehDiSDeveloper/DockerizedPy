@@ -18,6 +18,25 @@ app = FastAPI(title="Challenge Manager API")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 
+class RevalidatedStaticFiles(StaticFiles):
+    """Force browsers to revalidate static assets instead of serving a
+    stale copy from disk cache.
+
+    There is no cache-busting hash in the asset URLs, so without this a
+    browser can hold on to an old ``styles.css``/``app.js`` after an edit
+    and render the new markup against the old stylesheet -- which looks
+    exactly like a broken template rather than a caching problem. The
+    ETag/Last-Modified handling StaticFiles already does makes each
+    revalidation a cheap 304, so this costs a conditional request, not a
+    re-download.
+    """
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_page(request: Request, exc: StarletteHTTPException):
     """Render SSR errors as HTML instead of the API's JSON ``{"detail": ...}``.
@@ -59,6 +78,6 @@ app.include_router(challenge_views.router)
 app.include_router(home_views.router)
 app.include_router(today_views.router)
 app.include_router(user_views.router)
-app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+app.mount("/static", RevalidatedStaticFiles(directory=BASE_DIR / "static"), name="static")
 # Uncommenting the line below also requires re-adding `import debugpy` above.
 # debugpy.listen(("0.0.0.0", 5678))

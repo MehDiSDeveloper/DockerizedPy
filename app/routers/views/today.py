@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse
@@ -17,6 +18,22 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
+
+
+def _local_time(dt: datetime, tz: str) -> str:
+    """Wall-clock HH:MM in the enrollment's own zone.
+
+    Only a pre-JS fallback: app.js re-renders the same instant with Persian
+    digits over the top. It still has to be the *right* time, though -- printing
+    the raw UTC clock here would flash a wrong hour on every scheduled card.
+    """
+    try:
+        return dt.astimezone(ZoneInfo(tz)).strftime("%H:%M")
+    except (ZoneInfoNotFoundError, ValueError):
+        return dt.astimezone(UTC).strftime("%H:%M")
+
+
+templates.env.filters["local_time"] = _local_time
 
 
 def _redirect_to_login() -> RedirectResponse:

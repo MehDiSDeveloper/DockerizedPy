@@ -27,7 +27,8 @@
   <h1>{{challenge.title}}</h1>
   <div class="detail-stats">
     <div><b id="participantCount">{{ participant_count }}</b><span>شرکت‌کننده</span></div>
-    <div><b>{{ challenge.due_date.strftime('%Y-%m-%d') if challenge.due_date else '—' }}</b><span>مهلت</span></div>
+    <div><b{% if challenge.due_date %} data-jalali="{{ challenge.due_date.isoformat() }}"
+      data-jalali-format="numeric"{% endif %}>{{ challenge.due_date.strftime('%Y-%m-%d') if challenge.due_date else '—' }}</b><span>مهلت</span></div>
     <div class="gold">
       <b>{% if my_streak is not none %}<span data-icon="flame"></span>{{ my_streak }}{% else %}—{% endif %}</b>
       <span>پیاپی من</span>
@@ -85,28 +86,84 @@
 </section>
 
 {% if is_enrolled %}
+{% set state_labels = {'completed': 'تکمیل‌شده', 'skipped': 'رد شده', 'missed': 'ازدست‌رفته', 'pending': 'در انتظار'} %}
 <section class="detail-section">
   <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
     <h2 style="margin:0;">تاریخچه من</h2>
     <span class="cc-tag">خوداظهاری</span>
   </div>
-  <div class="heatmap" id="historyHeatmap">
-    {% for week in heatmap_weeks %}
-    <div class="heatmap-week">
-      {% for cell in week %}
-      <button type="button" class="heatmap-cell {{ cell.state }}{{ ' writable' if cell.writable else '' }}" {% if not
-        cell.writable %}disabled{% endif %} data-date="{{ cell.date.isoformat() }}" data-key="{{ cell.key or '' }}"
-        aria-label="{{ cell.date.isoformat() }} — {{ cell.state }}"></button>
-      {% endfor %}
+
+  {% if history_summary %}
+  <div class="history-summary">
+    <div class="history-metric">
+      <b>{{ history_summary.pct }}٪</b>
+      <span>{{ history_summary.completed }} از {{ history_summary.total }} {{ history_summary.unit }}</span>
+    </div>
+    <div class="history-metric gold">
+      <b><span data-icon="flame"></span>{{ my_longest_streak }}</b>
+      <span>بلندترین پیاپی</span>
+    </div>
+    <div class="history-metric">
+      <b>{{ history_summary.period_done }}<span class="dim"> / {{ history_summary.period_total }}</span></b>
+      <span>{{ history_summary.period_label }}</span>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if cadence_kind == 'recurring_quota' %}
+  <div class="quota-history" id="quotaHistory">
+    {% for row in quota_rows %}
+    <div class="quota-row{{ ' current' if row.is_current else '' }}">
+      <div class="quota-row-head">
+        <span class="quota-row-label" data-jalali="{{ row.start.isoformat() }}"
+          data-jalali-format="{{ 'month' if challenge.cadence.period == 'month' else 'day-month' }}"
+          data-jalali-prefix="{{ '' if challenge.cadence.period == 'month' else 'هفتهٔ ' }}">{{ row.start.isoformat() }}</span>
+        <span class="quota-row-count">{{ row.done }} از {{ row.target }}</span>
+      </div>
+      <div class="quota-pips" role="img"
+        aria-label="{{ row.done }} از {{ row.target }} نوبت انجام شده">
+        {% for i in range(row.target) %}
+        <span class="quota-pip{{ ' done' if i < row.done else '' }}"></span>
+        {% endfor %}
+      </div>
+      {% if row.writable_key %}
+      <button type="button" class="tl-action solid quota-submit" data-key="{{ row.writable_key }}">
+        ثبت نوبت جدید
+      </button>
+      {% endif %}
     </div>
     {% endfor %}
   </div>
-  <div class="heatmap-legend">
-    <span class="heatmap-legend-item"><span class="heatmap-legend-dot completed"></span>تکمیل‌شده</span>
-    <span class="heatmap-legend-item"><span class="heatmap-legend-dot skipped"></span>رد شده</span>
-    <span class="heatmap-legend-item"><span class="heatmap-legend-dot missed"></span>ازدست‌رفته</span>
-    <span class="heatmap-legend-item"><span class="heatmap-legend-dot pending"></span>در انتظار</span>
-  </div>
+
+  {% else %}
+  <ol class="timeline" id="historyTimeline">
+    {% for item in timeline %}
+    <li class="tl-row {{ item.state }}{{ ' today' if item.is_today else '' }}" data-key="{{ item.key }}"
+      data-date="{{ item.date.isoformat() }}">
+      <span class="tl-badge" aria-hidden="true"></span>
+      <div class="tl-main">
+        <div class="tl-date" data-jalali="{{ item.date.isoformat() }}" data-jalali-format="weekday-day-month">
+          {{ item.date.isoformat() }}</div>
+        <div class="tl-meta">
+          {{ 'امروز · ' if item.is_today else '' }}{{ state_labels.get(item.state, item.state) }}{% if item.amount %} ·
+          {{ item.amount }} {{ goal_unit or '' }}{% endif %}
+        </div>
+      </div>
+      {% if item.writable %}
+      <button type="button" class="tl-action" data-key="{{ item.key }}"
+        data-jalali="{{ item.date.isoformat() }}" data-jalali-format="weekday-day-month"
+        data-jalali-prefix="ثبت " data-jalali-attr="aria-label"
+        aria-label="ثبت {{ item.date.isoformat() }}">ثبت</button>
+      {% endif %}
+    </li>
+    {% else %}
+    <li class="tl-empty">هنوز نوبتی برای این چالش نرسیده.</li>
+    {% endfor %}
+  </ol>
+  {% if has_more_history %}
+  <p class="tl-more">فقط {{ timeline|length }} نوبت اخیر نشان داده شده.</p>
+  {% endif %}
+  {% endif %}
 </section>
 {% endif %}
 
@@ -176,57 +233,92 @@
   renderCta();
 
   const goalUnit = {{ (challenge.goal_unit or "")| tojson }};
-  const heatmap = document.getElementById("historyHeatmap");
-  if (heatmap) {
-    heatmap.addEventListener("click", (e) => {
-      const cell = e.target.closest(".heatmap-cell.writable");
-      if (!cell) return;
-      const occurrenceKey = cell.dataset.key;
-      if (!occurrenceKey) return;
 
-      const fields = [];
-      if (goalUnit) {
-        fields.push({
-          name: "amount",
-          label: `مقدار (${goalUnit})`,
-          type: "number",
-          step: "any",
-          required: true,
+  // Shared by the occurrence timeline and the quota period rows -- both
+  // post to the same /checkins/ endpoint with a different occurrence_key.
+  function openCheckinSheet(occurrenceKey, dateLabel, onDone) {
+    const fields = [];
+    if (goalUnit) {
+      fields.push({
+        name: "amount",
+        label: `مقدار (${goalUnit})`,
+        type: "number",
+        step: "any",
+        required: true,
+      });
+    }
+    fields.push({ name: "note", label: "یادداشت (اختیاری)", type: "text", maxlength: 500 });
+    fields.push({ name: "photo_url", label: "لینک عکس (اختیاری)", type: "url", maxlength: 500 });
+
+    async function submit(state, values) {
+      const payload = {
+        challenge_id: challengeId,
+        occurrence_key: occurrenceKey,
+        state,
+        note: values.note || null,
+        photo_url: values.photo_url || null,
+      };
+      if (goalUnit) payload.amount = values.amount || null;
+
+      const { ok, data } = await apiFetch("/checkins/", { method: "POST", body: payload });
+      if (!ok) {
+        showToast("خطا: " + (data && data.detail ? data.detail : "ثبت انجام نشد"));
+        return false;
+      }
+
+      showToast(state === "completed" ? "ثبت شد" : "رد شد");
+      onDone(state);
+      return true;
+    }
+
+    createSheet({
+      title: dateLabel,
+      fields: fields,
+      confirmLabel: "تکمیل شد",
+      skipLabel: "رد کردم",
+      onConfirm: (values) => submit("completed", values),
+      onSkip: (values) => submit("skipped", values),
+    });
+  }
+
+  const timeline = document.getElementById("historyTimeline");
+  if (timeline) {
+    timeline.addEventListener("click", (e) => {
+      const row = e.target.closest(".tl-row");
+      if (!row) return;
+      const btn = e.target.closest(".tl-action");
+      if (btn) {
+        openCheckinSheet(btn.dataset.key, row.querySelector(".tl-date").textContent.trim(), (state) => {
+          row.classList.remove("pending", "missed");
+          row.classList.add(state === "completed" ? "completed" : "skipped");
+          row.querySelector(".tl-meta").textContent =
+            state === "completed" ? "تکمیل‌شده" : "رد شده";
+          btn.remove();
         });
+        return;
       }
-      fields.push({ name: "note", label: "یادداشت (اختیاری)", type: "text", maxlength: 500 });
-      fields.push({ name: "photo_url", label: "لینک عکس (اختیاری)", type: "url", maxlength: 500 });
+      // Recorded / expired rows explain themselves rather than sitting inert.
+      const meta = row.querySelector(".tl-meta");
+      showToast(`${row.querySelector(".tl-date").textContent.trim()} — ${meta.textContent.trim()}`);
+    });
+  }
 
-      async function submit(state, values) {
-        const payload = {
-          challenge_id: challengeId,
-          occurrence_key: occurrenceKey,
-          state,
-          note: values.note || null,
-          photo_url: values.photo_url || null,
-        };
-        if (goalUnit) payload.amount = values.amount || null;
-
-        const { ok, data } = await apiFetch("/checkins/", { method: "POST", body: payload });
-        if (!ok) {
-          showToast("خطا: " + (data && data.detail ? data.detail : "ثبت انجام نشد"));
-          return false;
-        }
-
-        cell.classList.remove("pending", "none", "writable");
-        cell.classList.add(state === "completed" ? "completed" : "skipped");
-        cell.disabled = true;
-        showToast(state === "completed" ? "ثبت شد ✅" : "رد شد");
-        return true;
-      }
-
-      createSheet({
-        title: cell.dataset.date,
-        fields: fields,
-        confirmLabel: "تکمیل شد",
-        skipLabel: "رد کردم",
-        onConfirm: (values) => submit("completed", values),
-        onSkip: (values) => submit("skipped", values),
+  const quotaHistory = document.getElementById("quotaHistory");
+  if (quotaHistory) {
+    quotaHistory.addEventListener("click", (e) => {
+      const btn = e.target.closest(".quota-submit");
+      if (!btn) return;
+      const row = btn.closest(".quota-row");
+      openCheckinSheet(btn.dataset.key, row.querySelector(".quota-row-label").textContent.trim(), () => {
+        const countEl = row.querySelector(".quota-row-count");
+        const [done, target] = countEl.textContent.split(" از ").map(Number);
+        const newDone = Math.min(done + 1, target);
+        countEl.textContent = `${newDone} از ${target}`;
+        const pips = row.querySelectorAll(".quota-pip");
+        if (pips[newDone - 1]) pips[newDone - 1].classList.add("done");
+        row.querySelector(".quota-pips").setAttribute(
+          "aria-label", `${newDone} از ${target} نوبت انجام شده`);
+        if (newDone >= target) btn.remove();
       });
     });
   }

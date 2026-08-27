@@ -30,7 +30,7 @@ Debugging in Docker: `.vscode/launch.json` has "Docker: Attach to FastAPI" (atta
 
 ## Testing
 
-`tests/` covers the occurrence engine (`test_occurrences.py`), timezone/backfill-window edge cases (`test_timezone_boundaries.py`), check-in idempotency (`test_checkin_idempotency.py`), and the challenge lock/visibility/auto-enrollment rules (`test_challenge_lifecycle.py`). Run with:
+`tests/` covers the occurrence engine (`test_occurrences.py`), the Jalali converter against ICU (`test_jalali.py`), timezone/backfill-window edge cases (`test_timezone_boundaries.py`), check-in idempotency (`test_checkin_idempotency.py`), and the challenge lock/visibility/auto-enrollment rules (`test_challenge_lifecycle.py`). Run with:
 
 ```powershell
 .venv\Scripts\python -m pytest tests\ -q
@@ -100,9 +100,13 @@ New challenge/enrollment endpoints must reuse that filter and the same session-d
 | `schedule` | `S` + ISO-8601 UTC instant | `S2026-09-14T06:00:00+00:00` |
 | `recurring_days` | `D` + local ISO date | `D2026-09-14` |
 | `recurring_quota` (week) | `W` + local Saturday ISO date + `#` + seq | `W2026-09-12#1` |
-| `recurring_quota` (month) | `M` + `YYYY-MM` + `#` + seq | `M2026-09#3` |
+| `recurring_quota` (month) | `M` + **Jalali** `YYYY-MM` + `#` + seq | `M1405-06#3` |
 
 **Weekdays are Iranian-indexed everywhere in this codebase: `0 = Saturday … 6 = Friday`**, not Python's Monday-0. Convert with `(d.weekday() + 2) % 7` (`to_ir_weekday`). Weeks start Saturday too — `week_key()` returns `W<local Saturday date>`, not an ISO year-week.
+
+**Months are Jalali, not Gregorian.** `month_key()` emits `M1405-06` (Shahrivar), `period_bounds(d, "month")` returns that month's real span (23 Aug – 22 Sep 2026), and `is_occurrence_day`'s `every_n_months` steps Jalali months too. This is not cosmetic — a Gregorian month reset mid-Shahrivar and split a user's quota across two buckets, so someone who met their target inside the month they could actually see was shown as having missed it. Migration `e91c47d2f0a3` rewrote the pre-existing `M2026-08`-style keys, re-deriving each row's period from its own `occurrence_local_date` (a Gregorian month straddles two Jalali months, so the old key alone is ambiguous) and renumbering `#seq` within the new period. `_parse_period_key` rejects Jalali years outside `PLAUSIBLE_JALALI_YEARS`, so an un-migrated key fails closed instead of resolving ~600 years out.
+
+Conversion lives in **`app/jalali.py`** — pure arithmetic, no dependency (a package would have to survive the UTF-16 `requirements.txt` caveat above, and `faker` already shows how that breaks the Docker image). `tests/test_jalali.py` checks all ~44,000 days from 1300 to 1420 against ICU's Persian calendar, which is the same authority the browser formats with — so the server can never bucket a date into a month the UI labels differently.
 
 **Backfill window**: a key is writable only within `BACKFILL_DAYS = 2` of its occurrence closing (`once` never closes, so it's always writable). `is_key_writable()` is the security boundary for `POST /checkins` — it re-derives whether a client-supplied key is legal for the cadence and enrollment; never trust the key as given. Outside the window, create/edit/delete on `/checkins` all return 403.
 
@@ -127,7 +131,18 @@ Because sessions are async, **any relationship touched after the query must be e
 Underscore-prefixed templates (`challenge/_challenge_cards.html`, `home/_enrollment_cards.html`) are **infinite-scroll fragments**, `{% include %}`-ed for the first server-rendered page and re-served by `/fragment` endpoints for subsequent pages. The contract:
 
 - The `/fragment` route returns bare card markup plus an `X-Has-More: true|false` response header.
-- `createInfiniteScroller()` in `app.js` observes a sentinel, appends the HTML, re-runs `renderIcons()` on the new nodes, and redirects to `/views/auth/` on a 401. A `reset()` supersedes in-flight requests via a request token — keep that guard when editing.
-- `app.js` also exposes `renderIcons` (inline SVG set injected into `[data-icon]`), `debounce`, and `showToast`; `[data-coming-soon]` elements toast instead of doing nothing.
+- `createInfiniteScroller()` in `app.js` observes a sentinel, appends the HTML, re-runs `renderIcons()` **and `renderDates()`** on the new nodes, and redirects to `/views/auth/` on a 401. A `reset()` supersedes in-flight requests via a request token — keep that guard when editing.
+- `app.js` also exposes `renderIcons` (inline SVG set injected into `[data-icon]`), `renderDates`, `formatJalali`, `debounce`, and `showToast`; `[data-coming-soon]` elements toast instead of doing nothing.
+
+### Dates and times in the UI
+
+Storage stays Gregorian/UTC; **every date and time the user sees is Jalali**, converted client-side by `renderDates()` in `app.js` (`Intl.DateTimeFormat("fa-IR-u-ca-persian")`). There is deliberately no Python Jalali dependency — adding one would have to survive the UTF-16 `requirements.txt` caveat above, and `Intl` needs nothing. Templates render the ISO value as the element's text *and* into the data attribute, so the pre-JS/no-`Intl` fallback is a real (if Gregorian) date.
+
+- `data-jalali="<ISO>"` + optional `data-jalali-format` (`day-month`, `weekday-day-month`, `day-month-year`, `month`, `numeric`, `time`, `datetime`, `datetime-full`), `data-jalali-tz`, `data-jalali-prefix`, `data-jalali-attr` (write into an attribute instead of `textContent`).
+- **A bare `YYYY-MM-DD` is a floating local date and is never shifted between zones; a value containing `T` is an instant.** An instant with no offset is read as UTC — SQLite has no aware datetime type, so dev/test hand back `2026-10-06T11:06:36` where Postgres appends `+00:00`, and `new Date()` would otherwise read those as the *viewer's* local time.
+- **Instants are rendered in the timezone they were judged in, not the viewer's.** Enrollment-scoped instants (Today's windows) pass `data-jalali-tz="{{ item.timezone }}"`; `APP_TIMEZONE` (`Asia/Tehran`) is only the fallback for challenge-level instants like `due_date`/`created_at`, mirroring `DEFAULT_TIMEZONE` in `routers/challenge.py`.
+- Two CLDR `fa` patterns come out year-first (`۱۴۰۵ شهریور`), which no Iranian writes: `datetime-full` therefore uses `dateStyle`/`timeStyle`, and the `month` label is reassembled from `formatToParts`. Time formats pin `hour12: false`.
+- **Date entry** is `app/static/js/jalali-picker.js`, loaded only by `create-challenge.html`. Native `<input type="date">` / `type="datetime-local"` cannot render a Jalali calendar, so it hides each one (keeping it in the DOM as the value holder, same ISO format, same `min`/`max`, still firing `input`/`change`) and puts a `.jp-trigger` button plus a bottom sheet in front. Everything reading `.value` is untouched. Its calendar maths comes from ICU too — 1 Farvardin is found by asking `Intl` which of 19–23 March it is, rather than reimplementing the 33-year leap cycle. Rows added after load (the schedule list) must call `enhanceJalaliInputs(row)`.
+- Today's cards split the deadline in two: the server renders the fixed window label (only it knows the cadence — `تا پایان امروز` for `recurring_days`, `تا پایان این هفته/ماه` for `recurring_quota`, the clock time for `schedule`, no deadline for `once`), and `[data-deadline]` carries a live remainder that `renderDeadlines()` re-ticks every 60s. `TodayItem` exists to feed this: it carries `timezone`, `cadence_kind`, and `quota_period` for exactly that reason. `closes_at_utc` is an *exclusive* bound (local midnight opening the next day), so `data-deadline-exclusive` makes the tooltip name the last instant inside the window instead.
 
 **The SSR "form" pages post JSON, not form-encoded data.** `POST /views/challenges/create` takes a Pydantic `ChallengeCreateUnion` body, and `create-challenge.html` / `auth.html` submit via `fetch(..., {headers: {"Content-Type": "application/json"}})`. Don't "fix" these handlers to `Form(...)` without changing the templates.

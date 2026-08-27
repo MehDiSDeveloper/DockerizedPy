@@ -14,7 +14,8 @@
       <div class="edit-badge"><span data-icon="camera"></span></div>
     </div>
     <h1>{{user.name}}</h1>
-    <p>عضو از {{user.created_at.strftime('%Y-%m-%d')}}</p>
+    <p>عضو از <span data-jalali="{{ user.created_at.isoformat() }}"
+      data-jalali-format="day-month-year">{{ user.created_at.strftime('%Y-%m-%d') }}</span></p>
   </div>
 
   <section class="stats">

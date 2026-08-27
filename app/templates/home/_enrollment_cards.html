@@ -9,7 +9,9 @@
 
   <div class="cc-meta">
     <span class="cc-meta-item" data-icon="users"></span><span>{{ e.challenge.enrollments|length }} نفر</span>
-    {% if e.challenge.due_date %}<span class="cc-meta-item" data-icon="calendar"></span><span>{{ e.challenge.due_date.strftime('%Y-%m-%d') }}</span>{% endif %}
+    {% if e.challenge.due_date %}<span class="cc-meta-item" data-icon="calendar"></span><span
+      data-jalali="{{ e.challenge.due_date.isoformat() }}"
+      data-jalali-format="day-month-year">{{ e.challenge.due_date.strftime('%Y-%m-%d') }}</span>{% endif %}
   </div>
 
   <div class="cc-actions">

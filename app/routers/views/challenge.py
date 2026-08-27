@@ -15,9 +15,19 @@ from app.auth import get_current_user_id, get_optional_user_id
 from app.config import BASE_DIR
 from app.database import get_db
 from app.models.challenge import Challenge, ChallengeCategory
+from app.models.checkin import CheckIn
 from app.models.enrollment import Enrollment
 from app.models.stats import ChallengeStats
-from app.occurrences import expected_keys_desc, is_key_writable, local_today, week_start
+from app.occurrences import (
+    derive_state,
+    expected_keys_desc,
+    is_key_writable,
+    local_today,
+    occurrences_due,
+    period_bounds,
+    period_key,
+    week_start,
+)
 from app.routers.challenge import (
     DEFAULT_PAGE_SIZE,
     DEFAULT_TIMEZONE,
@@ -26,15 +36,19 @@ from app.routers.challenge import (
     fetch_challenge_page,
     resolve_timezone,
 )
-from app.routers.checkin import parse_cadence
-from app.routers.enrollment import build_enrollment_history
+from app.routers.checkin import occurrence_local_date, parse_cadence
+from app.schemas.cadence import CadenceUnion, RecurringQuotaCadence
 from app.schemas.challenge import ChallengeCreate
 
 logger = logging.getLogger(__name__)
 
-# How many past weeks the challenge-detail heatmap shows, in addition to the
-# current week (Saturday-first, per D6).
-HEATMAP_WEEKS_BACK = 7
+# How many occurrences the challenge-detail history timeline shows before
+# collapsing the rest behind a "show older" note.
+HISTORY_LIMIT = 12
+
+# How many past periods (weeks/months) the recurring_quota history strip
+# shows, in addition to the current period.
+QUOTA_PERIODS_BACK = 5
 
 router = APIRouter(prefix="/views/challenges", tags=["challenge-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
@@ -169,6 +183,162 @@ async def challenge_list_fragment(
     return response
 
 
+async def build_history_timeline(
+    db: AsyncSession,
+    enrollment: Enrollment,
+    cadence: CadenceUnion,
+    now_utc: datetime,
+) -> tuple[list[dict], dict, bool]:
+    """Occurrence-shaped history: one entry per real occurrence, newest
+    first -- deliberately NOT one per calendar day. A "every Tuesday"
+    challenge has ~1 occurrence a week, so a day grid renders 6/7 empty
+    cells per row and reads as broken; walking expected_keys_desc gives
+    only the days the cadence actually asks for."""
+    today = local_today(enrollment.timezone, now_utc)
+    keys = expected_keys_desc(
+        cadence, start_date=enrollment.start_date, tz=enrollment.timezone, until=today
+    )
+
+    result = await db.execute(
+        select(CheckIn).where(CheckIn.enrollment_id == enrollment.id)
+    )
+    by_key = {c.occurrence_key: c for c in result.scalars().all()}
+
+    def date_for(key: str):
+        row = by_key.get(key)
+        if row is not None:
+            return row.occurrence_local_date
+        return occurrence_local_date(cadence, key, enrollment.timezone, now_utc)
+
+    completed = sum(
+        1 for k in keys if k in by_key and by_key[k].state == "completed"
+    )
+    this_week_start = week_start(today)
+    week_keys = [k for k in keys if date_for(k) >= this_week_start]
+    week_completed = sum(
+        1 for k in week_keys if k in by_key and by_key[k].state == "completed"
+    )
+
+    items = []
+    for key in keys[:HISTORY_LIMIT]:
+        row = by_key.get(key)
+        state = derive_state(
+            cadence,
+            start_date=enrollment.start_date,
+            tz=enrollment.timezone,
+            key=key,
+            now_utc=now_utc,
+            row_state=row.state if row else None,
+        )
+        local_date = date_for(key)
+        items.append(
+            {
+                "key": key,
+                "date": local_date,
+                "is_today": local_date == today,
+                "state": state,
+                "amount": row.amount if row else None,
+                "note": row.note if row else None,
+                # Only offer the sheet for occurrences with nothing recorded
+                # yet -- an already completed/skipped row has no PATCH/DELETE
+                # UI here, and re-POSTing it would silently no-op (the
+                # idempotent-conflict path in POST /checkins returns 200 for
+                # the existing row without changing its state).
+                "writable": state in ("pending", "missed")
+                and is_key_writable(
+                    cadence,
+                    start_date=enrollment.start_date,
+                    tz=enrollment.timezone,
+                    key=key,
+                    now_utc=now_utc,
+                ),
+            }
+        )
+
+    summary = {
+        "completed": completed,
+        "total": len(keys),
+        "unit": "نوبت",
+        "pct": round(completed / len(keys) * 100) if keys else 0,
+        "period_done": week_completed,
+        "period_total": len(week_keys),
+        "period_label": "این هفته",
+    }
+    return items, summary, len(keys) > HISTORY_LIMIT
+
+
+async def build_quota_period_rows(
+    db: AsyncSession,
+    enrollment: Enrollment,
+    cadence: RecurringQuotaCadence,
+    now_utc: datetime,
+) -> tuple[list[dict], dict]:
+    """One row per quota period (week/month), most recent first. Quota
+    occurrences have no per-day calendar slot of their own (CLAUDE.md: D6/D9
+    cadence notes), so a day grid doesn't fit them -- a period is the
+    natural unit here instead."""
+    today = local_today(enrollment.timezone, now_utc)
+    current_pkey = period_key(today, cadence.period)
+
+    checkins_result = await db.execute(
+        select(CheckIn.occurrence_key).where(
+            CheckIn.enrollment_id == enrollment.id,
+            CheckIn.state == "completed",
+        )
+    )
+    done_by_period: dict[str, int] = {}
+    for (key,) in checkins_result.all():
+        pkey = key.split("#", 1)[0]
+        done_by_period[pkey] = done_by_period.get(pkey, 0) + 1
+
+    due = occurrences_due(
+        cadence,
+        start_date=enrollment.start_date,
+        tz=enrollment.timezone,
+        now_utc=now_utc,
+        existing_keys=set(),
+        period_completed_counts=done_by_period,
+    )
+    next_writable_key = due[0].key if due else None
+
+    rows = []
+    d = today
+    for _ in range(QUOTA_PERIODS_BACK + 1):
+        pkey = period_key(d, cadence.period)
+        period_start, _ = period_bounds(d, cadence.period)
+        done = min(done_by_period.get(pkey, 0), cadence.count)
+        rows.append(
+            {
+                "pkey": pkey,
+                "start": period_start,
+                "is_current": pkey == current_pkey,
+                "done": done,
+                "target": cadence.count,
+                "writable_key": next_writable_key if pkey == current_pkey else None,
+            }
+        )
+        d = period_start - timedelta(days=1)
+        if d < enrollment.start_date:
+            break
+
+    # A quota period either meets its target or doesn't -- so the headline
+    # metric counts *periods met*, not individual check-ins (which is what
+    # the timeline's "نوبت" counts). Labelled accordingly.
+    met = sum(1 for r in rows if r["done"] >= r["target"])
+    current = next((r for r in rows if r["is_current"]), None)
+    is_week = cadence.period == "week"
+    summary = {
+        "completed": met,
+        "total": len(rows),
+        "unit": "هفته" if is_week else "ماه",
+        "pct": round(met / len(rows) * 100) if rows else 0,
+        "period_done": current["done"] if current else 0,
+        "period_total": cadence.count,
+        "period_label": "این هفته" if is_week else "این ماه",
+    }
+    return rows, summary
+
+
 @router.get("/{challenge_id}")
 async def challenge_detail(
     challenge_id: int,
@@ -231,56 +401,22 @@ async def challenge_detail(
         progress = (total_completions / denom) if denom else 0.0
     progress_pct = max(0, min(100, round(progress * 100)))
 
-    # Personal history heatmap (Saturday-first weeks, per D6) -- only the
-    # logged-in user's own enrollment has history to show.
-    heatmap_weeks = []
+    # Personal history -- only the logged-in user's own enrollment has any.
+    # recurring_quota is grouped into period rows (a quota has no per-day
+    # slot of its own); every other cadence gets the occurrence timeline.
+    timeline = []
+    quota_rows = []
+    history_summary = None
+    has_more_history = False
     if my_enrollment is not None:
-        my_today = local_today(my_enrollment.timezone, now_utc)
-        end_week_start = week_start(my_today)
-        start_week_start = end_week_start - timedelta(weeks=HEATMAP_WEEKS_BACK)
-        history = await build_enrollment_history(
-            db, my_enrollment, db_challenge, start_week_start, my_today
-        )
-        by_date = {item.local_date: item for item in history}
-
-        d = start_week_start
-        while d <= end_week_start:
-            week_cells = []
-            for offset in range(7):
-                day = d + timedelta(days=offset)
-                item = by_date.get(day)
-                if day > my_today:
-                    cell_state = "future"
-                elif item is not None:
-                    cell_state = item.state
-                else:
-                    cell_state = "none"
-                # Only offer the sheet for occurrences with nothing recorded
-                # yet -- an already completed/skipped cell has no PATCH/DELETE
-                # UI here, and re-POSTing it would just silently no-op (the
-                # idempotent-conflict path in POST /checkins returns 200 for
-                # the existing row without changing its state).
-                writable = (
-                    item is not None
-                    and item.state in ("pending", "missed")
-                    and is_key_writable(
-                        cadence,
-                        start_date=my_enrollment.start_date,
-                        tz=my_enrollment.timezone,
-                        key=item.occurrence_key,
-                        now_utc=now_utc,
-                    )
-                )
-                week_cells.append(
-                    {
-                        "date": day,
-                        "state": cell_state,
-                        "key": item.occurrence_key if item else None,
-                        "writable": writable,
-                    }
-                )
-            heatmap_weeks.append(week_cells)
-            d += timedelta(weeks=1)
+        if isinstance(cadence, RecurringQuotaCadence):
+            quota_rows, history_summary = await build_quota_period_rows(
+                db, my_enrollment, cadence, now_utc
+            )
+        else:
+            timeline, history_summary, has_more_history = await build_history_timeline(
+                db, my_enrollment, cadence, now_utc
+            )
 
     return templates.TemplateResponse(
         "challenge/challenge-detail.html",
@@ -288,13 +424,19 @@ async def challenge_detail(
             "title": f"چالش: {db_challenge.title}",
             "request": request,
             "challenge": db_challenge,
+            "cadence_kind": db_challenge.cadence_kind,
             "is_enrolled": is_enrolled,
             "participant_count": participant_count,
             "total_completions": total_completions,
             "total_amount": total_amount,
             "progress_pct": progress_pct,
             "my_streak": my_enrollment.current_streak if my_enrollment else None,
-            "heatmap_weeks": heatmap_weeks,
+            "my_longest_streak": my_enrollment.longest_streak if my_enrollment else None,
+            "timeline": timeline,
+            "has_more_history": has_more_history,
+            "quota_rows": quota_rows,
+            "history_summary": history_summary,
+            "goal_unit": db_challenge.goal_unit,
             "current_user_id": current_user_id,
             "active_nav": "challenges",
         },

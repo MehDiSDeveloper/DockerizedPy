@@ -1,4 +1,8 @@
 {% for item in items %}
+{#- The deadline the user is racing is not always `closes_at_utc`: a scheduled
+    occurrence stays writable until the end of the local day, but what the user
+    is actually late for is the scheduled instant itself. -#}
+{% set countdown_at = item.opens_at_utc if item.cadence_kind == 'schedule' else item.closes_at_utc %}
 <div class="challenge-card glass" data-today-item
      data-challenge-id="{{ item.challenge_id }}"
      data-occurrence-key="{{ item.occurrence_key }}"
@@ -10,9 +14,36 @@
   </div>
   <h3 class="cc-title"><a href="/views/challenges/{{ item.challenge_id }}">{{ item.challenge_title }}</a></h3>
 
+  {#- The window label is server-rendered because only the server knows the
+      cadence; the live remainder next to it is filled in (and re-ticked every
+      minute) by renderDeadlines() in app.js. Both are read in the enrollment's
+      own timezone, which is the zone the occurrence engine judged them in. -#}
   <div class="cc-meta">
-    <span class="cc-meta-item" data-icon="clock"></span>
-    <span>{% if item.closes_at_utc %}تا پایان امروز فرصت داری{% else %}هر وقت آماده بودی{% endif %}</span>
+    <span class="cc-meta-item">
+      <span data-icon="clock"></span>
+      <span class="cc-window">
+        {%- if item.cadence_kind == 'schedule' -%}
+          ساعت <b data-jalali="{{ item.opens_at_utc.isoformat() }}"
+                  data-jalali-format="time"
+                  data-jalali-tz="{{ item.timezone }}">{{ item.opens_at_utc | local_time(item.timezone) }}</b>
+        {%- elif item.cadence_kind == 'recurring_quota' -%}
+          تا پایان این {{ 'ماه' if item.quota_period == 'month' else 'هفته' }}
+        {%- elif item.cadence_kind == 'recurring_days' -%}
+          تا پایان امروز
+        {%- else -%}
+          هر وقت آماده بودی
+        {%- endif -%}
+      </span>
+      {%- if countdown_at %}
+      {#- Every countdown but the scheduled one targets `closes_at_utc`, which
+          is exclusive (local midnight opening the next day); the flag tells
+          app.js to name the last instant *inside* the window in the tooltip. -#}
+      <time class="cc-remaining" datetime="{{ countdown_at.isoformat() }}"
+            data-deadline="{{ countdown_at.isoformat() }}"
+            data-deadline-tz="{{ item.timezone }}"
+            {% if item.cadence_kind != 'schedule' %}data-deadline-exclusive{% endif %}></time>
+      {%- endif %}
+    </span>
   </div>
 
   <div class="cc-actions">

@@ -84,6 +84,12 @@ async def get_today_items(
                     quota_done=occ.quota_done,
                     quota_target=occ.quota_target,
                     goal_unit=challenge.goal_unit,
+                    timezone=enrollment.timezone,
+                    # From the parsed cadence, not challenge.cadence_kind: this
+                    # is the branch occurrences_due actually took, so the label
+                    # the UI picks can never disagree with the window it got.
+                    cadence_kind=cadence.kind,
+                    quota_period=getattr(cadence, "period", None),
                 )
             )
 
