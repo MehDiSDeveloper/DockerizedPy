@@ -1,18 +1,18 @@
 import enum
 
-from sqlalchemy import Column, Enum, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy import Column, Date, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship
-from app.database import Base
+
+from app.models.audit_base import AuditBase
 
 
 class EnrollmentStatus(str, enum.Enum):
-    ENROLLED = "enrolled"
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    DONE = "done"
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    ABANDONED = "abandoned"
 
 
-class Enrollment(Base):
+class Enrollment(AuditBase):
     __tablename__ = "Enrollments"
     __table_args__ = (
         UniqueConstraint("user_id", "challenge_id", name="uq_user_challenge"),
@@ -21,11 +21,17 @@ class Enrollment(Base):
     challenge_id = Column(Integer, ForeignKey("Challenges.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("Users.id"), nullable=False)
     status = Column(
-        Enum(EnrollmentStatus), nullable=False, default=EnrollmentStatus.ENROLLED
+        String(16), nullable=False, default=EnrollmentStatus.ACTIVE.value
     )
+    timezone = Column(String(64), nullable=False, default="Asia/Tehran")
+    start_date = Column(Date, nullable=False)
+    current_streak = Column(Integer, nullable=False, default=0)
+    longest_streak = Column(Integer, nullable=False, default=0)
+    last_checkin_local_date = Column(Date, nullable=True)
+    legacy_completed_count = Column(Integer, nullable=False, default=0)
 
     user = relationship("User", back_populates="enrollments")
     challenge = relationship("Challenge", back_populates="enrollments")
-    completed_count = Column(
-        Integer, nullable=False, default=0
-    )  # New column to track completion count
+    checkins = relationship(
+        "CheckIn", back_populates="enrollment", cascade="all, delete-orphan"
+    )

@@ -1,0 +1,27 @@
+{% for e in enrollments %}
+<div class="challenge-card glass {{ 'completed' if e.status.value == 'completed' else '' }}" data-enrollment-challenge-id="{{ e.challenge.id }}">
+  {% if e.status.value == 'completed' %}<div class="seal"><span>تکمیل<br/>شده</span></div>{% endif %}
+  <div class="cc-top">
+    <span class="cc-tag">{{ e.challenge.category.value }}</span>
+  </div>
+  <h3 class="cc-title"><a href="/views/challenges/{{ e.challenge.id }}">{{ e.challenge.title }}</a></h3>
+  <p class="cc-desc">{{ e.challenge.description or '' }}</p>
+
+  <div class="cc-meta">
+    <span class="cc-meta-item" data-icon="users"></span><span>{{ e.challenge.enrollments|length }} نفر</span>
+    {% if e.challenge.due_date %}<span class="cc-meta-item" data-icon="calendar"></span><span>{{ e.challenge.due_date.strftime('%Y-%m-%d') }}</span>{% endif %}
+  </div>
+
+  <div class="cc-actions">
+    {% if e.status.value != 'completed' %}
+    <button class="cc-btn ghost" data-action="unenroll" data-challenge-id="{{ e.challenge.id }}">
+      <span data-icon="x"></span> انصراف
+    </button>
+    {% else %}
+    <a class="cc-btn ghost" href="/views/challenges/{{ e.challenge.id }}">
+      <span data-icon="seal"></span> مشاهده نتیجه
+    </a>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}

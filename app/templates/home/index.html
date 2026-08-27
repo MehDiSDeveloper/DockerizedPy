@@ -1,47 +1,22 @@
-<!DOCTYPE html>
-<html lang="fa" dir="rtl">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>چالش | خانه</title>
-<link rel="stylesheet" href="css/styles.css" />
-</head>
-<body>
-<div class="app-bg"></div>
+{% extends "layout.html" %}
 
-<div class="shell">
-
-  <!-- top bar -->
-  <header class="topbar">
-    <div class="brand">
-      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#06231f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
-      <div class="brand-name">چالش<span>.</span></div>
-    </div>
-    <div style="display:flex; gap:8px; position:relative;">
-      <button class="icon-btn" aria-label="جستجو" data-icon="search"></button>
-      <button class="icon-btn has-dot" aria-label="اعلان‌ها" data-icon="bell"></button>
-    </div>
-  </header>
+{% block content %}
 
   <!-- greeting -->
   <section class="hero">
     <p class="hero-eyebrow">خوش برگشتی</p>
-    <h1 class="hero-title">سلام <b>مهدی</b> 👋<br/>امروز نوبت کدوم چالشه؟</h1>
+    <h1 class="hero-title">سلام <b>{{ user.name }}</b> 👋<br/>امروز نوبت کدوم چالشه؟</h1>
   </section>
 
   <!-- stats -->
   <section class="stats">
     <div class="stat-card glass accent">
-      <span class="stat-num" id="statActive">0</span>
+      <span class="stat-num" id="statActive">{{ stat_active }}</span>
       <span class="stat-label">چالش فعال</span>
     </div>
     <div class="stat-card glass mohr">
-      <span class="stat-num" id="statDone">0</span>
+      <span class="stat-num" id="statDone">{{ stat_done }}</span>
       <span class="stat-label">تکمیل‌شده</span>
-    </div>
-    <div class="stat-card glass gold">
-      <span class="stat-num" id="statStreak">0</span>
-      <span class="stat-label">روز پیاپی</span>
     </div>
   </section>
 
@@ -49,40 +24,117 @@
   <section>
     <div class="section-head">
       <h2>چالش‌های من</h2>
-      <div class="tabs">
-        <button class="tab active" data-filter="active">فعال</button>
-        <button class="tab" data-filter="completed">تکمیل‌شده</button>
+      <div class="tabs" role="tablist" aria-label="فیلتر وضعیت چالش‌ها">
+        <button class="tab active" data-filter="active" role="tab" aria-selected="true">فعال</button>
+        <button class="tab" data-filter="completed" role="tab" aria-selected="false">تکمیل‌شده</button>
       </div>
     </div>
 
-    <div class="challenge-list" id="challengeList">
-      <!-- rendered by app.js -->
+    <div class="challenge-list" id="challengeList"
+         data-page-size="{{ page_size }}"
+         data-initial-count="{{ enrollments|length }}"
+         data-has-more="{{ 'true' if has_more else 'false' }}">
+      {% include "home/_enrollment_cards.html" %}
     </div>
+    <div class="empty" id="homeEmpty" {{ 'hidden' if enrollments }}>
+      <span data-icon="empty"></span>
+      <p id="homeEmptyText">هنوز چالش فعالی نداری. یکی رو از فهرست چالش‌ها انتخاب کن یا خودت بساز.</p>
+    </div>
+    <div class="scroll-sentinel" id="homeSentinel" aria-hidden="true"></div>
+    <div class="list-loading" id="homeLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
   </section>
 
   <!-- FAB: create challenge -->
-  <a href="create-challenge.html" class="fab" aria-label="ساخت چالش جدید">
+  <a href="/views/challenges/create" class="fab" aria-label="ساخت چالش جدید">
     <span data-icon="plus"></span>
   </a>
+{% endblock %}
 
-  <!-- bottom nav -->
-  <nav class="bottom-nav">
-    <div class="nav-item active">
-      <span data-icon="home"></span>
-      خانه
-    </div>
-    <a href="explore.html" class="nav-item">
-      <span data-icon="list"></span>
-      چالش‌ها
-    </a>
-    <a href="profile.html" class="nav-item">
-      <span data-icon="user"></span>
-      پروفایل
-    </a>
-  </nav>
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const tabs = document.querySelectorAll(".tab");
+    const listEl = document.getElementById("challengeList");
+    const emptyEl = document.getElementById("homeEmpty");
+    const emptyText = document.getElementById("homeEmptyText");
+    const statActive = document.getElementById("statActive");
+    const statDone = document.getElementById("statDone");
 
-</div>
+    const emptyMessages = {
+      active: "هنوز چالش فعالی نداری. یکی رو از فهرست چالش‌ها انتخاب کن یا خودت بساز.",
+      completed: "هنوز چالشی رو تکمیل نکردی.",
+    };
 
-<script src="js/app.js"></script>
-</body>
-</html>
+    let activeStatus = "active";
+
+    const scroller = createInfiniteScroller({
+      container: listEl,
+      sentinel: document.getElementById("homeSentinel"),
+      loadingEl: document.getElementById("homeLoading"),
+      emptyEl: emptyEl,
+      pageSize: Number(listEl.dataset.pageSize) || 20,
+      initialOffset: Number(listEl.dataset.initialCount) || 0,
+      initialHasMore: listEl.dataset.hasMore === "true",
+      loginRedirectUrl: "/views/auth/?next=/views/home/",
+      buildUrl: (offset, limit) =>
+        `/views/home/fragment?${new URLSearchParams({ status: activeStatus, offset, limit })}`,
+      onEmpty: () => {
+        emptyText.textContent = emptyMessages[activeStatus];
+        emptyEl.hidden = false;
+      },
+    });
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        if (tab.dataset.filter === activeStatus) return;
+        tabs.forEach((t) => { t.classList.remove("active"); t.setAttribute("aria-selected", "false"); });
+        tab.classList.add("active");
+        tab.setAttribute("aria-selected", "true");
+        activeStatus = tab.dataset.filter;
+        emptyEl.hidden = true;
+        scroller.reset();
+      });
+    });
+
+    // Event delegation so unenroll works on both server-rendered cards
+    // and cards appended later by infinite scroll.
+    listEl.addEventListener("click", async (e) => {
+      const btn = e.target.closest('[data-action="unenroll"]');
+      if (!btn) return;
+      e.stopPropagation();
+      if (!confirm("از این چالش انصراف می‌دی؟")) return;
+      const challengeId = btn.dataset.challengeId;
+      btn.disabled = true;
+      try {
+        const res = await fetch(`/enrollments/${challengeId}`, { method: "DELETE" });
+        if (res.status === 401) {
+          window.location.href = "/views/auth/?next=/views/home/";
+          return;
+        }
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert("خطا: " + (err.detail || res.statusText));
+          btn.disabled = false;
+          return;
+        }
+        const card = btn.closest("[data-enrollment-challenge-id]");
+        if (card) {
+          card.remove();
+          scroller.notifyRemoved();
+        }
+        if (statActive) {
+          statActive.textContent = Math.max(0, Number(statActive.textContent) - 1);
+        }
+        if (!listEl.querySelector("[data-enrollment-challenge-id]")) {
+          emptyText.textContent = emptyMessages[activeStatus];
+          emptyEl.hidden = false;
+        }
+      } catch (err) {
+        alert("خطای شبکه: " + err.message);
+        btn.disabled = false;
+      }
+    });
+  });
+</script>
+{% endblock %}

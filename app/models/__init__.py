@@ -1,14 +1,16 @@
 # app/models/__init__.py
-from app.models.user import User
-from app.models.challenge import Challenge, RecurringChallenge, OneTimeChallenge
+from app.models.audit_base import AuditBase
+from app.models.challenge import Challenge
+from app.models.checkin import CheckIn
 from app.models.enrollment import Enrollment
-from app.models.auditBase import AuditBase
+from app.models.stats import ChallengeStats
+from app.models.user import User
 
 __all__ = [
-    "User",
-    "Challenge",
-    "RecurringChallenge",
-    "OneTimeChallenge",
-    "Enrollment",
     "AuditBase",
+    "Challenge",
+    "ChallengeStats",
+    "CheckIn",
+    "Enrollment",
+    "User",
 ]

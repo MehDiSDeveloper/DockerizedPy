@@ -1,0 +1,24 @@
+{% for item in items %}
+<div class="challenge-card glass" data-today-item
+     data-challenge-id="{{ item.challenge_id }}"
+     data-occurrence-key="{{ item.occurrence_key }}"
+     data-title="{{ item.challenge_title }}"
+     data-goal-unit="{{ item.goal_unit or '' }}">
+  <div class="cc-top">
+    <span class="cc-tag">{{ item.category }}</span>
+    {% if item.quota_target %}<span class="cc-tag">{{ item.quota_done }} از {{ item.quota_target }}</span>{% endif %}
+  </div>
+  <h3 class="cc-title"><a href="/views/challenges/{{ item.challenge_id }}">{{ item.challenge_title }}</a></h3>
+
+  <div class="cc-meta">
+    <span class="cc-meta-item" data-icon="clock"></span>
+    <span>{% if item.closes_at_utc %}تا پایان امروز فرصت داری{% else %}هر وقت آماده بودی{% endif %}</span>
+  </div>
+
+  <div class="cc-actions">
+    <button class="cc-btn" data-action="today-checkin">
+      <span data-icon="check"></span> ثبت وضعیت
+    </button>
+  </div>
+</div>
+{% endfor %}

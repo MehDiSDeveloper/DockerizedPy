@@ -1,0 +1,125 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+  <!-- greeting -->
+  <section class="hero">
+    <p class="hero-eyebrow">امروز</p>
+    <h1 class="hero-title">سلام <b>{{ user.name }}</b> 👋<br/>این‌ها منتظر ثبت شدنن.</h1>
+  </section>
+
+  <!-- stats -->
+  <section class="stats">
+    <div class="stat-card glass accent">
+      <span class="stat-num" id="todayCount">{{ total_count }}</span>
+      <span class="stat-label">مانده تا امروز</span>
+    </div>
+  </section>
+
+  <!-- today's occurrences -->
+  <section>
+    <div class="section-head">
+      <h2>موارد امروز</h2>
+    </div>
+
+    <div class="challenge-list" id="todayList"
+         data-page-size="{{ page_size }}"
+         data-initial-count="{{ items|length }}"
+         data-has-more="{{ 'true' if has_more else 'false' }}">
+      {% include "today/_today_cards.html" %}
+    </div>
+    <div class="empty" id="todayEmpty" {{ 'hidden' if items }}>
+      <span data-icon="seal"></span>
+      <p>امروز چیزی برای ثبت نداری. یه نفس بکش 🎉</p>
+    </div>
+    <div class="scroll-sentinel" id="todaySentinel" aria-hidden="true"></div>
+    <div class="list-loading" id="todayLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const listEl = document.getElementById("todayList");
+    const emptyEl = document.getElementById("todayEmpty");
+    const countEl = document.getElementById("todayCount");
+
+    const scroller = createInfiniteScroller({
+      container: listEl,
+      sentinel: document.getElementById("todaySentinel"),
+      loadingEl: document.getElementById("todayLoading"),
+      emptyEl: emptyEl,
+      pageSize: Number(listEl.dataset.pageSize) || 20,
+      initialOffset: Number(listEl.dataset.initialCount) || 0,
+      initialHasMore: listEl.dataset.hasMore === "true",
+      loginRedirectUrl: "/views/auth/?next=/views/today/",
+      buildUrl: (offset, limit) =>
+        `/views/today/fragment?${new URLSearchParams({ offset, limit })}`,
+      onEmpty: () => { emptyEl.hidden = false; },
+    });
+
+    function openSheetFor(card) {
+      const challengeId = card.dataset.challengeId;
+      const occurrenceKey = card.dataset.occurrenceKey;
+      const title = card.dataset.title;
+      const goalUnit = card.dataset.goalUnit;
+
+      const fields = [];
+      if (goalUnit) {
+        fields.push({
+          name: "amount",
+          label: `مقدار (${goalUnit})`,
+          type: "number",
+          step: "any",
+          required: true,
+        });
+      }
+      fields.push({ name: "note", label: "یادداشت (اختیاری)", type: "text", maxlength: 500 });
+      fields.push({ name: "photo_url", label: "لینک عکس (اختیاری)", type: "url", maxlength: 500 });
+
+      async function submit(state, values) {
+        const payload = {
+          challenge_id: Number(challengeId),
+          occurrence_key: occurrenceKey,
+          state,
+          note: values.note || null,
+          photo_url: values.photo_url || null,
+        };
+        if (goalUnit) payload.amount = values.amount || null;
+
+        const { ok, data } = await apiFetch("/checkins/", { method: "POST", body: payload });
+        if (!ok) {
+          showToast("خطا: " + (data && data.detail ? data.detail : "ثبت انجام نشد"));
+          return false;
+        }
+
+        card.remove();
+        scroller.notifyRemoved();
+        showToast(state === "completed" ? "ثبت شد ✅" : "رد شد");
+        if (countEl) countEl.textContent = Math.max(0, Number(countEl.textContent) - 1);
+        if (!listEl.querySelector("[data-today-item]")) {
+          emptyEl.hidden = false;
+        }
+        return true;
+      }
+
+      createSheet({
+        title: title,
+        fields: fields,
+        confirmLabel: "تکمیل شد",
+        skipLabel: "رد کردم",
+        onConfirm: (values) => submit("completed", values),
+        onSkip: (values) => submit("skipped", values),
+      });
+    }
+
+    listEl.addEventListener("click", (e) => {
+      const btn = e.target.closest('[data-action="today-checkin"]');
+      if (!btn) return;
+      const card = btn.closest("[data-today-item]");
+      if (card) openSheetFor(card);
+    });
+  });
+</script>
+{% endblock %}

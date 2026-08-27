@@ -23,6 +23,8 @@ AsyncSessionLocal = async_sessionmaker(
 
 Base = declarative_base()
 
+# Imported for its side effect: every model module registers itself with
+# Base.metadata, which Alembic autogenerate depends on.
 import app.models
 
 

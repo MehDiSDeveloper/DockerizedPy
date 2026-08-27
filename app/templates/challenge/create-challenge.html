@@ -1,28 +1,21 @@
-<!DOCTYPE html>
-<html lang="fa" dir="rtl">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>چالش | ساخت چالش جدید</title>
-<link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
 
+{% extends "layout.html" %}
+{% block head %}
 <style>
-  .shell{padding-bottom:96px;}
   .form-page{display:none; padding:0 20px;}
   .form-page.active{display:block;}
+  .schedule-row{display:flex; gap:8px; align-items:center; margin-bottom:8px;}
+  .schedule-row .field-input{flex:1; margin-bottom:0;}
 </style>
-</head>
-<body>
-<div class="app-bg"></div>
+{% endblock %}
 
-<div class="shell">
+{% block topbar_action %}
+<button class="icon-btn" aria-label="بستن" data-icon="x" id="wizardCloseBtn"></button>
+{% endblock %}
 
-  <div class="page-header">
-    <a href="index.html" class="back-btn" aria-label="بازگشت"><span data-icon="chevronRight"></span></a>
-    <h1>ساخت چالش جدید</h1>
-    <span style="width:38px;"></span>
-  </div>
+{% block bottom_nav %}{% endblock %}
 
+{% block content %}
   <div class="stepper" style="margin-top:12px;">
     <div class="step active" data-step="1"><div class="step-dot">۱</div><span>اطلاعات</span></div>
     <div class="step" data-step="2"><div class="step-dot">۲</div><span>دسته‌بندی</span></div>
@@ -35,13 +28,19 @@
       <label>عنوان چالش</label>
       <div class="field-input">
         <span data-icon="edit"></span>
-        <input type="text" id="cTitle" placeholder="مثلاً: ۳۰ روز بدون شکر" />
+        <input type="text" id="cTitle" minlength="3" maxlength="50" placeholder="مثلاً: ۳۰ روز بدون شکر" />
       </div>
     </div>
     <div class="field">
       <label>توضیحات</label>
       <div class="textarea-field">
-        <textarea id="cDesc" placeholder="این چالش دربارهٔ چیه؟ قوانینش چیه؟"></textarea>
+        <textarea id="cDesc" maxlength="500" placeholder="این چالش دربارهٔ چیه؟"></textarea>
+      </div>
+    </div>
+    <div class="field">
+      <label>قوانین (اختیاری)</label>
+      <div class="textarea-field">
+        <textarea id="cRules" maxlength="1000" placeholder="قوانین چالش چیه؟ مثلاً: هر روز قبل از ساعت ۱۲ شب ثبت کن."></textarea>
       </div>
     </div>
     <div class="field">
@@ -60,15 +59,99 @@
       <label>دسته‌بندی</label>
       <div class="category-grid" id="categoryGrid"></div>
     </div>
+
     <div class="field" style="margin-top:18px;">
-      <label>نوع چالش</label>
-      <div class="field-input">
-        <span data-icon="target"></span>
-        <select id="cType">
-          <option>یک‌باره (تنها گزینهٔ فعال در نسخهٔ فعلی)</option>
-        </select>
+      <label>قابلیت مشاهده</label>
+      <div class="category-grid" id="visibilityGrid"></div>
+    </div>
+
+    <div class="field" style="margin-top:18px;">
+      <label>نوع تکرار</label>
+      <div class="category-grid" id="cadenceGrid"></div>
+    </div>
+
+    <!-- schedule -->
+    <div class="field" id="scheduleFields" style="margin-top:18px; display:none;">
+      <label>زمان‌های برنامه‌ریزی‌شده</label>
+      <div id="scheduleList"></div>
+      <button type="button" id="addScheduleBtn" class="btn-primary" style="background:var(--glass); color:var(--text-1); box-shadow:none; border:1px solid var(--border); width:100%;">
+        <span data-icon="plus"></span> افزودن زمان
+      </button>
+    </div>
+
+    <!-- recurring_days -->
+    <div class="field" id="recurringDaysFields" style="margin-top:18px; display:none;">
+      <label>الگوی تکرار</label>
+      <div class="category-grid" id="modeGrid"></div>
+
+      <div id="weekdaysField" style="margin-top:14px; display:none;">
+        <label>روزهای هفته</label>
+        <div class="category-grid" id="weekdayGrid"></div>
+      </div>
+
+      <div id="nField" style="margin-top:14px; display:none;">
+        <label id="nLabel">فاصلهٔ تکرار</label>
+        <div class="field-input">
+          <span data-icon="clock"></span>
+          <input type="number" id="cN" min="1" max="120" value="1" />
+        </div>
+      </div>
+
+      <div style="margin-top:14px;">
+        <label>تاریخ پایان (اختیاری)</label>
+        <div class="field-input">
+          <span data-icon="calendar"></span>
+          <input type="date" id="cRecurringEndDate" />
+        </div>
       </div>
     </div>
+
+    <!-- recurring_quota -->
+    <div class="field" id="quotaFields" style="margin-top:18px; display:none;">
+      <label>بازهٔ سهمیه</label>
+      <div class="category-grid" id="periodGrid"></div>
+
+      <div style="margin-top:14px;">
+        <label>تعداد هدف در هر بازه</label>
+        <div class="field-input">
+          <span data-icon="target"></span>
+          <input type="number" id="cCount" min="1" max="100" value="3" />
+        </div>
+      </div>
+
+      <div style="margin-top:14px;">
+        <label>تاریخ پایان (اختیاری)</label>
+        <div class="field-input">
+          <span data-icon="calendar"></span>
+          <input type="date" id="cQuotaEndDate" />
+        </div>
+      </div>
+    </div>
+
+    <!-- collective goal -->
+    <div class="field" style="margin-top:18px;">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+        <input type="checkbox" id="cHasGoal" />
+        این چالش هدف جمعی داره (مثلاً مجموع کیلومتر یا مبلغ)
+      </label>
+    </div>
+    <div id="goalFields" style="display:none;">
+      <div class="field">
+        <label>مقدار هدف</label>
+        <div class="field-input">
+          <span data-icon="chart"></span>
+          <input type="number" id="cGoalAmount" step="any" min="0" placeholder="مثلاً ۱۰۰" />
+        </div>
+      </div>
+      <div class="field">
+        <label>واحد هدف</label>
+        <div class="field-input">
+          <span data-icon="flame"></span>
+          <input type="text" id="cGoalUnit" maxlength="32" placeholder="مثلاً کیلومتر" />
+        </div>
+      </div>
+    </div>
+
     <div style="display:flex; gap:10px; margin-top:8px;">
       <button class="btn-primary" style="background:var(--glass); color:var(--text-1); box-shadow:none; border:1px solid var(--border);" data-prev>قبلی</button>
       <button class="btn-primary" data-next>مرحلهٔ بعد <span data-icon="chevronLeft"></span></button>
@@ -84,23 +167,32 @@
       <div class="cc-meta">
         <span class="cc-meta-item" data-icon="calendar"></span>
         <span class="cc-meta-item" id="reviewDays">— روز</span>
+        <span class="cc-meta-item" data-icon="clock"></span>
+        <span class="cc-meta-item" id="reviewCadence">—</span>
       </div>
     </div>
     <div class="rule-item glass" style="margin-bottom:18px;">
       <span data-icon="info"></span>
-      <span>بعد از انتشار، چالش برای همه در فهرست عمومی قابل مشاهده و ثبت‌نامه.</span>
+      <span id="reviewVisibilityNote">بعد از انتشار، چالش برای همه در فهرست عمومی قابل مشاهده و ثبت‌نامه.</span>
     </div>
     <div style="display:flex; gap:10px;">
       <button class="btn-primary" style="background:var(--glass); color:var(--text-1); box-shadow:none; border:1px solid var(--border);" data-prev>ویرایش</button>
       <button class="btn-primary" id="publishBtn"><span data-icon="check"></span> انتشار چالش</button>
     </div>
   </div>
+{% endblock %}
 
-</div>
+{% block scripts %}
 
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
 
 <script>
+document.getElementById("wizardCloseBtn").addEventListener("click", () => {
+  const hasInput = document.getElementById("cTitle").value.trim() || document.getElementById("cDesc").value.trim();
+  if (hasInput && !confirm("این چالش هنوز منتشر نشده. مطمئنی می‌خوای خارج بشی؟")) return;
+  window.location.href = "/views/challenges/";
+});
+
 const cats = [
   { name: "سلامت جسمانی", icon: "target" },
   { name: "تغذیه", icon: "flame" },
@@ -109,72 +201,344 @@ const cats = [
   { name: "مسئولیت اجتماعی", icon: "home" },
   { name: "سایر", icon: "plus" },
 ];
-  let selectedCat = cats[0].name;
+let selectedCat = cats[0].name;
 
-  const grid = document.getElementById("categoryGrid");
-  grid.innerHTML = cats.map(c => `
-    <div class="category-pill ${c.name === selectedCat ? "active" : ""}" data-cat="${c.name}">
-      ${icons[c.icon]}
-      ${c.name}
+const grid = document.getElementById("categoryGrid");
+grid.innerHTML = cats.map(c => `
+  <div class="category-pill ${c.name === selectedCat ? "active" : ""}" data-cat="${c.name}">
+    ${icons[c.icon]}
+    ${c.name}
+  </div>`).join("");
+
+grid.querySelectorAll(".category-pill").forEach(pill => {
+  pill.addEventListener("click", () => {
+    selectedCat = pill.dataset.cat;
+    grid.querySelectorAll(".category-pill").forEach(p => p.classList.remove("active"));
+    pill.classList.add("active");
+  });
+});
+
+// -------------------- visibility --------------------
+const visibilityOptions = [
+  { value: "public", label: "عمومی", icon: "eye" },
+  { value: "unlisted", label: "نامرئی", icon: "eyeOff" },
+  { value: "private", label: "خصوصی", icon: "lock" },
+];
+let selectedVisibility = "public";
+
+const visibilityGrid = document.getElementById("visibilityGrid");
+function renderVisibilityGrid() {
+  visibilityGrid.innerHTML = visibilityOptions.map(o => `
+    <div class="category-pill ${o.value === selectedVisibility ? "active" : ""}" data-visibility="${o.value}">
+      ${icons[o.icon]}
+      ${o.label}
     </div>`).join("");
-
-  grid.querySelectorAll(".category-pill").forEach(pill => {
+  visibilityGrid.querySelectorAll(".category-pill").forEach(pill => {
     pill.addEventListener("click", () => {
-      selectedCat = pill.dataset.cat;
-      grid.querySelectorAll(".category-pill").forEach(p => p.classList.remove("active"));
-      pill.classList.add("active");
+      selectedVisibility = pill.dataset.visibility;
+      renderVisibilityGrid();
     });
   });
+}
+renderVisibilityGrid();
 
-  const steps = document.querySelectorAll(".step");
-  const pages = document.querySelectorAll(".form-page");
-  let current = 1;
+// -------------------- cadence kind --------------------
+const cadenceKinds = [
+  { value: "once", label: "یک‌باره", icon: "check" },
+  { value: "schedule", label: "زمان‌بندی‌شده", icon: "calendar" },
+  { value: "recurring_days", label: "روزهای تکراری", icon: "clock" },
+  { value: "recurring_quota", label: "سهمیه‌ای", icon: "target" },
+];
+let selectedCadenceKind = "once";
 
-  function goTo(n) {
-    current = n;
-    steps.forEach(s => {
-      const idx = Number(s.dataset.step);
-      s.classList.toggle("active", idx === n);
-      s.classList.toggle("done", idx < n);
+const cadenceGrid = document.getElementById("cadenceGrid");
+function renderCadenceGrid() {
+  cadenceGrid.innerHTML = cadenceKinds.map(o => `
+    <div class="category-pill ${o.value === selectedCadenceKind ? "active" : ""}" data-cadence-kind="${o.value}">
+      ${icons[o.icon]}
+      ${o.label}
+    </div>`).join("");
+  cadenceGrid.querySelectorAll(".category-pill").forEach(pill => {
+    pill.addEventListener("click", () => {
+      selectedCadenceKind = pill.dataset.cadenceKind;
+      renderCadenceGrid();
+      updateCadenceSections();
     });
-    pages.forEach(p => p.classList.toggle("active", Number(p.dataset.page) === n));
+  });
+}
+renderCadenceGrid();
 
-    if (n === 3) {
-      document.getElementById("reviewCat").textContent = selectedCat;
-      document.getElementById("reviewTitle").textContent = document.getElementById("cTitle").value || "بدون عنوان";
-      document.getElementById("reviewDesc").textContent = document.getElementById("cDesc").value || "بدون توضیحات";
-      document.getElementById("reviewDays").textContent = (document.getElementById("cDays").value || "—") + " روز";
-    }
+function updateCadenceSections() {
+  document.getElementById("scheduleFields").style.display =
+    selectedCadenceKind === "schedule" ? "" : "none";
+  document.getElementById("recurringDaysFields").style.display =
+    selectedCadenceKind === "recurring_days" ? "" : "none";
+  document.getElementById("quotaFields").style.display =
+    selectedCadenceKind === "recurring_quota" ? "" : "none";
+
+  if (selectedCadenceKind === "schedule" && !scheduleList.children.length) {
+    addScheduleRow();
   }
+}
+updateCadenceSections();
 
-  document.querySelectorAll("[data-next]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      if (current === 1 && !document.getElementById("cTitle").value.trim()) {
+// -------------------- schedule datetimes --------------------
+const scheduleList = document.getElementById("scheduleList");
+function addScheduleRow() {
+  const row = document.createElement("div");
+  row.className = "schedule-row";
+  row.innerHTML = `
+    <div class="field-input">
+      <span data-icon="calendar"></span>
+      <input type="datetime-local" class="schedule-dt" />
+    </div>
+    <button type="button" class="icon-btn" data-icon="trash" aria-label="حذف"></button>`;
+  row.querySelector("[data-icon='trash']").addEventListener("click", () => {
+    if (scheduleList.children.length > 1) row.remove();
+  });
+  scheduleList.appendChild(row);
+  renderIcons(row);
+}
+document.getElementById("addScheduleBtn").addEventListener("click", () => {
+  if (scheduleList.children.length < 20) addScheduleRow();
+});
+
+// -------------------- recurring_days mode --------------------
+const recurringModes = [
+  { value: "weekdays", label: "روزهای هفته" },
+  { value: "every_n_days", label: "هر N روز" },
+  { value: "every_n_weeks", label: "هر N هفته" },
+  { value: "every_n_months", label: "هر N ماه" },
+];
+let selectedMode = "weekdays";
+
+const modeGrid = document.getElementById("modeGrid");
+function renderModeGrid() {
+  modeGrid.innerHTML = recurringModes.map(o => `
+    <div class="category-pill ${o.value === selectedMode ? "active" : ""}" data-mode="${o.value}">
+      ${o.label}
+    </div>`).join("");
+  modeGrid.querySelectorAll(".category-pill").forEach(pill => {
+    pill.addEventListener("click", () => {
+      selectedMode = pill.dataset.mode;
+      renderModeGrid();
+      updateModeSections();
+    });
+  });
+}
+renderModeGrid();
+
+const nLabels = {
+  every_n_days: "تکرار هر چند روز",
+  every_n_weeks: "تکرار هر چند هفته",
+  every_n_months: "تکرار هر چند ماه",
+};
+
+function updateModeSections() {
+  document.getElementById("weekdaysField").style.display =
+    selectedMode === "weekdays" ? "" : "none";
+  document.getElementById("nField").style.display =
+    selectedMode === "weekdays" ? "none" : "";
+  if (nLabels[selectedMode]) {
+    document.getElementById("nLabel").textContent = nLabels[selectedMode];
+  }
+}
+updateModeSections();
+
+// Iranian week order: 0=Saturday .. 6=Friday.
+const weekdayNames = ["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"];
+let selectedWeekdays = [];
+
+const weekdayGrid = document.getElementById("weekdayGrid");
+function renderWeekdayGrid() {
+  weekdayGrid.innerHTML = weekdayNames.map((name, idx) => `
+    <div class="category-pill ${selectedWeekdays.includes(idx) ? "active" : ""}" data-weekday="${idx}">
+      ${name}
+    </div>`).join("");
+  weekdayGrid.querySelectorAll(".category-pill").forEach(pill => {
+    pill.addEventListener("click", () => {
+      const idx = Number(pill.dataset.weekday);
+      if (selectedWeekdays.includes(idx)) {
+        selectedWeekdays = selectedWeekdays.filter(d => d !== idx);
+      } else {
+        selectedWeekdays = [...selectedWeekdays, idx];
+      }
+      renderWeekdayGrid();
+    });
+  });
+}
+renderWeekdayGrid();
+
+// -------------------- recurring_quota period --------------------
+const quotaPeriods = [
+  { value: "week", label: "هفتگی" },
+  { value: "month", label: "ماهانه" },
+];
+let selectedPeriod = "week";
+
+const periodGrid = document.getElementById("periodGrid");
+function renderPeriodGrid() {
+  periodGrid.innerHTML = quotaPeriods.map(o => `
+    <div class="category-pill ${o.value === selectedPeriod ? "active" : ""}" data-period="${o.value}">
+      ${o.label}
+    </div>`).join("");
+  periodGrid.querySelectorAll(".category-pill").forEach(pill => {
+    pill.addEventListener("click", () => {
+      selectedPeriod = pill.dataset.period;
+      renderPeriodGrid();
+    });
+  });
+}
+renderPeriodGrid();
+
+// -------------------- collective goal --------------------
+const goalCheckbox = document.getElementById("cHasGoal");
+const goalFields = document.getElementById("goalFields");
+goalCheckbox.addEventListener("change", () => {
+  goalFields.style.display = goalCheckbox.checked ? "" : "none";
+});
+
+// -------------------- wizard navigation --------------------
+const steps = document.querySelectorAll(".step");
+const pages = document.querySelectorAll(".form-page");
+let current = 1;
+
+const cadenceKindLabels = Object.fromEntries(cadenceKinds.map(o => [o.value, o.label]));
+const visibilityNotes = {
+  public: "بعد از انتشار، چالش برای همه در فهرست عمومی قابل مشاهده و ثبت‌نامه.",
+  unlisted: "این چالش در فهرست عمومی نشون داده نمی‌شه، ولی هر کسی با لینکش می‌تونه ببینتش.",
+  private: "این چالش فقط برای خودت و افرادی که مستقیم اضافه می‌کنی قابل مشاهده‌ست.",
+};
+
+function goTo(n) {
+  current = n;
+  steps.forEach(s => {
+    const idx = Number(s.dataset.step);
+    s.classList.toggle("active", idx === n);
+    s.classList.toggle("done", idx < n);
+  });
+  pages.forEach(p => p.classList.toggle("active", Number(p.dataset.page) === n));
+
+  if (n === 3) {
+    document.getElementById("reviewCat").textContent = selectedCat;
+    document.getElementById("reviewTitle").textContent = document.getElementById("cTitle").value || "بدون عنوان";
+    document.getElementById("reviewDesc").textContent = document.getElementById("cDesc").value || "بدون توضیحات";
+    document.getElementById("reviewDays").textContent = (document.getElementById("cDays").value || "—") + " روز";
+    document.getElementById("reviewCadence").textContent = cadenceKindLabels[selectedCadenceKind] || "—";
+    document.getElementById("reviewVisibilityNote").textContent = visibilityNotes[selectedVisibility];
+  }
+}
+
+document.querySelectorAll("[data-next]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    if (current === 1) {
+      // mirrors ChallengeCreate.title (min 3 / max 50) so a too-short title
+      // fails here in Farsi instead of as a raw 422 at publish time.
+      const title = document.getElementById("cTitle").value.trim();
+      if (!title) {
         alert("لطفاً عنوان چالش رو وارد کن.");
         return;
       }
-      goTo(current + 1);
-    });
+      if (title.length < 3) {
+        alert("عنوان چالش باید حداقل ۳ حرف باشه.");
+        return;
+      }
+    }
+    if (current === 2) {
+      const err = validateCadence();
+      if (err) {
+        alert(err);
+        return;
+      }
+    }
+    goTo(current + 1);
   });
-  document.querySelectorAll("[data-prev]").forEach(btn => {
-    btn.addEventListener("click", () => goTo(current - 1));
-  });
+});
+document.querySelectorAll("[data-prev]").forEach(btn => {
+  btn.addEventListener("click", () => goTo(current - 1));
+});
 
-  // document.getElementById("publishBtn").addEventListener("click", () => {
-  //   window.location.href = "index.html";
-  // });
-  document.getElementById("publishBtn").addEventListener("click", async () => {
+// -------------------- cadence payload --------------------
+function toIsoOrNull(dateValue) {
+  if (!dateValue) return null;
+  const d = new Date(dateValue);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function validateCadence() {
+  if (selectedCadenceKind === "schedule") {
+    const datetimes = Array.from(document.querySelectorAll(".schedule-dt")).map(i => i.value).filter(Boolean);
+    if (!datetimes.length) return "حداقل یک زمان برای چالش زمان‌بندی‌شده لازمه.";
+  }
+  if (selectedCadenceKind === "recurring_days" && selectedMode === "weekdays" && !selectedWeekdays.length) {
+    return "حداقل یک روز از هفته رو انتخاب کن.";
+  }
+  if (goalCheckbox.checked) {
+    const amount = document.getElementById("cGoalAmount").value;
+    const unit = document.getElementById("cGoalUnit").value.trim();
+    if (!amount || !unit) return "برای هدف جمعی، هم مقدار و هم واحد رو وارد کن.";
+  }
+  return null;
+}
+
+function buildCadence() {
+  if (selectedCadenceKind === "once") {
+    return { kind: "once" };
+  }
+  if (selectedCadenceKind === "schedule") {
+    const datetimes = Array.from(document.querySelectorAll(".schedule-dt"))
+      .map(i => i.value)
+      .filter(Boolean)
+      .map(v => toIsoOrNull(v))
+      .filter(Boolean);
+    return { kind: "schedule", datetimes };
+  }
+  if (selectedCadenceKind === "recurring_days") {
+    return {
+      kind: "recurring_days",
+      mode: selectedMode,
+      n: selectedMode === "weekdays" ? 1 : Number(document.getElementById("cN").value || 1),
+      weekdays: selectedMode === "weekdays" ? selectedWeekdays : [],
+      end_date: toIsoOrNull(document.getElementById("cRecurringEndDate").value),
+    };
+  }
+  if (selectedCadenceKind === "recurring_quota") {
+    return {
+      kind: "recurring_quota",
+      period: selectedPeriod,
+      count: Number(document.getElementById("cCount").value || 1),
+      end_date: toIsoOrNull(document.getElementById("cQuotaEndDate").value),
+    };
+  }
+  return { kind: "once" };
+}
+
+// "مدت چالش" is optional -- an empty field means "no deadline", not "due
+// today", so only build a due_date when the user actually gave a duration.
+function buildDueDate() {
+  const days = Number(document.getElementById("cDays").value);
+  if (!Number.isFinite(days) || days < 1) return null;
   const dueDate = new Date();
-  dueDate.setDate(dueDate.getDate() + Number(document.getElementById("cDays").value || 0));
+  dueDate.setDate(dueDate.getDate() + days);
+  return dueDate.toISOString();
+}
 
+document.getElementById("publishBtn").addEventListener("click", async () => {
   const payload = {
-    title: document.getElementById("cTitle").value,
-    description: document.getElementById("cDesc").value || null,
-    due_date: dueDate.toISOString(),
-    rules: null,
+    title: document.getElementById("cTitle").value.trim(),
+    description: document.getElementById("cDesc").value.trim() || null,
+    due_date: buildDueDate(),
+    rules: document.getElementById("cRules").value.trim() || null,
     category: selectedCat,
-    challenge_type: "چالش یکباره"
+    visibility: selectedVisibility,
+    cadence: buildCadence(),
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   };
+
+  if (goalCheckbox.checked) {
+    payload.goal_amount = Number(document.getElementById("cGoalAmount").value);
+    payload.goal_unit = document.getElementById("cGoalUnit").value.trim();
+  }
 
   try {
     const res = await fetch("/views/challenges/create", {
@@ -183,17 +547,25 @@ const cats = [
       body: JSON.stringify(payload)
     });
 
-    if (!res.ok) {
-      const err = await res.json();
-      alert("خطا در ثبت چالش: " + JSON.stringify(err));
+    if (res.status === 401) {
+      window.location.href = "/views/auth/?next=/views/challenges/create";
       return;
     }
 
-    window.location.href = "/views/challenges/";
+    if (!res.ok) {
+      // err.detail is a string for our own HTTPExceptions, but a list of
+      // Pydantic issues on a 422 -- never dump that at the user.
+      const err = await res.json().catch(() => ({}));
+      const detail = typeof err.detail === "string" ? err.detail : "اطلاعات واردشده معتبر نیست.";
+      alert("خطا در ثبت چالش: " + detail);
+      return;
+    }
+
+    const data = await res.json();
+    window.location.href = "/views/challenges/" + data.id;
   } catch (e) {
     alert("خطای شبکه: " + e.message);
   }
 });
 </script>
-</body>
-</html>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% for c in challenges %}
+<a href="/views/challenges/{{ c.id }}" class="challenge-card glass explore-card">
+  <div class="explore-thumb"><span data-icon="target"></span></div>
+  <div class="explore-body">
+    <h3>{{ c.title }}</h3>
+    <p>
+      <span>{{ c.category.value }}</span>
+      <span data-icon="users"></span><span>{{ c.enrollments|length }}</span>
+      {% if c.due_date %}<span data-icon="calendar"></span><span>{{ c.due_date.strftime('%Y-%m-%d') }}</span>{% endif %}
+    </p>
+  </div>
+</a>
+{% endfor %}

@@ -1,9 +1,10 @@
 from datetime import datetime
-from typing import Annotated, Literal, Union
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.challenge import ChallengeCategory, ChallengeType, RecurringType
+from app.models.challenge import ChallengeCategory, LifecycleStatus, Visibility
+from app.schemas.cadence import CadenceUnion
 
 
 class ChallengeBase(BaseModel):
@@ -12,48 +13,34 @@ class ChallengeBase(BaseModel):
     due_date: datetime | None = Field(default=None)
     rules: str | None = Field(max_length=1000, default=None)
     category: ChallengeCategory = Field(default=ChallengeCategory.OTHER)
+    visibility: Visibility = Field(default=Visibility.PUBLIC)
+    lifecycle_status: LifecycleStatus = Field(default=LifecycleStatus.ACTIVE)
+    goal_amount: Decimal | None = Field(default=None)
+    goal_unit: str | None = Field(max_length=32, default=None)
 
 
-class ChallengeReadBase(ChallengeBase):
+class ChallengeCreate(ChallengeBase):
+    cadence: CadenceUnion
+    timezone: str | None = Field(max_length=64, default=None)
+
+
+class ChallengeRead(ChallengeBase):
     model_config = ConfigDict(from_attributes=True)
     id: int = Field(description="The unique identifier of the challenge")
     owner_id: int = Field(
         description="The unique identifier of the owner of the challenge"
     )
+    cadence: CadenceUnion
 
 
-class OneTimeChallengeCreate(ChallengeBase):
-    challenge_type: Literal[ChallengeType.OneTimeChallenge]
-
-
-class RecurringChallengeCreate(ChallengeBase):
-    challenge_type: Literal[ChallengeType.RecurringChallenge]
-    recurrence_pattern: RecurringType = RecurringType.Daily
-    interval: int = 1
-    end_date: datetime | None = None
-
-
-class OneTimeChallengeRead(ChallengeReadBase):
-    challenge_type: Literal[ChallengeType.OneTimeChallenge]
-
-
-class RecurringChallengeRead(ChallengeReadBase):
-    challenge_type: Literal[ChallengeType.RecurringChallenge]
-    recurrence_pattern: RecurringType = RecurringType.Daily
-    interval: int = 1
-    end_date: datetime | None = None
-
-
-class ChallengeUpdate(ChallengeBase):
-    pass
-
-
-ChallengeCreateUnion = Annotated[
-    Union[OneTimeChallengeCreate, RecurringChallengeCreate],
-    Field(discriminator="challenge_type"),
-]
-
-ChallengeReadUnion = Annotated[
-    Union[OneTimeChallengeRead, RecurringChallengeRead],
-    Field(discriminator="challenge_type"),
-]
+class ChallengeUpdate(BaseModel):
+    title: str | None = Field(min_length=3, max_length=50, default=None)
+    description: str | None = Field(max_length=500, default=None)
+    due_date: datetime | None = Field(default=None)
+    rules: str | None = Field(max_length=1000, default=None)
+    category: ChallengeCategory | None = Field(default=None)
+    visibility: Visibility | None = Field(default=None)
+    lifecycle_status: LifecycleStatus | None = Field(default=None)
+    cadence: CadenceUnion | None = Field(default=None)
+    goal_amount: Decimal | None = Field(default=None)
+    goal_unit: str | None = Field(max_length=32, default=None)

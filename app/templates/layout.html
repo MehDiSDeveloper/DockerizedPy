@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>چالش | {{ title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
+{% block head %}
+{% endblock %}
+</head>
+
+<body>
+    <div class="app-bg"></div>
+
+    <div class="shell">
+
+        <header class="topbar">
+            <div class="brand">
+                {% block topbar_leading %}{% endblock %}
+                <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#06231f" stroke-width="2.4"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 12l2 2 4-4" />
+                        <circle cx="12" cy="12" r="9" />
+                    </svg></div>
+                <div class="brand-name">چالش<span>.</span></div>
+            </div>
+            {% block topbar_action %}
+            <button class="icon-btn has-dot" aria-label="اعلان‌ها" data-icon="bell"
+                data-coming-soon="بخش اعلان‌ها به‌زودی اضافه می‌شود"></button>
+            {% endblock %}
+        </header>
+
+        {% block content %}
+        {% endblock %}
+
+        {% block bottom_nav %}
+        <nav class="bottom-nav">
+            <a href="/views/today/" class="nav-item{{ ' active' if active_nav == 'today' else '' }}">
+                <span data-icon="clock"></span>
+                امروز
+            </a>
+            <a href="/views/home/" class="nav-item{{ ' active' if active_nav == 'home' else '' }}">
+                <span data-icon="home"></span>
+                خانه
+            </a>
+            <a href="/views/challenges/" class="nav-item{{ ' active' if active_nav == 'challenges' else '' }}">
+                <span data-icon="list"></span>
+                چالش‌ها
+            </a>
+            <a href="{{ '/views/users/' ~ current_user_id if current_user_id else '/views/auth/' }}"
+                class="nav-item{{ ' active' if active_nav == 'profile' else '' }}">
+                <span data-icon="user"></span>
+                پروفایل
+            </a>
+        </nav>
+        {% endblock %}
+    </div>
+    {% block scripts %}
+    {% endblock %}
+    
+</body>
+</html>

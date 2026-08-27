@@ -32,6 +32,18 @@
   --shadow-lift:0 16px 40px rgba(0,0,0,0.45);
 
   --ease:cubic-bezier(.2,.7,.2,1);
+
+  /* --- bottom nav geometry: single source of truth ---
+     10px top padding + 21px icon + 4px gap + ~13px label + 10px base bottom
+     padding, plus the device inset. Everything that has to clear the nav
+     (shell padding, FAB, toast, sticky CTA) reads this instead of repeating
+     its own magic number. */
+  --nav-h:calc(58px + env(safe-area-inset-bottom));
+  --cta-h:72px; /* .sticky-cta's own rendered height (padding + button) */
+  /* width of the mobile shell; anything that spans or aligns to it (nav,
+     sticky CTA, toast, sheet, FAB) reads this instead of repeating the
+     literal width. */
+  --shell-max:480px;
 }
 
 *{box-sizing:border-box;}
@@ -68,12 +80,14 @@ ul{list-style:none; margin:0; padding:0;}
 
 /* --- app shell: mobile-first PWA frame, centers on wider screens --- */
 .shell{
-  max-width:480px;
+  max-width:var(--shell-max);
   margin:0 auto;
   min-height:100vh;
   position:relative;
-  padding-bottom:92px; /* space for bottom nav */
+  padding-bottom:0;
 }
+/* only pages that actually render a bottom nav need clearance for it */
+.shell:has(.bottom-nav){padding-bottom:var(--nav-h);}
 
 /* --- glass card primitive --- */
 .glass{
@@ -102,6 +116,7 @@ ul{list-style:none; margin:0; padding:0;}
 .brand-name span{color:var(--fayrouzeh);}
 
 .icon-btn{
+  position:relative;
   width:40px; height:40px; border-radius:50%;
   display:grid; place-items:center;
   background:var(--glass); border:1px solid var(--border);
@@ -227,8 +242,11 @@ ul{list-style:none; margin:0; padding:0;}
 
 /* --- floating action button --- */
 .fab{
-  position:fixed; bottom:96px; left:50%;
-  transform:translateX(calc(-50% - 200px + 20px));
+  position:fixed; bottom:calc(var(--nav-h) + 12px);
+  /* anchored 20px inside the shell's left edge, clamped to the viewport so it
+     stays reachable on phones narrower than the shell */
+  left:calc(50% - min(var(--shell-max), 100vw) / 2 + 20px);
+  transform:none;
   width:56px; height:56px; border-radius:50%;
   display:grid; place-items:center; cursor:pointer;
   background:linear-gradient(145deg, var(--fayrouzeh), var(--fayrouzeh-dim));
@@ -237,14 +255,14 @@ ul{list-style:none; margin:0; padding:0;}
   transition:transform .18s var(--ease), box-shadow .18s var(--ease);
   z-index:40;
 }
-.fab:hover{transform:translateX(calc(-50% - 200px + 20px)) translateY(-2px);}
-.fab:active{transform:translateX(calc(-50% - 200px + 20px)) scale(.94);}
+.fab:hover{transform:translateY(-2px);}
+.fab:active{transform:scale(.94);}
 .fab svg{width:24px; height:24px;}
 
 /* --- bottom nav --- */
 .bottom-nav{
   position:fixed; bottom:0; left:50%; transform:translateX(-50%);
-  width:100%; max-width:480px;
+  width:100%; max-width:var(--shell-max);
   display:flex; justify-content:space-around; align-items:center;
   padding:10px 12px calc(10px + env(safe-area-inset-bottom));
   background:rgba(11,15,31,0.75);
@@ -367,15 +385,44 @@ ul{list-style:none; margin:0; padding:0;}
 
 .chip-row{
   display:flex; gap:8px; overflow-x:auto; padding:0 20px 16px;
-  scrollbar-width:none;
+  scrollbar-width:none; scroll-behavior:smooth; cursor:grab;
+  /* feathered edges hint that more chips are scrollable off-screen */
+  -webkit-mask-image:linear-gradient(to right, transparent 0, black 20px, black calc(100% - 20px), transparent 100%);
+  mask-image:linear-gradient(to right, transparent 0, black 20px, black calc(100% - 20px), transparent 100%);
 }
 .chip-row::-webkit-scrollbar{display:none;}
+.chip-row:active{cursor:grabbing;}
 .chip{
   flex-shrink:0; padding:7px 16px; border-radius:999px; font-size:12.5px; font-weight:600;
   background:var(--glass); border:1px solid var(--border); color:var(--text-2); cursor:pointer;
   white-space:nowrap; transition:all .18s var(--ease);
 }
 .chip.active{background:var(--fayrouzeh); border-color:var(--fayrouzeh); color:#06231f; font-weight:700;}
+.chip:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px;}
+
+/* --- infinite scroll: sentinel + loading indicator --- */
+.scroll-sentinel{height:1px;}
+.list-loading{
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  padding:18px 0; color:var(--text-3); font-size:12.5px;
+}
+.list-loading .spinner{
+  width:16px; height:16px; border-radius:50%;
+  border:2px solid var(--border); border-top-color:var(--fayrouzeh);
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* --- toast --- */
+.toast{
+  position:fixed; left:50%; bottom:calc(var(--nav-h) + 12px); transform:translate(-50%, 12px);
+  max-width:calc(var(--shell-max) - 40px); padding:10px 18px; border-radius:999px;
+  background:rgba(23,31,66,0.95); border:1px solid var(--border-strong);
+  color:var(--text-1); font-size:12.5px; font-weight:600; text-align:center;
+  box-shadow:var(--shadow-lift); opacity:0; pointer-events:none; z-index:60;
+  transition:opacity .2s var(--ease), transform .2s var(--ease);
+}
+.toast.visible{opacity:1; transform:translate(-50%, 0);}
 
 .explore-card{
   display:flex; align-items:center; gap:12px;
@@ -426,6 +473,8 @@ ul{list-style:none; margin:0; padding:0;}
 .detail-stats div:first-child{border-inline-start:none;}
 .detail-stats b{display:block; font-size:16px; font-weight:800;}
 .detail-stats span{font-size:11px; color:var(--text-3);}
+.detail-stats .gold b{color:var(--gold); display:flex; align-items:center; justify-content:center; gap:4px;}
+.detail-stats .gold b svg{width:14px; height:14px;}
 
 .detail-section{padding:0 20px 18px;}
 .detail-section h2{font-size:14px; font-weight:700; margin:0 0 10px;}
@@ -446,12 +495,73 @@ ul{list-style:none; margin:0; padding:0;}
 }
 .avatar-stack .av:first-child{margin-inline-start:0;}
 
+/* --- history heatmap (Saturday-first weeks) --- */
+.heatmap{display:flex; flex-direction:column; gap:6px;}
+.heatmap-week{display:grid; grid-template-columns:repeat(7,1fr); gap:6px;}
+.heatmap-cell{
+  aspect-ratio:1; border-radius:6px; border:1px solid var(--border);
+  background:rgba(255,255,255,0.05); padding:0; cursor:default;
+}
+.heatmap-cell.completed{background:var(--fayrouzeh); border-color:var(--fayrouzeh);}
+.heatmap-cell.skipped{background:rgba(255,255,255,0.16); border-color:var(--border-strong);}
+.heatmap-cell.missed{background:rgba(193,67,67,0.32); border-color:rgba(193,67,67,0.45);}
+.heatmap-cell.pending{background:rgba(212,175,106,0.22); border-color:rgba(212,175,106,0.45);}
+.heatmap-cell.future,
+.heatmap-cell.none{background:transparent; border-style:dashed;}
+.heatmap-cell.writable{cursor:pointer;}
+.heatmap-cell.writable:active{transform:scale(.9);}
+.heatmap-legend{display:flex; flex-wrap:wrap; gap:12px; margin-top:10px;}
+.heatmap-legend-item{display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-3);}
+.heatmap-legend-dot{width:9px; height:9px; border-radius:3px; display:inline-block; border:1px solid var(--border);}
+.heatmap-legend-dot.completed{background:var(--fayrouzeh); border-color:var(--fayrouzeh);}
+.heatmap-legend-dot.skipped{background:rgba(255,255,255,0.16); border-color:var(--border-strong);}
+.heatmap-legend-dot.missed{background:rgba(193,67,67,0.32); border-color:rgba(193,67,67,0.45);}
+.heatmap-legend-dot.pending{background:rgba(212,175,106,0.22); border-color:rgba(212,175,106,0.45);}
+
 .sticky-cta{
-  position:fixed; bottom:0; left:50%; transform:translateX(-50%);
-  width:100%; max-width:480px; padding:14px 20px calc(14px + env(safe-area-inset-bottom));
+  /* sits flush above the bottom nav, not over it -- the device safe-area
+     inset is already accounted for by .bottom-nav below it, so this only
+     needs its own breathing-room padding. */
+  position:fixed; bottom:var(--nav-h); left:50%; transform:translateX(-50%);
+  width:100%; max-width:var(--shell-max); padding:14px 20px;
   background:rgba(11,15,31,0.85); border-top:1px solid var(--border);
   backdrop-filter:blur(20px); z-index:30;
 }
+
+/* --- bottom sheet (check-in confirm/skip) --- */
+.sheet-backdrop{
+  position:fixed; inset:0; background:rgba(5,8,20,0.6);
+  z-index:70; animation:sheetFadeIn .18s var(--ease);
+}
+.sheet{
+  position:fixed; inset:0; z-index:71;
+  display:flex; align-items:flex-end; justify-content:center;
+  pointer-events:none;
+}
+.sheet-panel{
+  pointer-events:auto;
+  width:100%; max-width:var(--shell-max);
+  padding:18px 20px calc(18px + env(safe-area-inset-bottom));
+  border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+  background:var(--bg-1); border:1px solid var(--border-strong); border-bottom:none;
+  box-shadow:var(--shadow-lift);
+  max-height:88vh; overflow-y:auto;
+  animation:sheetSlideUp .22s var(--ease);
+}
+.sheet-head{
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:14px;
+}
+.sheet-head h3{font-size:15.5px; font-weight:800; margin:0;}
+.sheet-body{display:flex; flex-direction:column; gap:14px; margin:0;}
+.sheet-actions{display:flex; gap:10px; margin-top:18px;}
+.sheet-actions button{flex:1;}
+.sheet-actions .primary{
+  background:linear-gradient(145deg, var(--fayrouzeh), var(--fayrouzeh-dim));
+  border-color:transparent; color:#06231f;
+}
+@keyframes sheetFadeIn{from{opacity:0;} to{opacity:1;}}
+@keyframes sheetSlideUp{from{transform:translateY(100%);} to{transform:translateY(0);}}
 
 /* ==========================================================================
    Create challenge

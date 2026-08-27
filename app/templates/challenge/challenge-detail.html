@@ -1,83 +1,131 @@
-<!DOCTYPE html>
-<html lang="fa" dir="rtl">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>چالش | جزئیات چالش</title>
-<link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
+{% extends "layout.html" %}
+{% block head %}
+
 <style>
-  .shell{padding-bottom:96px;}
+  /* this page has both the bottom nav and a sticky CTA above it -- clear both */
+  .shell:has(.bottom-nav) {
+    padding-bottom: calc(var(--nav-h) + var(--cta-h) + 12px);
+  }
 </style>
-</head>
-<body>
-<div class="app-bg"></div>
+{% endblock %}
 
-<div class="shell">
+{% block topbar_leading %}
+<a href="/views/challenges/" class="back-btn" aria-label="بازگشت"><span data-icon="chevronRight"></span></a>
+{% endblock %}
 
-  <div class="page-header">
-    <a href="explore.html" class="back-btn" aria-label="بازگشت"><span data-icon="chevronRight"></span></a>
-    <h1>جزئیات چالش</h1>
-    <button class="back-btn" aria-label="اشتراک‌گذاری" data-icon="share"></button>
-  </div>
+{% block topbar_action %}
+<button class="icon-btn" aria-label="اشتراک‌گذاری" data-icon="share" id="shareBtn"></button>
+{% endblock %}
 
-  <div class="detail-hero glass">
-    <div class="detail-icon"><span data-icon="target"></span></div>
-    <span class="cc-tag">سلامتی</span>
-    <h1>{{challenge.title}}</h1>
-    <div class="detail-stats">
-      
-      <div><b>۳۰</b><span>روزه</span></div>
-      <div><b>۶۲٪</b><span>{{challenge.due_date}}</span></div>
+{% block content %}
+
+<div class="detail-hero glass">
+  <div class="detail-icon"><span data-icon="target"></span></div>
+  <span class="cc-tag">{{ challenge.category.value }}</span>
+  {% if challenge.visibility == 'private' %}<span class="cc-tag">خصوصی</span>
+  {% elif challenge.visibility == 'unlisted' %}<span class="cc-tag">فقط با لینک</span>{% endif %}
+  <h1>{{challenge.title}}</h1>
+  <div class="detail-stats">
+    <div><b id="participantCount">{{ participant_count }}</b><span>شرکت‌کننده</span></div>
+    <div><b>{{ challenge.due_date.strftime('%Y-%m-%d') if challenge.due_date else '—' }}</b><span>مهلت</span></div>
+    <div class="gold">
+      <b>{% if my_streak is not none %}<span data-icon="flame"></span>{{ my_streak }}{% else %}—{% endif %}</b>
+      <span>پیاپی من</span>
     </div>
   </div>
-
-  <section class="detail-section">
-    <h2>درباره چالش</h2>
-    <p>
-      {{challenge.description}}
-    </p>
-  </section>
-
-  <section class="detail-section">
-    <h2>قوانین</h2>
-    <div class="rule-list">
-     {{challenge.rules}}
-    </div>
-  </section>
-
-  <section class="detail-section">
-    <h2>شرکت‌کننده‌ها</h2>
-    <div style="display:flex; align-items:center; justify-content:space-between;">
-      <div class="avatar-stack">
-        {% if challenge and challenge.enrollments %}
-          <div class="avatar-stack">
-            {% for enrollment in challenge.enrollments[:4] %}
-              <div class="av">{{ enrollment.user.name[:1] if enrollment.user else "" }}</div>
-            {% endfor %}
-          </div>
-          {% if challenge.enrollments|length > 4 %}
-            <span style="font-size:12px; color:var(--text-3);">و {{ challenge.enrollments|length - 4 }} نفر دیگه</span>
-          {% endif %}
-        {% else %}
-          <span style="font-size:12px; color:var(--text-3);">هنوز شرکت‌کننده‌ای نیست</span>
-        {% endif %}
-      </div>
-    </div>
-  </section>
-
-  <div class="sticky-cta">
-    <button class="btn-primary" id="detailCta">
-      <span data-icon="x"></span>
-      انصراف از چالش
-    </button>
-  </div>
-
 </div>
+
+<section class="detail-section">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+    <h2 style="margin:0;">پیشرفت جمعی</h2>
+    <span class="cc-tag">خوداظهاری</span>
+  </div>
+  <div class="cc-progress"><i style="width:{{ progress_pct }}%;"></i></div>
+  <p style="font-size:11.5px; color:var(--text-3); margin:8px 0 0;">
+    {% if challenge.goal_amount %}
+    {{ total_amount }} از {{ challenge.goal_amount }} {{ challenge.goal_unit or '' }} ({{ progress_pct }}٪)
+    {% else %}
+    {{ total_completions }} ثبت تکمیل‌شده ({{ progress_pct }}٪)
+    {% endif %}
+  </p>
+</section>
+
+<section class="detail-section">
+  <h2>درباره چالش</h2>
+  <p>
+    {{challenge.description}}
+  </p>
+</section>
+
+{% if challenge.rules %}
+<section class="detail-section">
+  <h2>قوانین</h2>
+  <div class="rule-list">
+    {{challenge.rules}}
+  </div>
+</section>
+{% endif %}
+
+<section class="detail-section">
+  <h2>شرکت‌کننده‌ها</h2>
+  <div style="display:flex; align-items:center; justify-content:space-between;">
+    {% if challenge.enrollments %}
+    <div class="avatar-stack">
+      {% for enrollment in challenge.enrollments[:4] %}
+      <div class="av">{{ enrollment.user.name[:1] if enrollment.user else "" }}</div>
+      {% endfor %}
+    </div>
+    {% if challenge.enrollments|length > 4 %}
+    <span style="font-size:12px; color:var(--text-3);">و {{ challenge.enrollments|length - 4 }} نفر دیگه</span>
+    {% endif %}
+    {% else %}
+    <span style="font-size:12px; color:var(--text-3);">هنوز شرکت‌کننده‌ای نیست</span>
+    {% endif %}
+  </div>
+</section>
+
+{% if is_enrolled %}
+<section class="detail-section">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+    <h2 style="margin:0;">تاریخچه من</h2>
+    <span class="cc-tag">خوداظهاری</span>
+  </div>
+  <div class="heatmap" id="historyHeatmap">
+    {% for week in heatmap_weeks %}
+    <div class="heatmap-week">
+      {% for cell in week %}
+      <button type="button" class="heatmap-cell {{ cell.state }}{{ ' writable' if cell.writable else '' }}" {% if not
+        cell.writable %}disabled{% endif %} data-date="{{ cell.date.isoformat() }}" data-key="{{ cell.key or '' }}"
+        aria-label="{{ cell.date.isoformat() }} — {{ cell.state }}"></button>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  <div class="heatmap-legend">
+    <span class="heatmap-legend-item"><span class="heatmap-legend-dot completed"></span>تکمیل‌شده</span>
+    <span class="heatmap-legend-item"><span class="heatmap-legend-dot skipped"></span>رد شده</span>
+    <span class="heatmap-legend-item"><span class="heatmap-legend-dot missed"></span>ازدست‌رفته</span>
+    <span class="heatmap-legend-item"><span class="heatmap-legend-dot pending"></span>در انتظار</span>
+  </div>
+</section>
+{% endif %}
+
+<div class="sticky-cta">
+  <button class="btn-primary" id="detailCta">
+    <span data-icon="x"></span>
+    انصراف از چالش
+  </button>
+</div>
+{% endblock %}
+
+{% block scripts %}
 
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
 <script>
   const cta = document.getElementById("detailCta");
-  let enrolled = true;
+  const challengeId = {{ challenge.id }};
+  let enrolled = {{ 'true' if is_enrolled else 'false' }};
+  let busy = false;
 
   function renderCta() {
     cta.innerHTML = enrolled
@@ -89,15 +137,122 @@
     cta.style.border = enrolled ? "1px solid rgba(255,120,120,0.3)" : "none";
   }
 
-  cta.addEventListener("click", () => {
+  cta.addEventListener("click", async () => {
+    if (busy) return;
     const msg = enrolled ? "از این چالش انصراف می‌دی؟" : "می‌خوای در این چالش ثبت‌نام کنی؟";
-    if (confirm(msg)) {
+    if (!confirm(msg)) return;
+
+    busy = true;
+    try {
+      const res = await fetch(`/enrollments/${challengeId}`, {
+        method: enrolled ? "DELETE" : "POST",
+        headers: enrolled ? undefined : { "Content-Type": "application/json" },
+        body: enrolled
+          ? undefined
+          : JSON.stringify({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
+      });
+      if (res.status === 401) {
+        window.location.href = `/views/auth/?next=/views/challenges/${challengeId}`;
+        return;
+      }
+      if (!res.ok && res.status !== 409) {
+        const err = await res.json().catch(() => ({}));
+        alert("خطا: " + (err.detail || res.statusText));
+        return;
+      }
       enrolled = !enrolled;
       renderCta();
+      const countEl = document.getElementById("participantCount");
+      if (countEl) {
+        countEl.textContent = Math.max(0, Number(countEl.textContent) + (enrolled ? 1 : -1));
+      }
+    } catch (e) {
+      alert("خطای شبکه: " + e.message);
+    } finally {
+      busy = false;
     }
   });
 
   renderCta();
+
+  const goalUnit = {{ (challenge.goal_unit or "")| tojson }};
+  const heatmap = document.getElementById("historyHeatmap");
+  if (heatmap) {
+    heatmap.addEventListener("click", (e) => {
+      const cell = e.target.closest(".heatmap-cell.writable");
+      if (!cell) return;
+      const occurrenceKey = cell.dataset.key;
+      if (!occurrenceKey) return;
+
+      const fields = [];
+      if (goalUnit) {
+        fields.push({
+          name: "amount",
+          label: `مقدار (${goalUnit})`,
+          type: "number",
+          step: "any",
+          required: true,
+        });
+      }
+      fields.push({ name: "note", label: "یادداشت (اختیاری)", type: "text", maxlength: 500 });
+      fields.push({ name: "photo_url", label: "لینک عکس (اختیاری)", type: "url", maxlength: 500 });
+
+      async function submit(state, values) {
+        const payload = {
+          challenge_id: challengeId,
+          occurrence_key: occurrenceKey,
+          state,
+          note: values.note || null,
+          photo_url: values.photo_url || null,
+        };
+        if (goalUnit) payload.amount = values.amount || null;
+
+        const { ok, data } = await apiFetch("/checkins/", { method: "POST", body: payload });
+        if (!ok) {
+          showToast("خطا: " + (data && data.detail ? data.detail : "ثبت انجام نشد"));
+          return false;
+        }
+
+        cell.classList.remove("pending", "none", "writable");
+        cell.classList.add(state === "completed" ? "completed" : "skipped");
+        cell.disabled = true;
+        showToast(state === "completed" ? "ثبت شد ✅" : "رد شد");
+        return true;
+      }
+
+      createSheet({
+        title: cell.dataset.date,
+        fields: fields,
+        confirmLabel: "تکمیل شد",
+        skipLabel: "رد کردم",
+        onConfirm: (values) => submit("completed", values),
+        onSkip: (values) => submit("skipped", values),
+      });
+    });
+  }
+
+  const shareBtn = document.getElementById("shareBtn");
+  shareBtn.addEventListener("click", async () => {
+    const shareData = {
+      title: document.title,
+      url: window.location.href,
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        return;
+      }
+      await navigator.clipboard.writeText(shareData.url);
+      showToast("لینک چالش کپی شد");
+    } catch (e) {
+      if (e && e.name === "AbortError") return; // user cancelled the share sheet
+      try {
+        await navigator.clipboard.writeText(shareData.url);
+        showToast("لینک چالش کپی شد");
+      } catch {
+        showToast("اشتراک‌گذاری ممکن نشد");
+      }
+    }
+  });
 </script>
-</body>
-</html>
+{% endblock %}

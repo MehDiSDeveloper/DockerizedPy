@@ -1,57 +1,6 @@
 // ==========================================================================
-// چالش | app.js — mock data + view logic (MVP, no framework)
-// Structure kept modular so real API calls can replace mockApi.* later.
+// چالش | app.js — shared icon set used across all Jinja-rendered templates
 // ==========================================================================
-
-const mockApi = {
-  currentUser: { name: "مهدی", streak: 4 },
-
-  myChallenges: [
-    {
-      id: 1,
-      title: "۳۰ روز بدون شکر",
-      category: "سلامتی",
-      description: "یک ماه کامل بدون قند افزوده؛ فقط قند طبیعی میوه‌ها مجازه.",
-      status: "active", // active | completed
-      progress: 62,
-      daysLeft: 11,
-      participants: 128,
-      owner: true,
-    },
-    {
-      id: 2,
-      title: "چالش کتاب‌خوانی هفتگی",
-      category: "یادگیری",
-      description: "هر هفته یک کتاب رو شروع کن و حداقل ۵۰ صفحه بخون.",
-      status: "active",
-      progress: 30,
-      daysLeft: 4,
-      participants: 54,
-      owner: false,
-    },
-    {
-      id: 3,
-      title: "پیاده‌روی روزانه ۱۰هزار قدم",
-      category: "ورزش",
-      description: "هر روز حداقل ده‌هزار قدم راه برو و ثبتش کن.",
-      status: "completed",
-      progress: 100,
-      daysLeft: 0,
-      participants: 342,
-      owner: false,
-    },
-  ],
-
-  exploreChallenges: [
-    { id: 101, title: "۲۱ روز مدیتیشن صبحگاهی", category: "ذهن‌آگاهی", participants: 87, days: 21, enrolled: false },
-    { id: 102, title: "چالش ترک شبکه‌های اجتماعی", category: "سبک زندگی", participants: 210, days: 14, enrolled: false },
-    { id: 103, title: "۱۰۰ روز کدنویسی روزانه", category: "یادگیری", participants: 640, days: 100, enrolled: true },
-    { id: 104, title: "چالش نوشیدن آب کافی", category: "سلامتی", participants: 95, days: 30, enrolled: false },
-    { id: 105, title: "دویدن ۵ کیلومتر هفتگی", category: "ورزش", participants: 172, days: 60, enrolled: false },
-  ],
-
-  categories: ["همه", "سلامتی", "ورزش", "یادگیری", "ذهن‌آگاهی", "سبک زندگی"],
-};
 
 // ---- icon set (inline SVG, stroke-based, consistent 24px grid) ----------
 const icons = {
@@ -86,195 +35,365 @@ const icons = {
   info: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 8h.01"/></svg>`,
 };
 
-// ---- render helpers -------------------------------------------------------
-function challengeCardHTML(c) {
-  const isDone = c.status === "completed";
-  return `
-  <div class="challenge-card glass ${isDone ? "completed" : ""}" data-id="${c.id}" onclick="if(!event.target.closest('[data-action]')) window.location.href='challenge-detail.html'">
-    ${isDone ? `<div class="seal"><span>تکمیل<br/>شده</span></div>` : ""}
-    <div class="cc-top">
-      <span class="cc-tag">${c.category}</span>
-    </div>
-    <h3 class="cc-title">${c.title}</h3>
-    <p class="cc-desc">${c.description}</p>
-
-    <div class="cc-meta">
-      <span class="cc-meta-item">${icons.users}${c.participants} نفر</span>
-      ${
-        isDone
-          ? `<span class="cc-meta-item">${icons.check}تکمیل شد</span>`
-          : `<span class="cc-meta-item">${icons.clock}${c.daysLeft} روز مانده</span>`
-      }
-    </div>
-
-    <div class="cc-progress"><i style="width:${c.progress}%"></i></div>
-
-    <div class="cc-actions">
-      ${
-        isDone
-          ? `<button class="cc-btn ghost" data-action="view">${icons.seal} مشاهده نتیجه</button>`
-          : `<button class="cc-btn ghost" data-action="offroll">${icons.x} انصراف</button>`
-      }
-      ${
-        c.owner
-          ? `<button class="cc-btn danger" data-action="delete">${icons.trash} حذف چالش</button>`
-          : ""
-      }
-    </div>
-  </div>`;
-}
-
-function emptyStateHTML(label) {
-  return `<div class="empty">${icons.empty}<p>${label}</p></div>`;
-}
-
-// ---- home view logic --------------------------------------------------
-function renderHome(filter = "active") {
-  const list = document.getElementById("challengeList");
-  if (!list) return;
-
-  const items = mockApi.myChallenges.filter((c) => c.status === filter);
-  list.innerHTML = items.length
-    ? items.map(challengeCardHTML).join("")
-    : emptyStateHTML(
-        filter === "active"
-          ? "هنوز چالش فعالی نداری. یکی رو از فهرست چالش‌ها انتخاب کن یا خودت بساز."
-          : "هنوز چالشی رو تکمیل نکردی."
-      );
-
-  attachCardActions();
-}
-
-function attachCardActions() {
-  document.querySelectorAll(".challenge-card").forEach((card) => {
-    const id = Number(card.dataset.id);
-    card.querySelectorAll("[data-action]").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const action = btn.dataset.action;
-        if (action === "offroll") {
-          if (confirm("از این چالش انصراف می‌دی؟")) {
-            mockApi.myChallenges = mockApi.myChallenges.filter((c) => c.id !== id);
-            renderHome(currentFilter);
-          }
-        } else if (action === "delete") {
-          if (confirm("این چالش برای همه شرکت‌کننده‌ها حذف می‌شه. مطمئنی؟")) {
-            mockApi.myChallenges = mockApi.myChallenges.filter((c) => c.id !== id);
-            renderHome(currentFilter);
-          }
-        }
-      });
-    });
-  });
-}
-
-let currentFilter = "active";
-
-function initTabs() {
-  document.querySelectorAll(".tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-      tab.classList.add("active");
-      currentFilter = tab.dataset.filter;
-      renderHome(currentFilter);
-    });
-  });
-}
-
-function initStats() {
-  const elActive = document.getElementById("statActive");
-  if (!elActive) return;
-  const active = mockApi.myChallenges.filter((c) => c.status === "active").length;
-  const done = mockApi.myChallenges.filter((c) => c.status === "completed").length;
-  const streak = mockApi.currentUser.streak;
-
-  elActive.textContent = active;
-  document.getElementById("statDone").textContent = done;
-  document.getElementById("statStreak").textContent = streak;
-}
-
-// ---- explore view logic --------------------------------------------------
-function exploreCardHTML(c) {
-  return `
-  <div class="challenge-card glass explore-card" data-id="${c.id}">
-    <div class="explore-thumb">${icons.target}</div>
-    <div class="explore-body">
-      <h3>${c.title}</h3>
-      <p>
-        <span>${c.category}</span>
-        <span>${icons.users}${c.participants}</span>
-        <span>${icons.calendar}${c.days} روزه</span>
-      </p>
-    </div>
-    <button class="enroll-btn ${c.enrolled ? "enrolled" : ""}" data-action="toggle-enroll">
-      ${c.enrolled ? "عضو شدی" : "ثبت‌نام"}
-    </button>
-  </div>`;
-}
-
-let exploreFilter = "همه";
-let exploreQuery = "";
-
-function renderExplore() {
-  const list = document.getElementById("exploreList");
-  if (!list) return;
-
-  const items = mockApi.exploreChallenges.filter((c) => {
-    const matchCat = exploreFilter === "همه" || c.category === exploreFilter;
-    const matchQuery = c.title.includes(exploreQuery);
-    return matchCat && matchQuery;
-  });
-
-  list.innerHTML = items.length
-    ? items.map(exploreCardHTML).join("")
-    : emptyStateHTML("چالشی با این مشخصات پیدا نشد.");
-
-  list.querySelectorAll("[data-action='toggle-enroll']").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const card = btn.closest(".challenge-card");
-      const id = Number(card.dataset.id);
-      const item = mockApi.exploreChallenges.find((c) => c.id === id);
-      item.enrolled = !item.enrolled;
-      renderExplore();
-    });
-  });
-}
-
-function initExplore() {
-  const chipRow = document.getElementById("categoryChips");
-  if (!chipRow) return;
-
-  chipRow.innerHTML = mockApi.categories
-    .map((cat) => `<button class="chip ${cat === exploreFilter ? "active" : ""}" data-cat="${cat}">${cat}</button>`)
-    .join("");
-
-  chipRow.querySelectorAll(".chip").forEach((chip) => {
-    chip.addEventListener("click", () => {
-      exploreFilter = chip.dataset.cat;
-      chipRow.querySelectorAll(".chip").forEach((c) => c.classList.remove("active"));
-      chip.classList.add("active");
-      renderExplore();
-    });
-  });
-
-  const searchInput = document.getElementById("exploreSearch");
-  searchInput.addEventListener("input", (e) => {
-    exploreQuery = e.target.value;
-    renderExplore();
-  });
-
-  renderExplore();
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  // inject icons into static placeholders
-  document.querySelectorAll("[data-icon]").forEach((el) => {
+// Injects inline SVGs into every [data-icon] placeholder under `root`.
+// Exposed on window so pages can re-run it after inserting new markup
+// (e.g. infinite-scroll fragments) that DOMContentLoaded never saw.
+function renderIcons(root = document) {
+  root.querySelectorAll("[data-icon]").forEach((el) => {
     el.innerHTML = icons[el.dataset.icon] || "";
   });
+}
+window.renderIcons = renderIcons;
 
-  initTabs();
-  initStats();
-  renderHome(currentFilter);
-  initExplore();
+document.addEventListener("DOMContentLoaded", () => {
+  renderIcons();
+
+  // Elements not wired up to a real feature yet (notifications, account
+  // settings, ...) get a clear "coming soon" toast instead of doing
+  // nothing when clicked -- a dead, silent control is worse UX than an
+  // honest "not built yet" message.
+  document.querySelectorAll("[data-coming-soon]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.preventDefault();
+      showToast(el.dataset.comingSoon || "این بخش به‌زودی اضافه می‌شود");
+    });
+  });
+
+  // Make custom `role="button"` elements (e.g. non-<button> menu rows)
+  // keyboard-activatable with Enter/Space, matching native button behavior.
+  document.querySelectorAll('[role="button"][tabindex]').forEach((el) => {
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        el.click();
+      }
+    });
+  });
 });
+
+// ---- small shared UI/network helpers used across pages ----------------
+
+// Debounce: delays invoking `fn` until `wait` ms have passed since the
+// last call. Used for the search inputs so we don't hit the server on
+// every keystroke.
+function debounce(fn, wait) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), wait);
+  };
+}
+window.debounce = debounce;
+
+// Lightweight, non-blocking toast for feedback that doesn't warrant an
+// alert() dialog (e.g. "coming soon" stubs, "link copied").
+function showToast(message) {
+  let el = document.getElementById("appToast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "appToast";
+    el.className = "toast";
+    el.setAttribute("role", "status");
+    el.setAttribute("aria-live", "polite");
+    document.body.appendChild(el);
+  }
+  el.textContent = message;
+  el.classList.add("visible");
+  clearTimeout(el._hideTimer);
+  el._hideTimer = setTimeout(() => el.classList.remove("visible"), 2400);
+}
+window.showToast = showToast;
+
+// Generic infinite-scroll helper: observes `sentinel` and fetches
+// successive pages from `buildUrl(offset, limit)` as it enters the
+// viewport, appending the returned HTML fragment into `container`.
+// The first page is expected to already be server-rendered, so callers
+// pass in the initial offset/hasMore instead of triggering a fetch.
+function createInfiniteScroller({
+  container,
+  sentinel,
+  loadingEl,
+  emptyEl,
+  pageSize = 20,
+  initialOffset = 0,
+  initialHasMore = false,
+  buildUrl,
+  onEmpty,
+  onAppend,
+  loginRedirectUrl,
+}) {
+  let offset = initialOffset;
+  let hasMore = initialHasMore;
+  let loading = false;
+  let requestToken = 0;
+
+  async function fetchPage(reset) {
+    // A reset (filter/search/tab changed) always supersedes whatever is
+    // in flight -- it must never be silently dropped just because a
+    // previous page request hasn't resolved yet. Only plain "load next
+    // page" calls respect the loading/hasMore guards.
+    if (!reset && (loading || !hasMore)) return;
+    const token = ++requestToken;
+    if (reset) {
+      offset = 0;
+      hasMore = true;
+      container.innerHTML = "";
+      if (emptyEl) emptyEl.hidden = true;
+    }
+    loading = true;
+    if (loadingEl) loadingEl.hidden = false;
+    try {
+      const res = await fetch(buildUrl(offset, pageSize));
+      if (token !== requestToken) return; // superseded by a newer filter/reset
+      if (res.status === 401) {
+        window.location.href =
+          loginRedirectUrl ||
+          `/views/auth/?next=${encodeURIComponent(window.location.pathname)}`;
+        return;
+      }
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      const html = await res.text();
+      // Reading the body is a second await -- a reset can land in between, and
+      // appending here would splice a stale page into the fresh container and
+      // push `offset` past rows that were never rendered.
+      if (token !== requestToken) return;
+      hasMore = res.headers.get("X-Has-More") === "true";
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = html;
+      const fragmentCount = wrapper.children.length;
+      const nodes = Array.from(wrapper.children);
+      while (wrapper.firstChild) container.appendChild(wrapper.firstChild);
+      renderIcons(container);
+      if (typeof onAppend === "function") onAppend(nodes);
+      offset += fragmentCount;
+      if (offset === 0 && fragmentCount === 0 && typeof onEmpty === "function") {
+        onEmpty();
+      }
+    } catch (err) {
+      console.error("Failed to load more items:", err);
+      // A reset() empties the container before its request goes out, so a
+      // failure here would otherwise leave a blank list with no explanation
+      // and no way back -- keep hasMore on so the sentinel can retry.
+      if (token === requestToken) {
+        hasMore = true;
+        showToast("بارگذاری انجام نشد. دوباره تلاش کن.");
+      }
+    } finally {
+      // Only the newest request owns the loading flag. A superseded one
+      // clearing it would let the observer start a duplicate page fetch
+      // while the newest request is still in flight.
+      if (token === requestToken) {
+        loading = false;
+        if (loadingEl) loadingEl.hidden = true;
+      }
+    }
+  }
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      if (entries[0].isIntersecting) fetchPage(false);
+    },
+    { rootMargin: "200px 0px" }
+  );
+  observer.observe(sentinel);
+
+  return {
+    reset: () => fetchPage(true),
+    // Callers that drop a card from the DOM *and* from the server's result
+    // set must say so, or `offset` stays one too high and the next page
+    // silently skips a row.
+    notifyRemoved: (n = 1) => {
+      offset = Math.max(0, offset - n);
+    },
+    disconnect: () => observer.disconnect(),
+  };
+}
+window.createInfiniteScroller = createInfiniteScroller;
+
+// JSON fetch helper for new code (existing hand-rolled fetch+alert() call
+// sites are left alone -- see CLAUDE.md). Redirects to login on 401 instead
+// of leaving the caller to handle it, and always resolves to
+// {ok, status, data} instead of throwing.
+async function apiFetch(url, options = {}) {
+  const opts = { ...options };
+  opts.headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (opts.body && typeof opts.body !== "string") {
+    opts.body = JSON.stringify(opts.body);
+  }
+
+  let res;
+  try {
+    res = await fetch(url, opts);
+  } catch (err) {
+    return { ok: false, status: 0, data: { detail: err.message } };
+  }
+
+  if (res.status === 401) {
+    window.location.href = `/views/auth/?next=${encodeURIComponent(window.location.pathname)}`;
+    return { ok: false, status: 401, data: null };
+  }
+
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+  return { ok: res.ok, status: res.status, data };
+}
+window.apiFetch = apiFetch;
+
+// The first modal/dialog in this codebase (everything else uses native
+// confirm()/alert()). A bottom sheet with a focus trap, Escape-to-close,
+// and backdrop-click-to-close; never itself uses confirm()/alert().
+// `fields`: [{name, label, type, required, maxlength, step, placeholder}].
+// `onConfirm(values)` / `onSkip(values)` may return `false` to keep the
+// sheet open (e.g. after a failed request); anything else closes it.
+function createSheet({
+  title,
+  fields = [],
+  onConfirm,
+  onSkip,
+  confirmLabel = "تایید",
+  skipLabel = "رد کردن",
+}) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "sheet-backdrop";
+
+  const sheet = document.createElement("div");
+  sheet.className = "sheet";
+  sheet.setAttribute("role", "dialog");
+  sheet.setAttribute("aria-modal", "true");
+  sheet.setAttribute("aria-label", title || "");
+
+  const panel = document.createElement("div");
+  panel.className = "sheet-panel glass";
+
+  const head = document.createElement("div");
+  head.className = "sheet-head";
+  const heading = document.createElement("h3");
+  heading.textContent = title || "";
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "icon-btn";
+  closeBtn.setAttribute("aria-label", "بستن");
+  closeBtn.dataset.icon = "x";
+  head.appendChild(heading);
+  head.appendChild(closeBtn);
+
+  const form = document.createElement("form");
+  form.className = "sheet-body";
+  const inputs = {};
+  fields.forEach((f) => {
+    const wrap = document.createElement("div");
+    wrap.className = "field";
+    const label = document.createElement("label");
+    label.textContent = f.label + (f.required ? " *" : "");
+    label.setAttribute("for", `sheet-${f.name}`);
+    const fieldInput = document.createElement("div");
+    fieldInput.className = "field-input";
+    const input = document.createElement("input");
+    input.id = `sheet-${f.name}`;
+    input.name = f.name;
+    input.type = f.type || "text";
+    if (f.placeholder) input.placeholder = f.placeholder;
+    if (f.maxlength) input.maxLength = f.maxlength;
+    if (f.required) input.required = true;
+    if (f.step) input.step = f.step;
+    fieldInput.appendChild(input);
+    wrap.appendChild(label);
+    wrap.appendChild(fieldInput);
+    form.appendChild(wrap);
+    inputs[f.name] = input;
+  });
+
+  const actions = document.createElement("div");
+  actions.className = "sheet-actions";
+  const skipBtn = document.createElement("button");
+  skipBtn.type = "button";
+  skipBtn.className = "cc-btn ghost";
+  skipBtn.textContent = skipLabel;
+  const confirmBtn = document.createElement("button");
+  confirmBtn.type = "button";
+  confirmBtn.className = "cc-btn primary";
+  confirmBtn.textContent = confirmLabel;
+  actions.appendChild(skipBtn);
+  actions.appendChild(confirmBtn);
+
+  panel.appendChild(head);
+  panel.appendChild(form);
+  panel.appendChild(actions);
+  sheet.appendChild(panel);
+
+  document.body.appendChild(backdrop);
+  document.body.appendChild(sheet);
+  const previousOverflow = document.body.style.overflow;
+  document.body.style.overflow = "hidden";
+
+  const previouslyFocused = document.activeElement;
+
+  function collectValues() {
+    const values = {};
+    for (const [name, el] of Object.entries(inputs)) values[name] = el.value;
+    return values;
+  }
+
+  function close() {
+    document.removeEventListener("keydown", onKeydown);
+    backdrop.removeEventListener("click", close);
+    backdrop.remove();
+    sheet.remove();
+    document.body.style.overflow = previousOverflow;
+    if (previouslyFocused && typeof previouslyFocused.focus === "function") {
+      previouslyFocused.focus();
+    }
+  }
+
+  function focusableEls() {
+    return Array.from(
+      panel.querySelectorAll('button, input, textarea, [href], [tabindex]:not([tabindex="-1"])')
+    ).filter((el) => !el.disabled);
+  }
+
+  function onKeydown(e) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      close();
+      return;
+    }
+    if (e.key !== "Tab") return;
+    const focusables = focusableEls();
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
+  backdrop.addEventListener("click", close);
+  closeBtn.addEventListener("click", close);
+  document.addEventListener("keydown", onKeydown);
+
+  skipBtn.addEventListener("click", async () => {
+    const result = typeof onSkip === "function" ? await onSkip(collectValues()) : true;
+    if (result !== false) close();
+  });
+
+  confirmBtn.addEventListener("click", async () => {
+    if (!form.reportValidity()) return;
+    const result = typeof onConfirm === "function" ? await onConfirm(collectValues()) : true;
+    if (result !== false) close();
+  });
+
+  renderIcons(sheet);
+  const firstFocusable = focusableEls()[0];
+  if (firstFocusable) firstFocusable.focus();
+
+  return { close };
+}
+window.createSheet = createSheet;

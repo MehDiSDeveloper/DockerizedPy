@@ -1,6 +1,3 @@
-from datetime import datetime  # noqa: F401
-from typing import Annotated, Literal, Union  # noqa: F401
-
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -18,6 +15,11 @@ class UserUpdate(UserBase):
     pass
 
 
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+
 class UserReadBase(UserBase):
     model_config = ConfigDict(from_attributes=True)
     id: int = Field(description="The unique identifier of the user")
@@ -25,3 +27,12 @@ class UserReadBase(UserBase):
 
 class UserRead(UserReadBase):
     pass
+
+
+class UserPublicRead(BaseModel):
+    """Public-facing user shape -- excludes email so it's safe to return to
+    any caller, not just the user themselves."""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: int = Field(description="The unique identifier of the user")
+    name: str

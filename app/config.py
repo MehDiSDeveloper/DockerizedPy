@@ -8,6 +8,7 @@ BASE_DIR = Path(__file__).resolve().parent
 class Settings(BaseSettings):
     database_url: str = "sqlite:///./task_manager.db"
     environment: str = "development"
+    secret_key: str = "dev-insecure-secret-change-me"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

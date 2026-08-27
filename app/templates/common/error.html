@@ -3,56 +3,21 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>چالش | فهرست چالش‌ها</title>
-<link rel="stylesheet" href="css/styles.css" />
+<title>چالش | خطا</title>
+<link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
 </head>
 <body>
 <div class="app-bg"></div>
 
 <div class="shell">
-
-  <header class="topbar">
-    <div class="brand">
-      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#06231f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
-      <div class="brand-name">چالش<span>.</span></div>
+  <div class="auth-wrap">
+    <div class="auth-logo">
+      <h1>مشکلی پیش اومد</h1>
+      <p>{{ error }}</p>
     </div>
-    <button class="icon-btn has-dot" aria-label="اعلان‌ها" data-icon="bell"></button>
-  </header>
-
-  <section class="hero">
-    <p class="hero-eyebrow">کاوش</p>
-    <h1 class="hero-title">دنبال چه چالشی هستی؟</h1>
-  </section>
-
-  <div class="search-bar">
-    <span data-icon="search"></span>
-    <input type="text" id="exploreSearch" placeholder="جستجوی چالش..." />
-    <button class="filter-btn" aria-label="فیلتر" data-icon="filter"></button>
+    <a href="/views/challenges/" class="btn-primary" style="display:block; text-align:center;">بازگشت به فهرست چالش‌ها</a>
   </div>
-
-  <div class="chip-row" id="categoryChips"></div>
-
-  <section>
-    <div class="challenge-list" id="exploreList"></div>
-  </section>
-
-  <nav class="bottom-nav">
-    <a href="index.html" class="nav-item">
-      <span data-icon="home"></span>
-      خانه
-    </a>
-    <div class="nav-item active">
-      <span data-icon="list"></span>
-      چالش‌ها
-    </div>
-    <a href="profile.html" class="nav-item">
-      <span data-icon="user"></span>
-      پروفایل
-    </a>
-  </nav>
-
 </div>
 
-<script src="js/app.js"></script>
 </body>
 </html>
