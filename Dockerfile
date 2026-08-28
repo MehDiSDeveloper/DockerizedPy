@@ -2,12 +2,16 @@ FROM python:3.14-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends gcc python3-dev \
-    && rm -rf /var/lib/apt/lists/*
-    
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# --only-binary=:all: keeps a missing wheel from silently turning into a
+# source build: without a compiler in the image that would fail late and
+# confusingly, and installing one is what made the build time out.
+RUN pip install --no-cache-dir --only-binary=:all: -r requirements.txt
 
 COPY . .
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+RUN chmod +x /app/start.sh
+
+EXPOSE 8000
+
+CMD ["/app/start.sh"]

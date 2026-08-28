@@ -2,28 +2,48 @@
 {% block head %}
 
 <style>
-  /* this page has both the bottom nav and a sticky CTA above it -- clear both */
+  /* this page has both the bottom nav and a floating CTA panel above it --
+     clear the nav, the gap the panel floats by, the panel itself, and the
+     same end-of-page gap .shell gives every other page. */
   .shell:has(.bottom-nav) {
-    padding-bottom: calc(var(--nav-h) + var(--cta-h) + 12px);
+    padding-bottom: calc(var(--nav-h) + var(--cta-h) + 2 * var(--page-end-gap));
   }
 </style>
 {% endblock %}
 
+{#- The href is the fallback for a cold landing (a shared link, no trail
+    yet); wireBackButtons() in app.js retargets it at wherever the visitor
+    actually came from. -#}
 {% block topbar_leading %}
-<a href="/views/challenges/" class="back-btn" aria-label="بازگشت"><span data-icon="chevronRight"></span></a>
+<a href="/views/challenges/" class="back-btn" data-back aria-label="بازگشت"><span data-icon="chevronRight"></span></a>
+{% endblock %}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر صفحه" hidden
+  data-crumb-trail data-crumb-label="{{ challenge.title }}"></nav>
 {% endblock %}
 
 {% block topbar_action %}
-<button class="icon-btn" aria-label="اشتراک‌گذاری" data-icon="share" id="shareBtn"></button>
+<div class="topbar-actions">
+  {% if is_owner %}
+  <button class="icon-btn" aria-label="مدیریت چالش" data-icon="edit" id="manageBtn"></button>
+  {% endif %}
+  <button class="icon-btn" aria-label="اشتراک‌گذاری" data-icon="share" id="shareBtn"></button>
+</div>
 {% endblock %}
 
 {% block content %}
 
 <div class="detail-hero glass">
-  <div class="detail-icon"><span data-icon="target"></span></div>
-  <span class="cc-tag">{{ challenge.category.value }}</span>
-  {% if challenge.visibility == 'private' %}<span class="cc-tag">خصوصی</span>
-  {% elif challenge.visibility == 'unlisted' %}<span class="cc-tag">فقط با لینک</span>{% endif %}
+  <div class="detail-icon"><span data-icon="{{ challenge.category | category_icon }}"></span>
+    <span class="cadence-badge" title="{{ cadence_plan.label }}" aria-label="{{ cadence_plan.label }}"
+      data-icon="{{ challenge.cadence_kind | cadence_icon }}"></span></div>
+  <div class="detail-tags">
+    <span class="cc-tag"><span data-icon="{{ challenge.category | category_icon }}"></span>{{ challenge.category.value }}</span>
+    <span class="cc-tag accent"><span data-icon="{{ challenge.cadence_kind | cadence_icon }}"></span>{{ cadence_plan.label }}</span>
+    {% if challenge.visibility != 'public' %}<span class="cc-tag">{{ visibility_label }}</span>{% endif %}
+    {% if challenge.lifecycle_status != 'active' %}<span class="cc-tag warn">{{ lifecycle_label }}</span>{% endif %}
+  </div>
   <h1>{{challenge.title}}</h1>
   <div class="detail-stats">
     <div><b id="participantCount">{{ participant_count }}</b><span>شرکت‌کننده</span></div>
@@ -36,18 +56,103 @@
   </div>
 </div>
 
+
+{#- The cadence is the single most important thing about a challenge and was
+    the one thing this page never showed. Everything here is server-derived
+    from the same occurrence engine the check-in flow uses, so a date previewed
+    here is the date that later shows up in the history below. -#}
+<section class="detail-section">
+  <div class="section-head">
+    <h2>برنامهٔ چالش</h2>
+    {% if cadence_plan.kind != 'once' %}
+    <span class="cc-tag" title="{{ cadence_plan.timezone }}">{{ cadence_plan.timezone }}</span>
+    {% endif %}
+  </div>
+
+  <div class="plan-card glass">
+    <div class="plan-rule">
+      <span class="plan-rule-icon"
+        data-icon="{{ cadence_plan.kind | cadence_icon }}"></span>
+      <div class="plan-rule-text">
+        <b>{{ cadence_plan.rule }}</b>
+        {% if cadence_plan.density %}<span>{{ cadence_plan.density }}</span>{% endif %}
+      </div>
+    </div>
+
+    {% if cadence_plan.weekdays %}
+    <div class="weekday-strip" role="img" aria-label="{{ cadence_plan.rule }}">
+      {% for d in cadence_plan.weekdays %}
+      <span class="wd{{ ' on' if d.on else '' }}" title="{{ d.name }}" aria-hidden="true">{{ d.name[0] }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if cadence_plan.progress %}
+    <div class="plan-progress">
+      <div class="cc-progress"><i style="width:{{ cadence_plan.progress.pct }}%;"></i></div>
+      <span>{{ cadence_plan.progress.done }} از {{ cadence_plan.progress.total }}
+        {{ cadence_plan.progress.label }}</span>
+    </div>
+    {% endif %}
+
+    {% if cadence_plan.facts %}
+    <dl class="fact-list">
+      {% for f in cadence_plan.facts %}
+      <div class="fact">
+        <dt>{{ f.label }}</dt>
+        <dd>
+          {%- if f.date -%}
+          <span data-jalali="{{ f.date }}"
+            data-jalali-format="{{ f.format or 'day-month-year' }}">{{ f.date }}</span>
+          {%- if f.date_to %} تا <span data-jalali="{{ f.date_to }}"
+            data-jalali-format="{{ f.format or 'day-month-year' }}">{{ f.date_to }}</span>{% endif -%}
+          {%- else -%}
+          {{ f.text }}
+          {%- endif -%}
+        </dd>
+      </div>
+      {% endfor %}
+    </dl>
+    {% endif %}
+  </div>
+
+  {% if cadence_plan.upcoming %}
+  <h3 class="sub-head">{{ cadence_plan.upcoming_label }}</h3>
+  <ul class="up-list">
+    {% for u in cadence_plan.upcoming %}
+    <li class="up-row{{ ' next' if u.is_next else '' }}">
+      <span class="up-dot" aria-hidden="true"></span>
+      <span class="up-date" data-jalali="{{ u.date }}"
+        data-jalali-format="{{ cadence_plan.upcoming_format }}"
+        data-jalali-prefix="{{ cadence_plan.upcoming_prefix }}">{{ u.date }}</span>
+      {%- if u.at %}
+      {#- A scheduled occurrence is an instant, so it is read in the zone it
+          was judged in -- not the viewer's. -#}
+      <span class="up-time" data-jalali="{{ u.at }}" data-jalali-format="time"
+        data-jalali-tz="{{ cadence_plan.timezone }}">{{ u.at }}</span>
+      {%- endif %}
+      {% if u.is_next %}<span class="up-flag">بعدی</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+
 <section class="detail-section">
   <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
     <h2 style="margin:0;">پیشرفت جمعی</h2>
     <span class="cc-tag">خوداظهاری</span>
   </div>
   <div class="cc-progress"><i style="width:{{ progress_pct }}%;"></i></div>
-  <p style="font-size:11.5px; color:var(--text-3); margin:8px 0 0;">
+  <p class="progress-note">
     {% if challenge.goal_amount %}
-    {{ total_amount }} از {{ challenge.goal_amount }} {{ challenge.goal_unit or '' }} ({{ progress_pct }}٪)
+    {{ total_amount | num }} از {{ challenge.goal_amount | num }} {{ challenge.goal_unit or '' }} ({{ progress_pct }}٪)
     {% else %}
     {{ total_completions }} ثبت تکمیل‌شده ({{ progress_pct }}٪)
     {% endif %}
+    {%- if last_activity_at %} · آخرین فعالیت <span data-jalali="{{ last_activity_at.isoformat() }}"
+      data-jalali-format="day-month" data-jalali-tz="{{ default_timezone }}">{{ last_activity_at.isoformat() }}</span>
+    {%- endif %}
   </p>
 </section>
 
@@ -66,6 +171,58 @@
   </div>
 </section>
 {% endif %}
+
+
+<section class="detail-section">
+  <h2>جزئیات</h2>
+  <div class="meta-grid">
+    <div class="meta-item">
+      <span data-icon="user"></span>
+      <div><b>{{ challenge.owner.name if challenge.owner else '—' }}</b><span>سازنده</span></div>
+    </div>
+    <div class="meta-item">
+      <span data-icon="calendar"></span>
+      <div>
+        <b {% if challenge.created_at %}data-jalali="{{ challenge.created_at.isoformat() }}"
+          data-jalali-format="day-month-year"
+          data-jalali-tz="{{ default_timezone }}"{% endif %}>{{ challenge.created_at.isoformat() if challenge.created_at else '—' }}</b>
+        <span>تاریخ ساخت</span>
+      </div>
+    </div>
+    <div class="meta-item">
+      <span data-icon="eye"></span>
+      <div><b>{{ visibility_label }}</b><span>دسترسی</span></div>
+    </div>
+    <div class="meta-item">
+      <span data-icon="seal"></span>
+      <div><b>{{ lifecycle_label }}</b><span>وضعیت</span></div>
+    </div>
+    {% if challenge.goal_amount %}
+    <div class="meta-item">
+      <span data-icon="target"></span>
+      <div><b>{{ challenge.goal_amount | num }} {{ challenge.goal_unit or '' }}</b><span>هدف جمعی</span></div>
+    </div>
+    {% endif %}
+    {% if challenge.due_date %}
+    <div class="meta-item">
+      <span data-icon="clock"></span>
+      <div>
+        <b data-jalali="{{ challenge.due_date.isoformat() }}" data-jalali-format="day-month-year"
+          data-jalali-tz="{{ default_timezone }}">{{ challenge.due_date.isoformat() }}</b>
+        <span>مهلت کلی</span>
+      </div>
+    </div>
+    {% endif %}
+    <div class="meta-item">
+      <span data-icon="chart"></span>
+      <div><b>{{ total_completions }}</b><span>ثبت تکمیل‌شده</span></div>
+    </div>
+    <div class="meta-item">
+      <span data-icon="users"></span>
+      <div><b>{{ participant_count }}</b><span>شرکت‌کننده</span></div>
+    </div>
+  </div>
+</section>
 
 <section class="detail-section">
   <h2>شرکت‌کننده‌ها</h2>
@@ -86,6 +243,50 @@
 </section>
 
 {% if is_enrolled %}
+{% if my_stats %}
+<section class="detail-section">
+  <h2>وضعیت من</h2>
+  <div class="mine-grid">
+    <div class="mine-tile ok">
+      <b>{{ my_stats.completed }}</b><span>تکمیل‌شده</span>
+    </div>
+    <div class="mine-tile">
+      <b>{{ my_stats.skipped }}</b><span>رد شده</span>
+    </div>
+    <div class="mine-tile gold">
+      <b><span data-icon="flame"></span>{{ my_stats.current_streak }}</b><span>پیاپی فعلی</span>
+    </div>
+    <div class="mine-tile gold">
+      <b><span data-icon="seal"></span>{{ my_stats.longest_streak }}</b><span>رکورد پیاپی</span>
+    </div>
+  </div>
+  <dl class="fact-list">
+    <div class="fact">
+      <dt>شروع من</dt>
+      <dd><span data-jalali="{{ my_stats.start_date.isoformat() }}"
+          data-jalali-format="day-month-year">{{ my_stats.start_date.isoformat() }}</span></dd>
+    </div>
+    {% if my_stats.last_checkin_at %}
+    <div class="fact">
+      <dt>آخرین ثبت من</dt>
+      <dd><span data-jalali="{{ my_stats.last_checkin_at.isoformat() }}" data-jalali-format="datetime"
+          data-jalali-tz="{{ my_stats.timezone }}">{{ my_stats.last_checkin_at.isoformat() }}</span></dd>
+    </div>
+    {% endif %}
+    {% if challenge.goal_unit and my_stats.total_amount %}
+    <div class="fact">
+      <dt>مجموع ثبت‌شده</dt>
+      <dd>{{ my_stats.total_amount | num }} {{ challenge.goal_unit }}</dd>
+    </div>
+    {% endif %}
+    <div class="fact">
+      <dt>منطقهٔ زمانی من</dt>
+      <dd>{{ my_stats.timezone }}</dd>
+    </div>
+  </dl>
+</section>
+{% endif %}
+
 {% set state_labels = {'completed': 'تکمیل‌شده', 'skipped': 'رد شده', 'missed': 'ازدست‌رفته', 'pending': 'در انتظار'} %}
 <section class="detail-section">
   <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
@@ -154,6 +355,13 @@
         data-jalali="{{ item.date.isoformat() }}" data-jalali-format="weekday-day-month"
         data-jalali-prefix="ثبت " data-jalali-attr="aria-label"
         aria-label="ثبت {{ item.date.isoformat() }}">ثبت</button>
+      {% elif item.editable %}
+      <button type="button" class="tl-action tl-edit" data-checkin-id="{{ item.checkin_id }}"
+        data-state="{{ item.state }}" data-amount="{{ item.amount | num }}"
+        data-note="{{ item.note or '' }}"
+        data-jalali="{{ item.date.isoformat() }}" data-jalali-format="weekday-day-month"
+        data-jalali-prefix="ویرایش " data-jalali-attr="aria-label"
+        aria-label="ویرایش {{ item.date.isoformat() }}">ویرایش</button>
       {% endif %}
     </li>
     {% else %}
@@ -267,7 +475,9 @@
       }
 
       showToast(state === "completed" ? "ثبت شد" : "رد شد");
-      onDone(state);
+      // `data` carries the created row, so callers can leave the occurrence
+      // immediately editable rather than requiring a reload to undo a mistake.
+      onDone(state, data, values);
       return true;
     }
 
@@ -281,20 +491,127 @@
     });
   }
 
+  // Correcting an already-recorded occurrence. Only reachable while the
+  // backfill window is open -- the server enforces that on PATCH/DELETE too,
+  // so a stale page gets a 403 rather than a silent no-op.
+  function openEditSheet(btn, row) {
+    const stateLabels = { completed: "تکمیل‌شده", skipped: "رد شده" };
+    const fields = [];
+    if (goalUnit) {
+      fields.push({
+        name: "amount",
+        label: `مقدار (${goalUnit})`,
+        type: "number",
+        step: "any",
+        value: btn.dataset.amount || "",
+      });
+    }
+    fields.push({
+      name: "note",
+      label: "یادداشت (اختیاری)",
+      type: "text",
+      maxlength: 500,
+      value: btn.dataset.note || "",
+    });
+    fields.push({
+      name: "state",
+      label: "وضعیت",
+      type: "select",
+      options: [
+        { value: "completed", label: stateLabels.completed },
+        { value: "skipped", label: stateLabels.skipped },
+      ],
+      value: btn.dataset.state,
+    });
+
+    const checkinId = btn.dataset.checkinId;
+
+    createSheet({
+      title: row.querySelector(".tl-date").textContent.trim(),
+      fields: fields,
+      confirmLabel: "ذخیره",
+      danger: {
+        label: "حذف ثبت",
+        onClick: async () => {
+          if (!confirm("این ثبت حذف بشه؟")) return false;
+          const { ok, data } = await apiFetch(`/checkins/${checkinId}`, {
+            method: "DELETE",
+          });
+          if (!ok) {
+            showToast("خطا: " + (data && data.detail ? data.detail : "حذف انجام نشد"));
+            return false;
+          }
+          showToast("حذف شد");
+          window.location.reload();
+          return true;
+        },
+      },
+      onConfirm: async (values) => {
+        const payload = { state: values.state, note: values.note || null };
+        if (goalUnit) payload.amount = values.amount || null;
+        const { ok, data } = await apiFetch(`/checkins/${checkinId}`, {
+          method: "PATCH",
+          body: payload,
+        });
+        if (!ok) {
+          showToast("خطا: " + (data && data.detail ? data.detail : "ذخیره نشد"));
+          return false;
+        }
+        row.classList.remove("completed", "skipped");
+        row.classList.add(values.state);
+        row.querySelector(".tl-meta").textContent = stateLabels[values.state];
+        btn.dataset.state = values.state;
+        btn.dataset.note = values.note || "";
+        if (goalUnit) btn.dataset.amount = values.amount || "";
+        showToast("ذخیره شد");
+        return true;
+      },
+    });
+  }
+
   const timeline = document.getElementById("historyTimeline");
   if (timeline) {
     timeline.addEventListener("click", (e) => {
       const row = e.target.closest(".tl-row");
       if (!row) return;
+      const editBtn = e.target.closest(".tl-edit");
+      if (editBtn) {
+        openEditSheet(editBtn, row);
+        return;
+      }
       const btn = e.target.closest(".tl-action");
       if (btn) {
-        openCheckinSheet(btn.dataset.key, row.querySelector(".tl-date").textContent.trim(), (state) => {
-          row.classList.remove("pending", "missed");
-          row.classList.add(state === "completed" ? "completed" : "skipped");
-          row.querySelector(".tl-meta").textContent =
-            state === "completed" ? "تکمیل‌شده" : "رد شده";
-          btn.remove();
-        });
+        openCheckinSheet(
+          btn.dataset.key,
+          row.querySelector(".tl-date").textContent.trim(),
+          (state, created, values) => {
+            row.classList.remove("pending", "missed");
+            row.classList.add(state === "completed" ? "completed" : "skipped");
+            row.querySelector(".tl-meta").textContent =
+              state === "completed" ? "تکمیل‌شده" : "رد شده";
+            // Becomes the edit affordance rather than disappearing -- the
+            // occurrence is still inside its backfill window, so undoing a
+            // mis-tap shouldn't need a page reload.
+            if (created && created.id) {
+              btn.classList.add("tl-edit");
+              btn.textContent = "ویرایش";
+              btn.dataset.checkinId = created.id;
+              btn.dataset.state = state;
+              btn.dataset.note = (values && values.note) || "";
+              btn.dataset.amount = (values && values.amount) || "";
+              // renderDates already wrote the "ثبت …" aria-label from
+              // data-jalali-prefix; relabel it to match the new action.
+              btn.dataset.jalaliPrefix = "ویرایش ";
+              btn.setAttribute(
+                "aria-label",
+                "ویرایش " + row.querySelector(".tl-date").textContent.trim()
+              );
+              delete btn.dataset.key;
+            } else {
+              btn.remove();
+            }
+          }
+        );
         return;
       }
       // Recorded / expired rows explain themselves rather than sitting inert.
@@ -319,6 +636,90 @@
         row.querySelector(".quota-pips").setAttribute(
           "aria-label", `${newDone} از ${target} نوبت انجام شده`);
         if (newDone >= target) btn.remove();
+      });
+    });
+  }
+
+  // Owner management. The API is the authority on what may change -- cadence
+  // and goal are locked once others enrol, and hard delete is refused then
+  // too -- so this sheet deliberately offers only the always-editable fields
+  // and hides delete when the server would answer 409 anyway.
+  const manageBtn = document.getElementById("manageBtn");
+  if (manageBtn) {
+    const challengeData = {{ {
+      "title": challenge.title,
+      "description": challenge.description or "",
+      "rules": challenge.rules or "",
+      "visibility": challenge.visibility,
+      "lifecycle_status": challenge.lifecycle_status,
+    } | tojson }};
+    const visibilityOptions = {{ visibility_options | tojson }};
+    const lifecycleOptions = {{ lifecycle_options | tojson }};
+    const canDelete = {{ 'true' if can_delete else 'false' }};
+
+    function asOptions(map) {
+      return Object.entries(map).map(([value, label]) => ({ value, label }));
+    }
+
+    async function deleteChallenge() {
+      if (!confirm("این چالش برای همیشه حذف بشه؟ این کار برگشت‌پذیر نیست.")) return false;
+      const { ok, status, data } = await apiFetch(`/challenges/${challengeId}`, {
+        method: "DELETE",
+      });
+      if (!ok) {
+        // 409 = someone joined between page render and this click.
+        showToast(
+          status === 409
+            ? "دیگران در این چالش عضو شده‌اند؛ به‌جای حذف بایگانی‌اش کن."
+            : "خطا: " + (data && data.detail ? data.detail : "حذف انجام نشد")
+        );
+        return false;
+      }
+      window.location.href = "/views/challenges/";
+      return true;
+    }
+
+    manageBtn.addEventListener("click", () => {
+      createSheet({
+        title: "مدیریت چالش",
+        confirmLabel: "ذخیره",
+        fields: [
+          { name: "title", label: "عنوان", required: true, maxlength: 50,
+            value: challengeData.title },
+          { name: "description", label: "توضیح", type: "textarea", rows: 3,
+            value: challengeData.description },
+          { name: "rules", label: "قوانین", type: "textarea", rows: 3,
+            value: challengeData.rules },
+          { name: "visibility", label: "دسترسی", type: "select",
+            options: asOptions(visibilityOptions), value: challengeData.visibility },
+          { name: "lifecycle_status", label: "وضعیت", type: "select",
+            options: asOptions(lifecycleOptions), value: challengeData.lifecycle_status },
+        ],
+        danger: canDelete ? { label: "حذف چالش", onClick: deleteChallenge } : undefined,
+        onConfirm: async (values) => {
+          const payload = {
+            title: values.title,
+            description: values.description || null,
+            rules: values.rules || null,
+            visibility: values.visibility,
+            lifecycle_status: values.lifecycle_status,
+          };
+          const { ok, status, data } = await apiFetch(`/challenges/${challengeId}`, {
+            method: "PATCH",
+            body: payload,
+          });
+          if (!ok) {
+            showToast(
+              status === 409
+                ? (data && data.detail) || "این تغییر دیگر مجاز نیست."
+                : "خطا: " + (data && data.detail ? data.detail : "ذخیره نشد")
+            );
+            return false;
+          }
+          showToast("ذخیره شد");
+          window.location.reload();
+          return true;
+        },
       });
     });
   }

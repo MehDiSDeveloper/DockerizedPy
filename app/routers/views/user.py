@@ -4,11 +4,12 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_optional_user_id
+from app.auth import get_page_user
 from app.config import BASE_DIR
 from app.database import get_db
 from app.models.enrollment import Enrollment, EnrollmentStatus
 from app.models.user import User
+from app.routers.user import profile_visibility_filter
 
 router = APIRouter(prefix="/views/users", tags=["user-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
@@ -18,10 +19,33 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 async def user_detail(
     user_id: int,
     request: Request,
-    current_user_id: int | None = Depends(get_optional_user_id),
+    viewer: User = Depends(get_page_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(User).where(User.id == user_id))
+    """Your own profile. Anyone else's is a 404.
+
+    The rule is ``profile_visibility_filter`` in ``routers/user.py``, shared
+    with the JSON ``GET /users/{id}`` so the page and the API it mirrors can
+    never disagree -- see that docstring for why own-only is the right rule
+    for today's app.
+
+    404 rather than 403: the path id is a bare sequential integer, so a 403
+    would tell a walker of ``1..n`` exactly which ids are real members, which
+    is the entire prize. An id the viewer may not see is indistinguishable
+    from one that does not exist. (Being *signed out* is still the 303 to
+    login that ``get_page_user`` raises -- authentication and authorization
+    fail differently on purpose.)
+
+    ``is_own_profile`` is therefore always true here, but it stays: the
+    template branches on it for the owner-only affordances, and it is the
+    flag a looser rule would start flipping.
+    """
+    current_user_id = viewer.id
+    result = await db.execute(
+        select(User).where(
+            User.id == user_id, profile_visibility_filter(current_user_id)
+        )
+    )
     db_user = result.scalar_one_or_none()
 
     if not db_user:

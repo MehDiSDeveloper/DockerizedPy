@@ -86,12 +86,23 @@ async def _load_enrollment_and_challenge(
 async def _load_enrollment_for_checkin(
     db: AsyncSession, checkin: CheckIn, user_id: int
 ) -> Enrollment:
+    """The caller's own enrollment behind a check-in id, or 404.
+
+    404 and not 403: check-in ids are bare sequential integers and the row is
+    only ever reachable through the caller's own enrollment, so a 403 here
+    would tell anyone walking ``/checkins/1..n`` exactly which ids exist
+    across every account -- and there is no page or link that could
+    legitimately hand someone another member's check-in id. Matching the
+    "check-in not found" answer above makes the two indistinguishable. (The
+    403s that remain on these routes are backfill-window refusals, which are
+    about *your own* row and do have to be told apart from a miss.)
+    """
     result = await db.execute(
         select(Enrollment).where(Enrollment.id == checkin.enrollment_id)
     )
     enrollment = result.scalar_one_or_none()
     if enrollment is None or enrollment.user_id != user_id:
-        raise HTTPException(status_code=403, detail="Not allowed to edit this check-in")
+        raise HTTPException(status_code=404, detail="Check-in not found")
     return enrollment
 
 

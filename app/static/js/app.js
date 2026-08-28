@@ -32,6 +32,25 @@ const icons = {
   target: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>`,
   chart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>`,
   camera: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>`,
+  // ---- challenge categories -------------------------------------------
+  // One icon per ChallengeCategory member. The mapping from the (Farsi) enum
+  // value to these names lives server-side in app/icons.py and reaches the
+  // templates as the `category_icon` Jinja filter, so the Farsi strings are
+  // never duplicated into JS -- except in the create wizard, which builds its
+  // own pill grid client-side and keeps its list in sync by hand.
+  catFitness: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8v8M17.5 8v8"/><path d="M3.5 10.5v3M20.5 10.5v3"/><path d="M6.5 12h11"/></svg>`,
+  catNutrition: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8.4c-1.2-1.1-2.7-1.5-4.1-1C5.9 8.2 5 10.2 5 12.6 5 16 7.3 20 9.6 20c.8 0 1.6-.4 2.4-.4s1.6.4 2.4.4c2.3 0 4.6-4 4.6-7.4 0-2.4-.9-4.4-2.9-5.2-1.4-.5-2.9-.1-4.1 1z"/><path d="M12 8.4V5.6"/><path d="M12 5.6c1.7 0 3-1.4 3-3.1-1.7 0-3 1.4-3 3.1z"/></svg>`,
+  catMental: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5.6a3 3 0 00-5.5 1.6A2.9 2.9 0 004.2 10a2.9 2.9 0 001.5 2.6A3 3 0 007 17.6a2.9 2.9 0 005 1.2z"/><path d="M12 5.6a3 3 0 015.5 1.6A2.9 2.9 0 0119.8 10a2.9 2.9 0 01-1.5 2.6A3 3 0 0117 17.6a2.9 2.9 0 01-5 1.2z"/><path d="M12 5.6v13.2"/></svg>`,
+  catProductivity: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.2 2.5L4.8 13.2h5.6l-.8 8.3 8.6-11.2h-5.6z"/></svg>`,
+  catSocial: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9.9l-.8-.8a2.2 2.2 0 10-3.1 3.1l3.9 3.9 3.9-3.9a2.2 2.2 0 10-3.1-3.1z"/><path d="M3.5 13.5l2.6 5.3A3 3 0 008.8 20.5h6.4a3 3 0 002.7-1.7l2.6-5.3"/></svg>`,
+  catOther: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3l1.6 4.3L17 9l-4.4 1.7L11 15l-1.6-4.3L5 9l4.4-1.7z"/><path d="M17.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>`,
+
+  // ---- cadence kinds ----------------------------------------------------
+  // One icon per CadenceKind member; see CADENCE_ICONS in app/icons.py.
+  cadenceOnce: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 21V3.5"/><path d="M5.5 4.5h11l-2.2 3.6L16.5 12h-11"/></svg>`,
+  cadenceSchedule: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2h5.5"/><path d="M8 2.5v4M16 2.5v4M3 9.5h17"/><circle cx="17.5" cy="17.5" r="4.5"/><path d="M17.5 15.6v2l1.4 1.2"/></svg>`,
+  cadenceDays: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.5l3.2 3.2L17 8.9"/><path d="M3.8 11.7V9.7a4 4 0 014-4h12.4"/><path d="M7 21.5l-3.2-3.2L7 15.1"/><path d="M20.2 12.3v2a4 4 0 01-4 4H3.8"/></svg>`,
+  cadenceQuota: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 18.5a8.5 8.5 0 1117 0"/><path d="M12 18.5l4.4-4.9"/><path d="M3.6 15.6l1.9.6M20.4 15.6l-1.9.6M12 10v2"/></svg>`,
   info: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 8h.01"/></svg>`,
 };
 
@@ -228,6 +247,138 @@ function renderDates(root = document) {
 }
 window.renderDates = renderDates;
 
+// ==========================================================================
+// Navigation trail (breadcrumbs + back buttons)
+// ==========================================================================
+// Every page is a full server-rendered document, so nothing survives a
+// navigation on its own -- the trail is kept in sessionStorage, which is
+// per-tab and dies with it, exactly the lifetime a "where did I come from"
+// trail should have.
+//
+// Each page declares itself through the [data-crumb-trail] element that
+// layout.html renders:
+//
+//   data-crumb-label="چالش‌ها"   -- how this page names itself in the trail
+//   data-crumb-root              -- a bottom-nav destination: clears the trail
+//
+// Roots reset rather than append because the bottom nav is a *switch*, not a
+// step forward: arriving at "خانه" from a challenge page means starting over,
+// and without the reset the trail would grow forever as the user tabbed
+// around. Revisiting a page already in the trail truncates back to it, so a
+// loop (list -> detail -> list) collapses instead of repeating.
+
+const TRAIL_KEY = "challenge:nav-trail";
+// Deep enough for list -> detail -> profile -> ..., short enough to stay on
+// one line on a phone.
+const TRAIL_MAX = 4;
+
+function readTrail() {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(TRAIL_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed.filter((e) => e && e.path && e.label) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeTrail(trail) {
+  try {
+    sessionStorage.setItem(TRAIL_KEY, JSON.stringify(trail));
+  } catch {
+    /* private mode / storage full -- breadcrumbs are an enhancement */
+  }
+}
+
+// Folds the current page into the stored trail and returns the result.
+function pushCurrentPage({ label, isRoot }) {
+  const path = location.pathname + location.search;
+  let trail = isRoot ? [] : readTrail();
+  // Match on pathname only: the same list page with a different filter in the
+  // query string is the same *step*, and should collapse rather than stack.
+  const seen = trail.findIndex((e) => e.path.split("?")[0] === location.pathname);
+  if (seen >= 0) trail = trail.slice(0, seen);
+  trail.push({ path, label });
+  if (trail.length > TRAIL_MAX) trail = trail.slice(trail.length - TRAIL_MAX);
+  writeTrail(trail);
+  return trail;
+}
+
+// The page one step back from `trail`'s last entry, or null when the visit
+// started here. `trail` is always the trail *including* the current page.
+function previousPage(trail = readTrail()) {
+  return trail.length > 1 ? trail[trail.length - 2] : null;
+}
+window.previousPage = previousPage;
+
+function renderBreadcrumbs(nav, trail) {
+  // A single entry is just "you are here" -- no navigation on offer.
+  if (trail.length < 2) {
+    nav.hidden = true;
+    nav.innerHTML = "";
+    return;
+  }
+  nav.innerHTML = trail
+    .map((entry, i) => {
+      const last = i === trail.length - 1;
+      const label = escapeHtml(entry.label);
+      const crumb = last
+        ? `<span class="crumb current" aria-current="page">${label}</span>`
+        : `<a class="crumb" href="${escapeHtml(entry.path)}">${label}</a>`;
+      // The separator points along the reading direction, which is leftwards
+      // in RTL -- hence chevronLeft, not chevronRight.
+      const sep = last ? "" : `<span class="crumb-sep" aria-hidden="true" data-icon="chevronLeft"></span>`;
+      return crumb + sep;
+    })
+    .join("");
+  nav.hidden = false;
+  renderIcons(nav);
+}
+
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[c]);
+}
+
+// Icon-only back controls. Each one ships a server-rendered fallback href so
+// it is a working link before (and without) JS; this only upgrades it to the
+// page the visitor actually came from. `data-back-optional` marks a back
+// button that has no reason to exist at the start of a visit -- on a root
+// page reached directly there is nothing behind it, so it hides itself
+// instead of offering a fake "back".
+function wireBackButtons(previous) {
+  document.querySelectorAll("[data-back]").forEach((el) => {
+    if (previous) {
+      el.setAttribute("href", previous.path);
+      el.setAttribute("title", `بازگشت به ${previous.label}`);
+      el.setAttribute("aria-label", `بازگشت به ${previous.label}`);
+    } else if (el.hasAttribute("data-back-optional")) {
+      el.hidden = true;
+    }
+  });
+}
+
+function initNavTrail() {
+  const nav = document.querySelector("[data-crumb-trail]");
+  // A page that opts out of the trail entirely (the create wizard) never
+  // enters it, so the stored trail's *last* entry is already the page behind
+  // us -- there is no current-page entry to skip over.
+  if (!nav) {
+    const stored = readTrail();
+    wireBackButtons(stored.length ? stored[stored.length - 1] : null);
+    return;
+  }
+  // Push first: the trail has to include this page before "one step back"
+  // means anything.
+  const trail = pushCurrentPage({
+    label: (nav.dataset.crumbLabel || document.title || "").trim(),
+    isRoot: nav.hasAttribute("data-crumb-root"),
+  });
+  wireBackButtons(previousPage(trail));
+  renderBreadcrumbs(nav, trail);
+}
+
+
 // Relative deadlines go stale just by sitting on screen. One shared minute
 // tick keeps every card honest instead of each one owning a timer.
 const DEADLINE_TICK_MS = 60 * 1000;
@@ -235,6 +386,7 @@ const DEADLINE_TICK_MS = 60 * 1000;
 document.addEventListener("DOMContentLoaded", () => {
   renderIcons();
   renderDates();
+  initNavTrail();
   setInterval(() => renderDeadlines(document), DEADLINE_TICK_MS);
 
   // Elements not wired up to a real feature yet (notifications, account
@@ -436,9 +588,18 @@ window.apiFetch = apiFetch;
 // The first modal/dialog in this codebase (everything else uses native
 // confirm()/alert()). A bottom sheet with a focus trap, Escape-to-close,
 // and backdrop-click-to-close; never itself uses confirm()/alert().
-// `fields`: [{name, label, type, required, maxlength, step, placeholder}].
+// `fields`: [{name, label, type, required, maxlength, step, placeholder,
+// value, rows, options}]. `type` may additionally be "textarea", "select" or
+// "chips" (the last two take `options: [{value, label}]`, and a chip option
+// may carry an `icon` name from the set above); `value` prefills, which is
+// what makes this usable for editing an existing record and not just creating
+// one. "chips" is a single-select rendered as the same pill row the filter
+// pages use -- a native <select> would hide the whole option set behind a tap,
+// which is the opposite of what a filter sheet is for.
 // `onConfirm(values)` / `onSkip(values)` may return `false` to keep the
 // sheet open (e.g. after a failed request); anything else closes it.
+// `danger: {label, onClick}` adds a separate destructive action below the
+// main ones -- kept visually apart so "delete" is never adjacent to "save".
 function createSheet({
   title,
   fields = [],
@@ -446,6 +607,7 @@ function createSheet({
   onSkip,
   confirmLabel = "تایید",
   skipLabel = "رد کردن",
+  danger,
 }) {
   const backdrop = document.createElement("div");
   backdrop.className = "sheet-backdrop";
@@ -474,22 +636,77 @@ function createSheet({
   const form = document.createElement("form");
   form.className = "sheet-body";
   const inputs = {};
+  // A chips field's selection lives on a hidden input (so collectValues stays
+  // a plain read of .value), but the highlight can only be painted after the
+  // generic `f.value` prefill below has run.
+  const chipSyncers = [];
   fields.forEach((f) => {
     const wrap = document.createElement("div");
-    wrap.className = "field";
+    wrap.className = f.type === "chips" ? "field field-chips" : "field";
     const label = document.createElement("label");
     label.textContent = f.label + (f.required ? " *" : "");
     label.setAttribute("for", `sheet-${f.name}`);
     const fieldInput = document.createElement("div");
     fieldInput.className = "field-input";
-    const input = document.createElement("input");
+
+    let input;
+    if (f.type === "chips") {
+      input = document.createElement("input");
+      input.type = "hidden";
+      const group = document.createElement("div");
+      group.className = "chip-row sheet-chips";
+      group.setAttribute("role", "radiogroup");
+      group.setAttribute("aria-label", f.label);
+      const chips = (f.options || []).map((o) => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "chip";
+        chip.setAttribute("role", "radio");
+        chip.dataset.value = o.value;
+        if (o.icon) {
+          const glyph = document.createElement("span");
+          glyph.dataset.icon = o.icon;
+          chip.appendChild(glyph);
+        }
+        chip.append(o.label);
+        chip.addEventListener("click", () => {
+          input.value = o.value;
+          paint();
+        });
+        group.appendChild(chip);
+        return chip;
+      });
+      function paint() {
+        chips.forEach((chip) => {
+          const on = chip.dataset.value === input.value;
+          chip.classList.toggle("active", on);
+          chip.setAttribute("aria-checked", on ? "true" : "false");
+        });
+      }
+      chipSyncers.push(paint);
+      fieldInput.appendChild(group);
+    } else if (f.type === "textarea") {
+      input = document.createElement("textarea");
+      if (f.rows) input.rows = f.rows;
+    } else if (f.type === "select") {
+      input = document.createElement("select");
+      (f.options || []).forEach((o) => {
+        const opt = document.createElement("option");
+        opt.value = o.value;
+        opt.textContent = o.label;
+        input.appendChild(opt);
+      });
+    } else {
+      input = document.createElement("input");
+      input.type = f.type || "text";
+      if (f.step) input.step = f.step;
+    }
     input.id = `sheet-${f.name}`;
     input.name = f.name;
-    input.type = f.type || "text";
     if (f.placeholder) input.placeholder = f.placeholder;
     if (f.maxlength) input.maxLength = f.maxlength;
     if (f.required) input.required = true;
-    if (f.step) input.step = f.step;
+    if (f.value != null) input.value = f.value;
     fieldInput.appendChild(input);
     wrap.appendChild(label);
     wrap.appendChild(fieldInput);
@@ -497,22 +714,45 @@ function createSheet({
     inputs[f.name] = input;
   });
 
+  chipSyncers.forEach((paint) => paint());
+
   const actions = document.createElement("div");
   actions.className = "sheet-actions";
-  const skipBtn = document.createElement("button");
-  skipBtn.type = "button";
-  skipBtn.className = "cc-btn ghost";
-  skipBtn.textContent = skipLabel;
+  // A sheet with nothing to skip (an edit form) shouldn't grow a second
+  // primary-looking button just because the default label exists.
+  let skipBtn = null;
+  if (typeof onSkip === "function") {
+    skipBtn = document.createElement("button");
+    skipBtn.type = "button";
+    skipBtn.className = "cc-btn ghost";
+    skipBtn.textContent = skipLabel;
+    actions.appendChild(skipBtn);
+  }
   const confirmBtn = document.createElement("button");
   confirmBtn.type = "button";
   confirmBtn.className = "cc-btn primary";
   confirmBtn.textContent = confirmLabel;
-  actions.appendChild(skipBtn);
   actions.appendChild(confirmBtn);
 
   panel.appendChild(head);
   panel.appendChild(form);
   panel.appendChild(actions);
+
+  if (danger) {
+    const dangerWrap = document.createElement("div");
+    dangerWrap.className = "sheet-danger";
+    const dangerBtn = document.createElement("button");
+    dangerBtn.type = "button";
+    dangerBtn.className = "cc-btn danger";
+    dangerBtn.textContent = danger.label;
+    dangerBtn.addEventListener("click", async () => {
+      const result = await danger.onClick();
+      if (result !== false) close();
+    });
+    dangerWrap.appendChild(dangerBtn);
+    panel.appendChild(dangerWrap);
+  }
+
   sheet.appendChild(panel);
 
   document.body.appendChild(backdrop);
@@ -541,7 +781,9 @@ function createSheet({
 
   function focusableEls() {
     return Array.from(
-      panel.querySelectorAll('button, input, textarea, [href], [tabindex]:not([tabindex="-1"])')
+      panel.querySelectorAll(
+        'button, input, textarea, select, [href], [tabindex]:not([tabindex="-1"])'
+      )
     ).filter((el) => !el.disabled);
   }
 
@@ -569,10 +811,12 @@ function createSheet({
   closeBtn.addEventListener("click", close);
   document.addEventListener("keydown", onKeydown);
 
-  skipBtn.addEventListener("click", async () => {
-    const result = typeof onSkip === "function" ? await onSkip(collectValues()) : true;
-    if (result !== false) close();
-  });
+  if (skipBtn) {
+    skipBtn.addEventListener("click", async () => {
+      const result = await onSkip(collectValues());
+      if (result !== false) close();
+    });
+  }
 
   confirmBtn.addEventListener("click", async () => {
     if (!form.reportValidity()) return;

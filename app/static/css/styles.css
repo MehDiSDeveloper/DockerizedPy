@@ -20,6 +20,18 @@
   --mohr-dim:#9c3535;
   --gold:#d4af6a;              /* soft gold — used sparingly for streak/highlight */
 
+  /* --- challenge status: شروع نشده / در حال اجرا / تمام شده ---
+     One hue per derived status (see challenge_status in
+     app/routers/challenge.py), shared by the card's accent stripe, its pill,
+     and the matching button in the status filter, so the same colour always
+     means the same thing. Turquoise is already "live/primary" everywhere in
+     this UI, so «در حال اجرا» keeps it; «شروع نشده» takes gold (waiting, not
+     wrong -- red would read as a problem); «تمام شده» goes grey and steps
+     back, because a finished challenge is context, not an invitation. */
+  --st-active:#22c9bd;
+  --st-upcoming:#d4af6a;
+  --st-finished:#8b93ad;
+
   --text-1:#eef1fb;
   --text-2:#aab2cc;
   --text-3:#6f7794;
@@ -39,6 +51,11 @@
      (shell padding, FAB, toast, sticky CTA) reads this instead of repeating
      its own magic number. */
   --nav-h:calc(58px + env(safe-area-inset-bottom));
+  /* breathing room between the last element of a page and whatever closes it
+     (the bottom nav, or the viewport edge on nav-less pages). Owned by .shell
+     so no page has to remember it; anything that overrides .shell's
+     padding-bottom must add it back. */
+  --page-end-gap:14px;
   --cta-h:72px; /* .sticky-cta's own rendered height (padding + button) */
   /* width of the mobile shell; anything that spans or aligns to it (nav,
      sticky CTA, toast, sheet, FAB) reads this instead of repeating the
@@ -84,10 +101,11 @@ ul{list-style:none; margin:0; padding:0;}
   margin:0 auto;
   min-height:100vh;
   position:relative;
-  padding-bottom:0;
+  padding-bottom:calc(var(--page-end-gap) + env(safe-area-inset-bottom));
 }
-/* only pages that actually render a bottom nav need clearance for it */
-.shell:has(.bottom-nav){padding-bottom:var(--nav-h);}
+/* only pages that actually render a bottom nav need clearance for it -- the
+   nav already carries the device inset, so this adds the gap on top of it */
+.shell:has(.bottom-nav){padding-bottom:calc(var(--nav-h) + var(--page-end-gap));}
 
 /* --- glass card primitive --- */
 .glass{
@@ -105,6 +123,9 @@ ul{list-style:none; margin:0; padding:0;}
   padding:20px 20px 8px;
 }
 .brand{display:flex; align-items:center; gap:10px;}
+/* The topbar is space-between, so multiple trailing actions have to be one
+   flex child or they get pushed to opposite ends of the header. */
+.topbar-actions{display:flex; align-items:center; gap:6px;}
 .brand-mark{
   width:38px; height:38px; border-radius:50%;
   display:grid; place-items:center;
@@ -180,9 +201,17 @@ ul{list-style:none; margin:0; padding:0;}
 .cc-tag{
   font-size:11px; font-weight:700; color:var(--fayrouzeh);
   background:rgba(34,201,189,0.12); border:1px solid rgba(34,201,189,0.28);
-  padding:3px 10px; border-radius:999px; display:inline-block;
+  padding:3px 10px; border-radius:999px;
 }
 .cc-title{font-size:15.5px; font-weight:700; margin:10px 0 4px; line-height:1.6;}
+/* Whole-card hit area. The title stays the only real link (so it keeps its
+   href, focus ring and middle-click), but its ::after is stretched over the
+   whole card -- tapping anywhere that isn't an action opens the challenge.
+   The card is already position:relative, which is what the inset:0 resolves
+   against; .cc-actions is lifted above the overlay so its buttons still win
+   the click. */
+.cc-title a{color:inherit; text-decoration:none;}
+.cc-title a::after{content:""; position:absolute; inset:0; z-index:1;}
 .cc-desc{font-size:12.5px; color:var(--text-3); margin:0 0 12px; line-height:1.7;}
 
 .cc-meta{display:flex; align-items:center; gap:14px; font-size:11.5px; color:var(--text-2);}
@@ -209,7 +238,7 @@ ul{list-style:none; margin:0; padding:0;}
   background:linear-gradient(90deg, var(--fayrouzeh-dim), var(--fayrouzeh));
 }
 
-.cc-actions{display:flex; gap:8px; margin-top:14px;}
+.cc-actions{display:flex; gap:8px; margin-top:14px; position:relative; z-index:2;}
 .cc-btn{
   flex:1; padding:9px 10px; border-radius:var(--radius-sm);
   font-size:12.5px; font-weight:700; text-align:center; cursor:pointer;
@@ -253,7 +282,7 @@ ul{list-style:none; margin:0; padding:0;}
 
 /* --- floating action button --- */
 .fab{
-  position:fixed; bottom:calc(var(--nav-h) + 12px);
+  position:fixed; bottom:calc(var(--nav-h) + var(--page-end-gap));
   /* anchored 20px inside the shell's left edge, clamped to the viewport so it
      stays reachable on phones narrower than the shell */
   left:calc(50% - min(var(--shell-max), 100vw) / 2 + 20px);
@@ -307,6 +336,45 @@ ul{list-style:none; margin:0; padding:0;}
   background:var(--glass); border:1px solid var(--border); color:var(--text-1);
 }
 .back-btn svg{width:18px; height:18px;}
+.back-btn[hidden]{display:none;}
+/* error.html / auth.html don't extend layout.html, so they have no topbar to
+   hang a back control in. inset-inline-start is the right edge under RTL,
+   matching where {% block topbar_leading %} puts it on every other page. */
+.floating-back{position:fixed; inset-block-start:18px; inset-inline-start:18px; z-index:20;}
+
+/* --- breadcrumb trail ---
+   Rendered by initNavTrail() in app.js from the pages actually visited, so it
+   can be any length up to TRAIL_MAX. It scrolls horizontally rather than
+   wrapping: a second line would shift the whole page down on the narrow
+   screens this app is built for. The current page is the *last* crumb, which
+   in RTL sits at the left end. */
+/* display:flex would beat the UA's [hidden]{display:none}; a one-entry trail
+   ships hidden and must take no space. */
+.crumbs[hidden]{display:none;}
+.crumbs{
+  display:flex; align-items:center; gap:6px;
+  padding:2px 20px 10px; overflow-x:auto; white-space:nowrap;
+  scrollbar-width:none;
+  font-size:12px; color:var(--text-3);
+}
+.crumbs::-webkit-scrollbar{display:none;}
+.crumb{flex-shrink:0; color:var(--text-3); text-decoration:none; transition:color .15s var(--ease);}
+a.crumb:hover{color:var(--fayrouzeh);}
+a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; border-radius:4px;}
+.crumb.current{
+  color:var(--text-1); font-weight:700;
+  /* A challenge title can be 50 characters; it must not push the trail's
+     earlier (clickable) crumbs off-screen. */
+  max-width:18ch; overflow:hidden; text-overflow:ellipsis;
+}
+.crumb-sep{flex-shrink:0; display:grid; place-items:center; color:var(--text-3); opacity:.55;}
+.crumb-sep svg{width:12px; height:12px;}
+
+/* Category/cadence icon riding inside a tag or a filter chip. */
+.cc-tag{display:inline-flex; align-items:center; gap:4px;}
+.cc-tag svg{width:12px; height:12px; flex-shrink:0;}
+.chip{display:inline-flex; align-items:center; gap:5px;}
+.chip svg{width:13px; height:13px; flex-shrink:0;}
 
 /* ==========================================================================
    Auth (login / register)
@@ -346,11 +414,15 @@ ul{list-style:none; margin:0; padding:0;}
 }
 .field-input:focus-within{border-color:var(--fayrouzeh);}
 .field-input svg{width:17px; height:17px; color:var(--text-3); flex-shrink:0;}
-.field-input input, .field-input select{
+.field-input input, .field-input select, .field-input textarea{
   flex:1; border:none; background:transparent; outline:none;
   color:var(--text-1); font-family:inherit; font-size:13.5px; padding:12px 2px;
   min-width:0;
 }
+.field-input textarea{resize:vertical; line-height:1.6;}
+/* A textarea is multi-line, so the flex centring that suits a one-line input
+   would float the label-adjacent affordances against its middle. */
+.field-input:has(textarea){align-items:stretch;}
 .field-input input::placeholder{color:var(--text-3);}
 .field-toggle{cursor:pointer; color:var(--text-3);}
 
@@ -394,25 +466,44 @@ ul{list-style:none; margin:0; padding:0;}
 }
 .filter-btn svg{width:16px; height:16px;}
 
+/* Filter chips wrap onto as many rows as they need: the category set is small
+   and fixed, so every option stays visible instead of scrolling off-screen. */
 .chip-row{
-  display:flex; gap:8px; overflow-x:auto; padding:0 20px 16px;
-  scrollbar-width:none; scroll-behavior:smooth; cursor:grab;
-  /* feathered edges hint that more chips are scrollable off-screen */
-  -webkit-mask-image:linear-gradient(to right, transparent 0, black 20px, black calc(100% - 20px), transparent 100%);
-  mask-image:linear-gradient(to right, transparent 0, black 20px, black calc(100% - 20px), transparent 100%);
+  display:flex; flex-wrap:wrap; gap:8px; padding:0 20px 16px;
 }
-.chip-row::-webkit-scrollbar{display:none;}
-.chip-row:active{cursor:grabbing;}
 .chip{
-  flex-shrink:0; padding:7px 16px; border-radius:999px; font-size:12.5px; font-weight:600;
+  flex:0 0 auto; padding:7px 16px; border-radius:999px; font-size:12.5px; font-weight:600;
   background:var(--glass); border:1px solid var(--border); color:var(--text-2); cursor:pointer;
   white-space:nowrap; transition:all .18s var(--ease);
 }
 .chip.active{background:var(--fayrouzeh); border-color:var(--fayrouzeh); color:#06231f; font-weight:700;}
 .chip:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px;}
 
+/* --- "my challenges" segmented filter (challenge list) ---
+   Three mutually exclusive states, so a segmented control rather than more
+   chips: chips read as an additive multi-select next to the category row. */
+.seg-row{padding:0 20px 14px;}
+.seg{
+  display:flex; gap:4px; background:var(--glass); border:1px solid var(--border);
+  border-radius:999px; padding:3px;
+}
+.seg-btn{
+  flex:1 1 0; min-width:0; display:flex; align-items:center; justify-content:center; gap:5px;
+  padding:7px 8px; border:none; border-radius:999px; background:transparent;
+  font-family:inherit; font-size:12px; font-weight:600; color:var(--text-2);
+  cursor:pointer; white-space:nowrap; transition:all .18s var(--ease);
+}
+.seg-btn svg{width:14px; height:14px; flex-shrink:0;}
+.seg-btn:hover{color:var(--text-1);}
+.seg-btn.active{background:var(--fayrouzeh); color:#06231f; font-weight:700;}
+.seg-btn:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px;}
+
 /* --- infinite scroll: sentinel + loading indicator --- */
 .scroll-sentinel{height:1px;}
+/* display:flex below would otherwise beat the UA's [hidden]{display:none},
+   leaving "در حال بارگذاری" on screen forever once the last page has loaded
+   (or when a filter matched nothing and no page was ever fetched). */
+.list-loading[hidden]{display:none;}
 .list-loading{
   display:flex; align-items:center; justify-content:center; gap:8px;
   padding:18px 0; color:var(--text-3); font-size:12.5px;
@@ -426,7 +517,7 @@ ul{list-style:none; margin:0; padding:0;}
 
 /* --- toast --- */
 .toast{
-  position:fixed; left:50%; bottom:calc(var(--nav-h) + 12px); transform:translate(-50%, 12px);
+  position:fixed; left:50%; bottom:calc(var(--nav-h) + var(--page-end-gap)); transform:translate(-50%, 12px);
   max-width:calc(var(--shell-max) - 40px); padding:10px 18px; border-radius:999px;
   background:rgba(23,31,66,0.95); border:1px solid var(--border-strong);
   color:var(--text-1); font-size:12.5px; font-weight:600; text-align:center;
@@ -445,6 +536,25 @@ ul{list-style:none; margin:0; padding:0;}
   color:var(--fayrouzeh);
 }
 .explore-thumb svg{width:24px; height:24px;}
+
+/* Cadence type at a glance: a small corner badge on the category thumb, so the
+   kind of challenge (one-off / scheduled / recurring) reads without opening it.
+   Same icon set as the `cadence_icon` filter feeds everywhere else. */
+.explore-thumb{position:relative;}
+.cadence-badge{
+  position:absolute; inset-block-end:-5px; inset-inline-start:-5px;
+  width:20px; height:20px; border-radius:50%;
+  display:grid; place-items:center;
+  background:var(--bg-2); border:1px solid var(--border-strong);
+  color:var(--text-1);
+}
+.cadence-badge svg{width:11px; height:11px;}
+.detail-icon .cadence-badge{
+  inset-block-end:-4px; inset-inline-start:-4px;
+  width:22px; height:22px;
+  background:var(--bg-1); color:var(--fayrouzeh);
+}
+.detail-icon .cadence-badge svg{width:12px; height:12px; color:inherit;}
 .explore-body{flex:1; min-width:0;}
 .explore-body h3{font-size:14px; font-weight:700; margin:0 0 4px;}
 .explore-body p{font-size:11.5px; color:var(--text-3); margin:0; display:flex; gap:12px; align-items:center;}
@@ -583,13 +693,21 @@ ul{list-style:none; margin:0; padding:0;}
 .quota-pip.done{background:var(--fayrouzeh);}
 
 .sticky-cta{
-  /* sits flush above the bottom nav, not over it -- the device safe-area
-     inset is already accounted for by .bottom-nav below it, so this only
-     needs its own breathing-room padding. */
-  position:fixed; bottom:var(--nav-h); left:50%; transform:translateX(-50%);
-  width:100%; max-width:var(--shell-max); padding:14px 20px;
-  background:rgba(11,15,31,0.85); border-top:1px solid var(--border);
-  backdrop-filter:blur(20px); z-index:30;
+  /* floats above the bottom nav rather than welding onto it: the same
+     --page-end-gap that keeps page content off the nav also separates this
+     panel from the nav and from the shell edges, so it reads as a card and
+     not as a second footer. The device safe-area inset is already carried by
+     .bottom-nav below it, so it is not repeated here. Its rendered height is
+     --cta-h; anything clearing it must add the gap above *and* below. */
+  position:fixed; bottom:calc(var(--nav-h) + var(--page-end-gap));
+  left:50%; transform:translateX(-50%);
+  width:calc(100% - 2 * var(--page-end-gap));
+  max-width:calc(var(--shell-max) - 2 * var(--page-end-gap));
+  padding:14px 20px;
+  background:rgba(11,15,31,0.85);
+  border:1px solid var(--border); border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-soft);
+  backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); z-index:30;
 }
 
 /* --- bottom sheet (check-in confirm/skip) --- */
@@ -623,6 +741,12 @@ ul{list-style:none; margin:0; padding:0;}
 .sheet-actions .primary{
   background:linear-gradient(145deg, var(--fayrouzeh), var(--fayrouzeh-dim));
   border-color:transparent; color:#06231f;
+}
+/* Separated from .sheet-actions by a rule so a destructive action is never
+   sitting flush against "save" -- these sheets are one mis-tap wide. */
+.sheet-danger{
+  margin-top:14px; padding-top:14px; border-top:1px solid var(--border);
+  display:flex;
 }
 @keyframes sheetFadeIn{from{opacity:0;} to{opacity:1;}}
 @keyframes sheetSlideUp{from{transform:translateY(100%);} to{transform:translateY(0);}}
@@ -780,3 +904,210 @@ ul{list-style:none; margin:0; padding:0;}
 .jp-time .jp-select:first-of-type{margin-inline-start:auto;}
 
 .jp-actions .jp-clear{flex:0 0 auto; color:var(--text-3);}
+
+/* ==========================================================================
+   Challenge detail | cadence plan, details grid, personal status
+   ========================================================================== */
+
+.detail-tags{
+  position:relative; z-index:1;
+  display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-bottom:10px;
+}
+/* the accent tag names the cadence -- the one label that changes per
+   challenge type, so it gets the filled treatment the category tag doesn't */
+.cc-tag.accent{background:rgba(34,201,189,0.22); border-color:rgba(34,201,189,0.5);}
+.cc-tag.warn{
+  color:#e9b7b7; background:rgba(193,67,67,0.16); border-color:rgba(193,67,67,0.42);
+}
+
+.section-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;}
+.section-head h2{margin:0;}
+.section-head .cc-tag{
+  font-weight:600; direction:ltr; font-size:10px; color:var(--text-3);
+  background:rgba(255,255,255,0.05); border-color:var(--border);
+  max-width:55%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.sub-head{font-size:12px; font-weight:700; color:var(--text-2); margin:14px 0 8px;}
+.progress-note{font-size:11.5px !important; color:var(--text-3) !important; margin:8px 0 0 !important;}
+
+/* --- the plan card: what this cadence actually asks of you --- */
+.plan-card{padding:14px; border-radius:var(--radius-md);}
+.plan-rule{display:flex; align-items:flex-start; gap:11px;}
+.plan-rule-icon{
+  width:34px; height:34px; border-radius:11px; flex-shrink:0;
+  display:grid; place-items:center;
+  background:rgba(34,201,189,0.14); border:1px solid rgba(34,201,189,0.28);
+}
+.plan-rule-icon svg{width:17px; height:17px; color:var(--fayrouzeh);}
+.plan-rule-text{min-width:0;}
+.plan-rule-text b{display:block; font-size:13.5px; font-weight:700; line-height:1.7;}
+.plan-rule-text span{display:block; font-size:11.5px; color:var(--text-3); margin-top:2px;}
+
+.weekday-strip{display:grid; grid-template-columns:repeat(7,1fr); gap:5px; margin-top:12px;}
+.wd{
+  height:30px; border-radius:9px; display:grid; place-items:center;
+  font-size:11.5px; font-weight:700; color:var(--text-3);
+  background:rgba(255,255,255,0.04); border:1px solid var(--border);
+}
+.wd.on{
+  color:#06231f; border-color:transparent;
+  background:linear-gradient(145deg, var(--fayrouzeh), var(--fayrouzeh-dim));
+}
+
+.plan-progress{margin-top:12px;}
+.plan-progress span{display:block; font-size:11px; color:var(--text-3); margin-top:6px;}
+
+/* --- label/value rows, shared by the plan card and "وضعیت من" --- */
+.fact-list{margin:0; padding:0;}
+.plan-card .fact-list{margin-top:12px; border-top:1px solid var(--border); padding-top:4px;}
+.fact{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:8px 0; border-bottom:1px solid var(--border);
+}
+.fact:last-child{border-bottom:none;}
+.fact dt{font-size:11.5px; color:var(--text-3); margin:0;}
+.fact dd{font-size:12.5px; font-weight:600; color:var(--text-1); margin:0; text-align:end;}
+
+/* --- what's coming up --- */
+.up-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px;}
+.up-row{
+  display:flex; align-items:center; gap:9px;
+  padding:10px 12px; border-radius:var(--radius-sm);
+  background:var(--glass); border:1px solid var(--border);
+}
+.up-row.next{background:rgba(34,201,189,0.08); border-color:rgba(34,201,189,0.28);}
+.up-dot{
+  width:7px; height:7px; border-radius:50%; flex-shrink:0;
+  background:var(--text-3);
+}
+.up-row.next .up-dot{background:var(--fayrouzeh); box-shadow:0 0 0 3px rgba(34,201,189,0.18);}
+.up-date{font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.up-time{font-size:11.5px; color:var(--text-2); font-variant-numeric:tabular-nums;}
+.up-flag{
+  margin-inline-start:auto; font-size:10px; font-weight:700;
+  color:var(--fayrouzeh); background:rgba(34,201,189,0.14);
+  border-radius:999px; padding:2px 8px;
+}
+
+/* --- details grid --- */
+.meta-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:8px;}
+.meta-item{
+  display:flex; align-items:center; gap:9px; min-width:0;
+  padding:11px 12px; border-radius:var(--radius-sm);
+  background:var(--glass); border:1px solid var(--border);
+}
+.meta-item > svg, .meta-item > span > svg{width:15px; height:15px; color:var(--fayrouzeh); flex-shrink:0;}
+.meta-item > div{min-width:0;}
+.meta-item b{
+  display:block; font-size:12.5px; font-weight:700;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.meta-item span{font-size:10.5px; color:var(--text-3);}
+
+/* --- personal status tiles --- */
+.mine-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:12px;}
+.mine-tile{
+  padding:11px 6px; text-align:center; border-radius:var(--radius-sm);
+  background:var(--glass); border:1px solid var(--border);
+}
+.mine-tile b{display:block; font-size:16px; font-weight:800; line-height:1.2;}
+.mine-tile span{display:block; font-size:10px; color:var(--text-3); margin-top:3px;}
+.mine-tile.ok b{color:var(--fayrouzeh);}
+.mine-tile.gold b{
+  color:var(--gold); display:flex; align-items:center; justify-content:center; gap:4px;
+}
+.mine-tile.gold b svg{width:13px; height:13px;}
+
+
+/* ==========================================================================
+   Challenge status: colour, badge, and the filter shell around them
+   ========================================================================== */
+
+/* One custom property per card carries its status colour, so the stripe and
+   the pill below never need three near-identical rule blocks each. */
+.challenge-card.st-active{--st:var(--st-active);}
+.challenge-card.st-upcoming{--st:var(--st-upcoming);}
+.challenge-card.st-finished{--st:var(--st-finished);}
+
+/* The at-a-glance signal: a coloured edge on the card, read before any text
+   is. It sits on the inline-start (right, in RTL) so it lands under the thumb
+   where the eye enters the card. */
+.challenge-card[data-status]::before{
+  content:""; position:absolute; inset-block:0; inset-inline-start:0;
+  width:4px; background:var(--st);
+}
+.challenge-card[data-status]{border-color:color-mix(in srgb, var(--st) 26%, var(--border));}
+
+/* A finished challenge is still browsable but is not the thing to act on, so
+   it recedes rather than disappearing -- and lifts back to full strength on
+   hover/focus so it never feels disabled. */
+.challenge-card.st-finished{opacity:.72;}
+.challenge-card.st-finished:hover,
+.challenge-card.st-finished:focus-visible{opacity:1;}
+
+.explore-head{display:flex; align-items:center; gap:8px; margin-bottom:4px;}
+.explore-head h3{margin:0; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+
+/* Colour alone can't carry the status (colour-blindness, greyscale), so the
+   pill always names it in words and adds a status-specific icon. */
+.status-pill{
+  flex-shrink:0; display:inline-flex; align-items:center; gap:4px;
+  padding:3px 9px; border-radius:999px;
+  font-size:10.5px; font-weight:700; white-space:nowrap;
+  color:var(--st);
+  background:color-mix(in srgb, var(--st) 14%, transparent);
+  border:1px solid color-mix(in srgb, var(--st) 34%, transparent);
+}
+.status-pill svg{width:11px; height:11px;}
+
+/* The status buttons in the filter control wear the colour of the thing they
+   select, so the legend and the filter are the same object. */
+.seg-btn.st-active.active{background:var(--st-active); color:#06231f;}
+.seg-btn.st-upcoming.active{background:var(--st-upcoming); color:#241a06;}
+.seg-btn.st-finished.active{background:var(--st-finished); color:#0e1224;}
+
+/* Four segments of Farsi don't fit a 480px shell at the .seg-btn base size,
+   and a filter that has to be scrolled to be discovered isn't a filter. */
+#clStatusSeg .seg-btn{padding:7px 4px; font-size:11.5px; gap:4px;}
+#clStatusSeg .seg-btn svg{width:13px; height:13px;}
+
+/* --- filter button: never let a filter be on invisibly --- */
+.filter-btn{position:relative;}
+.filter-btn.has-filters{
+  color:var(--fayrouzeh); border-color:rgba(34,201,189,0.45);
+  background:rgba(34,201,189,0.12);
+}
+.filter-badge{
+  position:absolute; inset-block-start:-6px; inset-inline-start:-6px;
+  min-width:16px; height:16px; padding:0 4px; border-radius:999px;
+  display:grid; place-items:center;
+  background:var(--fayrouzeh); color:#06231f;
+  font-size:10px; font-weight:800; line-height:1;
+  border:2px solid var(--bg-0);
+}
+/* display:grid above would otherwise beat the UA's [hidden]{display:none}. */
+.filter-badge[hidden]{display:none;}
+
+/* --- what the hidden filters are doing right now --- */
+.active-filters[hidden]{display:none;} /* see .crumbs[hidden] above */
+.active-filters{display:flex; flex-wrap:wrap; gap:8px; padding:0 20px 14px;}
+.filter-tag{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:5px 12px; border-radius:999px; cursor:pointer;
+  font-family:inherit; font-size:11.5px; font-weight:600;
+  background:rgba(34,201,189,0.12); border:1px solid rgba(34,201,189,0.34);
+  color:var(--fayrouzeh);
+}
+.filter-tag svg{width:11px; height:11px;}
+.filter-tag:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px;}
+.filter-tag.clear{
+  background:transparent; border-color:var(--border); color:var(--text-3);
+}
+
+/* --- chips inside a sheet --- */
+/* A chips field is its own grid of pills, so it drops the boxed input shell
+   that wraps every other field type. */
+.field-chips .field-input{
+  display:block; background:transparent; border:none; padding:0;
+}
+.sheet-chips{padding:0; gap:8px;}

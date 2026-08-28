@@ -2,28 +2,25 @@
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.auth import get_current_user_id, get_optional_user_id
+from app.auth import get_current_user_id, get_page_user
 from app.config import BASE_DIR
 from app.database import get_db
+from app.icons import register_icon_filters
 from app.models.challenge import Challenge
 from app.models.enrollment import Enrollment, EnrollmentStatus
 from app.models.user import User
 
 router = APIRouter(prefix="/views/home", tags=["home-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_icon_filters(templates.env)
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
-
-
-def _redirect_to_login() -> RedirectResponse:
-    return RedirectResponse(url="/views/auth/?next=/views/home/", status_code=303)
 
 
 async def _fetch_enrollment_page(
@@ -53,16 +50,10 @@ async def _fetch_enrollment_page(
 @router.get("/")
 async def home(
     request: Request,
-    current_user_id: int | None = Depends(get_optional_user_id),
+    db_user: User = Depends(get_page_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if current_user_id is None:
-        return _redirect_to_login()
-
-    user_result = await db.execute(select(User).where(User.id == current_user_id))
-    db_user = user_result.scalar_one_or_none()
-    if db_user is None:
-        return _redirect_to_login()
+    current_user_id = db_user.id
 
     stat_active = (
         await db.execute(

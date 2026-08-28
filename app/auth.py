@@ -115,3 +115,40 @@ async def get_current_user(
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return user
+
+
+class LoginRequired(Exception):
+    """Signals that an SSR page needs a signed-in user.
+
+    A page cannot answer a browser navigation with the API's ``401 {"detail":
+    ...}`` -- the visitor would land on the generic error page instead of being
+    offered a login. Dependencies raise this instead and ``app.main`` turns it
+    into a 303 to ``/views/auth/`` with a ``?next=`` back to the page they
+    asked for. It is deliberately *not* an ``HTTPException``: the ``/fragment``
+    routes still depend on ``get_current_user_id`` and must keep answering a
+    real 401, because ``createInfiniteScroller()`` in ``app.js`` reads that
+    status to bounce to the login page itself. A fetch() would silently follow
+    a redirect and append the login page's markup as if it were cards.
+    """
+
+
+async def get_page_user(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """The signed-in ``User`` row behind an SSR page, or a redirect to login.
+
+    Loading the row -- rather than trusting the id in the cookie -- is what
+    makes a session outlive its user safely: the cookie is stateless and
+    unrevocable (see CLAUDE.md), so one signed for a since-deleted account
+    still verifies. Failing here sends it back through the login redirect,
+    which also clears the stale cookie.
+    """
+    user_id = get_optional_user_id(request)
+    if user_id is None:
+        raise LoginRequired
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise LoginRequired
+    return user

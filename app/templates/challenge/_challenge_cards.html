@@ -1,8 +1,29 @@
+{#- Farsi labels for the English `cadence_kind` codes. Per CLAUDE.md there is no
+    shared display-map module yet, so each template inlines its own. -#}
+{% set cadence_labels = {
+  'once': 'یک‌باره',
+  'schedule': 'زمان‌بندی‌شده',
+  'recurring_days': 'تکرار روزانه',
+  'recurring_quota': 'سهمیه‌ای',
+} %}
 {% for c in challenges %}
-<a href="/views/challenges/{{ c.id }}" class="challenge-card glass explore-card">
-  <div class="explore-thumb"><span data-icon="target"></span></div>
+{% set cadence_label = cadence_labels.get(c.cadence_kind, 'نامشخص') %}
+{#- Derived in one place (app.routers.challenge.challenge_status) so the badge
+    and the status filter can never disagree. -#}
+{% set status = c | challenge_status %}
+{% set status_label = status_meta[status].label %}
+<a href="/views/challenges/{{ c.id }}" class="challenge-card glass explore-card st-{{ status }}"
+  data-status="{{ status }}">
+  <div class="explore-thumb">
+    <span data-icon="{{ c.category | category_icon }}"></span>
+    <span class="cadence-badge" title="{{ cadence_label }}" aria-label="{{ cadence_label }}"
+      data-icon="{{ c.cadence_kind | cadence_icon }}"></span>
+  </div>
   <div class="explore-body">
-    <h3>{{ c.title }}</h3>
+    <div class="explore-head">
+      <h3>{{ c.title }}</h3>
+      <span class="status-pill"><span data-icon="{{ status_meta[status].icon }}"></span>{{ status_label }}</span>
+    </div>
     <p>
       <span>{{ c.category.value }}</span>
       <span data-icon="users"></span><span>{{ c.enrollments|length }}</span>

@@ -30,7 +30,7 @@ Debugging in Docker: `.vscode/launch.json` has "Docker: Attach to FastAPI" (atta
 
 ## Testing
 
-`tests/` covers the occurrence engine (`test_occurrences.py`), the Jalali converter against ICU (`test_jalali.py`), timezone/backfill-window edge cases (`test_timezone_boundaries.py`), check-in idempotency (`test_checkin_idempotency.py`), and the challenge lock/visibility/auto-enrollment rules (`test_challenge_lifecycle.py`). Run with:
+`tests/` covers the occurrence engine (`test_occurrences.py`), the Jalali converter against ICU (`test_jalali.py`), timezone/backfill-window edge cases (`test_timezone_boundaries.py`), check-in idempotency (`test_checkin_idempotency.py`), the challenge lock/visibility/auto-enrollment rules (`test_challenge_lifecycle.py`), which SSR pages require a session (`test_page_authorization.py`), and who may see a given row once they have one (`test_object_authorization.py`). Run with:
 
 ```powershell
 .venv\Scripts\python -m pytest tests\ -q
@@ -52,15 +52,28 @@ Note `alembic.ini`'s `sqlalchemy.url` is a dead value — `alembic/env.py` overw
 
 They are **not** fully independent: `routers/views/challenge.py` imports `challenge_visibility_filter`, `fetch_challenge_page`, and the page-size constants from `routers/challenge.py`. Query/visibility logic belongs in the API router and gets reused by the view; only presentation lives in `views/`. Some create/auth logic *is* still duplicated across the two layers — when changing it, check whether the parallel handler needs the same edit.
 
+**The two layers are not meant to mirror each other endpoint-for-endpoint.** Only `create` has a `/views/` twin (`POST /views/challenges/create`, which exists to answer JSON `{id}` to a `fetch()` instead of a redirect the caller would discard). Every other mutation — enrol/unenrol, check in, edit, delete, login, signup, logout — is called from page JS against the JSON API directly, so a missing `/views/` route is the design, not a gap. What *is* a gap is a JSON endpoint no page can reach: `PATCH`/`DELETE /challenges/{id}` and `PATCH`/`DELETE /checkins/{id}` had no caller at all until the manage sheet and the timeline's edit button were added to `challenge-detail.html`. `GET /challenges/{id}/stats`, `GET /enrollments/{id}/history` and `GET /today/` are deliberately API-only: the SSR pages compute the same numbers server-side and inline them, so those exist for API consumers, not for the templates. The `/views/*/fragment` routes are the reverse and equally deliberate — they return card markup for infinite scroll and have no business being JSON.
+
 ### Auth (`app/auth.py`)
 
 Everything is written from scratch — no passlib, no JWT, no session store:
 
 - Passwords: `pbkdf2_sha256$<iterations>$<salt_b64>$<digest_b64>`, 260k iterations, verified with `hmac.compare_digest`.
 - Sessions: a stateless cookie `base64(user_id:expires_at).HMAC-SHA256`, keyed on `settings.secret_key`, 7-day expiry. Nothing is stored server-side, so **rotating `secret_key` logs everyone out** and there is no revocation.
-- Dependencies: `get_current_user_id` (401s), `get_optional_user_id` (returns `None`), `get_current_user` (loads the row).
+- Dependencies: `get_current_user_id` (401s), `get_optional_user_id` (returns `None`), `get_current_user` (loads the row), `get_page_user` (loads the row, redirects to login — see the 303/401 split below).
 
-`POST /auth/login` and `POST /users/` (signup) both set the cookie; `POST /auth/logout` clears it. The HTML login/signup page is `/views/auth/`, and protected view routes redirect there with `?next=<path>`.
+`POST /auth/login` and `POST /users/` (signup) both set the cookie; `POST /auth/logout` clears it. The HTML login/signup page is `/views/auth/`, and protected view routes redirect there with `?next=<path>`. `/views/auth/` itself bounces an already-signed-in visitor straight to `next` — otherwise the bottom nav's profile tab parks them on a login form for the session they already hold.
+
+### Page auth vs API auth — the 303/401 split
+
+A page and a `fetch()` need different failure modes, so there are two dependencies, and picking the wrong one is a real bug:
+
+- **`get_page_user`** (`app/auth.py`) is for full-page SSR routes. It raises `LoginRequired` — deliberately *not* an `HTTPException` — which `app/main.py` turns into a `303` to `/views/auth/?next=<path+query>`, clearing the session cookie on the way. Query strings are preserved so a deep link survives the round trip.
+- **`get_current_user_id`** stays on the `/views/*/fragment` routes and the whole JSON API, where a real `401` is load-bearing: `createInfiniteScroller()` in `app.js` reads that status to redirect itself, and a `fetch()` would silently follow a `303` and append the login page's markup as if it were cards.
+
+`get_page_user` returns the **`User` row**, not just the id — pages need it for the template anyway, and loading it is what makes a stateless, unrevocable cookie safe: one signed for a since-deleted account still verifies, so the row lookup is the only thing that fails it closed. Handlers that used to re-`select(User)` by hand should take the dependency instead.
+
+**Which pages are gated** (`tests/test_page_authorization.py` is the list): `/views/today/`, `/views/home/`, `/views/challenges/create` and `/views/users/{id}` require a session. Challenge **discovery stays open** — `/views/challenges/` and `/views/challenges/{id}` run on `challenge_visibility_filter(None)`, which already narrows an anonymous visitor to public challenges, and gating it would make the app unlinkable from outside. Profiles are the opposite call, and gated twice over — see the object-level rule below.
 
 ### Ownership and visibility — the rule to preserve
 
@@ -71,6 +84,42 @@ Routers derive the acting user from the session, **never** from a path/query/bod
 - Reads go through `challenge_visibility_filter(user_id)` in `app/routers/challenge.py`: visible if `is_public`, owned by the requester, or the requester is enrolled. Anonymous callers see public challenges only.
 
 New challenge/enrollment endpoints must reuse that filter and the same session-derived-user pattern.
+
+**Object-level access is a composed SQL predicate, not a post-load `if`.** There are exactly two such filters and no permissions framework — `challenge_visibility_filter` in `app/routers/challenge.py`, and `profile_visibility_filter(user_id)` in `app/routers/user.py`. Each is `.where()`-ed into the query so a miss falls out as "no such row", and each is shared by both front doors: `routers/views/user.py` imports the profile one exactly as `routers/views/challenge.py` imports the challenge one. Loosening a rule means editing one function, and both the page and the JSON endpoint follow.
+
+**Profiles are own-only.** `profile_visibility_filter` is `User.id == user_id` — nothing anywhere in the app links to another member's profile (`layout.html`'s bottom nav points at the viewer's own id; challenge-detail renders participant *initials*, never a roster), so there is no legitimate way to arrive at someone else's, and the path id is a bare sequential integer. `GET /views/users/{id}` and `GET /users/{id}` both apply it. `is_own_profile` is therefore always true in the template today; it stays because the owner-only affordances branch on it and it is the flag a relationship rule ("visible if we share a challenge") would start flipping. **If a participant list ever ships, that is the one function to loosen** — do not re-open the routes individually.
+
+**403 vs 404 — the split.** Where the caller could already *see* the resource, a 403 leaks nothing and is the more honest answer: PATCH/DELETE on a challenge you can read but do not own is 403. Where a 403 would answer the only question an enumerator is asking, it is a 404 instead, byte-identical to a genuine miss:
+
+| Route | Not yours | Why |
+|---|---|---|
+| `/views/users/{id}`, `GET /users/{id}` | **404** | sequential ids, no in-app link to another profile — a 403 maps the whole membership |
+| `PATCH`/`DELETE /checkins/{id}` | **404** | sequential ids reachable only through your own enrollment; a 403 maps every member's logged history. The 403s left on these routes are *backfill-window* refusals about your own row |
+| `PATCH`/`DELETE /challenges/{id}` | **404** if invisible, **403** if visible | the mutation selects through `challenge_visibility_filter` too, so a private challenge `GET` hides cannot be confirmed by writing to it |
+
+Pages fail *authentication* with a 303 to login and *authorization* with a 404/403 — the two are deliberately different, and `get_page_user` running first is what keeps a signed-out visitor from getting the forbidden answer.
+
+**`GET /users/` is the documented exception.** It returns every member and is held for a future admin panel; nothing in the app calls it. There is no role column on `Users`, so the only gate it can carry today is authentication — which narrows the roster harvest from "anyone" to "anyone who signs up". It needs a real admin check before that panel ships.
+
+### Derived challenge status — the badge and the filter are one rule
+
+A `Challenge` has no start/end column, so the status the list colours cards by (`شروع نشده` / `در حال اجرا` / `تمام شده`) is **derived** in `app/routers/challenge.py` from `lifecycle_status`, `due_date`, and two keys of the cadence JSON:
+
+- **finished** — archived, or `due_date` / `cadence.end_date` already past
+- **upcoming** — not finished, and either still a draft or `cadence.datetimes[0]` is still ahead
+- **active** — everything else
+
+It is written twice on purpose: `challenge_status(challenge)` renders a card, `status_filter(status)` is the SQL clause behind `?status=` (the list is paginated server-side, so a Python-side filter could not page). **Both are deliberately restricted to the same four inputs so a card and the filter can never disagree** — which is why a `schedule` challenge whose sessions have all passed still reads as *active* until its `due_date` passes or the owner archives it: only element `[0]` of `cadence.datetimes` is reachable portably from SQL, since SQLite's `json_extract` has no negative index. Adding an input means adding it to both halves; `tests/test_challenge_status_filter.py` asserts the two agree case by case.
+
+`?status=` is accepted by `GET /challenges/`, `/views/challenges/` and `/views/challenges/fragment` — the fragment included, or the other statuses leak back in on scroll. Farsi labels and icons live in `STATUS_META` in `routers/views/challenge.py` (same per-surface labelling pattern as `CADENCE_LABELS`, D7), and reach the card template as the `status_meta` Jinja global plus a `challenge_status` filter. The colours are the `--st-*` tokens in `styles.css`, shared by the card's accent stripe, its pill, and the matching button in the status filter, so one colour always means one thing. The pill always spells the status out — colour alone cannot carry it.
+
+On the list page, status and search stay on-screen; category and the "my challenges" scope live in a `createSheet` filter sheet (`type: "chips"`), with a count badge on the filter button and removable chips below it, so a filter can never be left on invisibly.
+
+### Deleting a challenge — archive is the normal exit
+
+`DELETE /challenges/{id}` is for a challenge that should never have existed (a typo, a duplicate), not for ending one that has run. It cascades through every enrollment, check-in and the stats row, so it is refused with **409 once any non-owner has enrolled** — the same `count_non_owner_enrollments` threshold that locks `cadence`/`goal_*` edits. Destroying other people's logged history is strictly worse than the cadence change that rule already blocks. The supported way out of a live challenge is `PATCH lifecycle_status="archived"`.
+
+The cascades on `Challenge.enrollments` / `.stats` / `.checkins` are **load-bearing, not tidiness**: every child FK is NOT NULL and `ChallengeStats.challenge_id` is a PK, so without them SQLAlchemy's default de-association raises before reaching the database and *every* delete is a 500 — which is what shipped until the guard above was added. `DELETE /users/{id}` deliberately does the opposite: no cascades, and it catches the resulting `IntegrityError` to answer 409, so an account with any history cannot be deleted at all.
 
 ### Models (`app/models/`)
 
@@ -90,7 +139,7 @@ New challenge/enrollment endpoints must reuse that filter and the same session-d
 
 ### Cadence, occurrences, and check-ins
 
-`app/occurrences.py` is pure logic — no DB, no routes — that turns a `CadenceUnion` plus an enrollment's `start_date`/`timezone` into today's due occurrences, streaks, and the writability of a given check-in key. Read it before touching `app/routers/checkin.py`, `app/routers/today.py`, or the challenge-detail heatmap.
+`app/occurrences.py` is pure logic — no DB, no routes — that turns a `CadenceUnion` plus an enrollment's `start_date`/`timezone` into today's due occurrences, streaks, the writability of a given check-in key, and — looking the other way — the next occurrences ahead (`upcoming_occurrences` / `count_occurrences_between`, which feed challenge-detail's plan card). Read it before touching `app/routers/checkin.py`, `app/routers/today.py`, or the challenge-detail heatmap.
 
 **`occurrence_key` contract** — the letter prefix keeps keys from colliding if a cadence changes mid-life:
 
@@ -107,6 +156,8 @@ New challenge/enrollment endpoints must reuse that filter and the same session-d
 **Months are Jalali, not Gregorian.** `month_key()` emits `M1405-06` (Shahrivar), `period_bounds(d, "month")` returns that month's real span (23 Aug – 22 Sep 2026), and `is_occurrence_day`'s `every_n_months` steps Jalali months too. This is not cosmetic — a Gregorian month reset mid-Shahrivar and split a user's quota across two buckets, so someone who met their target inside the month they could actually see was shown as having missed it. Migration `e91c47d2f0a3` rewrote the pre-existing `M2026-08`-style keys, re-deriving each row's period from its own `occurrence_local_date` (a Gregorian month straddles two Jalali months, so the old key alone is ambiguous) and renumbering `#seq` within the new period. `_parse_period_key` rejects Jalali years outside `PLAUSIBLE_JALALI_YEARS`, so an un-migrated key fails closed instead of resolving ~600 years out.
 
 Conversion lives in **`app/jalali.py`** — pure arithmetic, no dependency (a package would have to survive the UTF-16 `requirements.txt` caveat above, and `faker` already shows how that breaks the Docker image). `tests/test_jalali.py` checks all ~44,000 days from 1300 to 1420 against ICU's Persian calendar, which is the same authority the browser formats with — so the server can never bucket a date into a month the UI labels differently.
+
+**The challenge-detail plan card** (`build_cadence_plan` in `app/routers/views/challenge.py`) is the one place that describes a cadence to a human, and it is deliberately rendered for non-participants too — the shape of a challenge is what someone weighs before enrolling. It branches per `CadenceKind`: `schedule` gets sessions-passed progress plus first/last dates, `recurring_days` gets a Saturday-first weekday strip and a "how many in the next 30 days" count, `recurring_quota` gets the current Jalali period's real bounds and length, `once` gets no calendar at all. It reads in the viewer's own enrollment timezone (falling back to `DEFAULT_TIMEZONE`), and emits **ISO dates plus a `format` hint, never formatted text** — `renderDates()` does the Jalali conversion, same as everywhere else. Adding a cadence kind means adding a branch here alongside the ones in `app/occurrences.py`.
 
 **Backfill window**: a key is writable only within `BACKFILL_DAYS = 2` of its occurrence closing (`once` never closes, so it's always writable). `is_key_writable()` is the security boundary for `POST /checkins` — it re-derives whether a client-supplied key is legal for the cadence and enrollment; never trust the key as given. Outside the window, create/edit/delete on `/checkins` all return 403.
 
@@ -133,6 +184,10 @@ Underscore-prefixed templates (`challenge/_challenge_cards.html`, `home/_enrollm
 - The `/fragment` route returns bare card markup plus an `X-Has-More: true|false` response header.
 - `createInfiniteScroller()` in `app.js` observes a sentinel, appends the HTML, re-runs `renderIcons()` **and `renderDates()`** on the new nodes, and redirects to `/views/auth/` on a 401. A `reset()` supersedes in-flight requests via a request token — keep that guard when editing.
 - `app.js` also exposes `renderIcons` (inline SVG set injected into `[data-icon]`), `renderDates`, `formatJalali`, `debounce`, and `showToast`; `[data-coming-soon]` elements toast instead of doing nothing.
+
+**Icons per category and cadence.** The SVG set in `app.js` carries one icon for every `ChallengeCategory` (`catFitness`, `catNutrition`, …) and every `CadenceKind` (`cadenceOnce`, `cadenceSchedule`, …). The *name* is chosen server-side by `app/icons.py` and reaches templates as the `category_icon` / `cadence_icon` Jinja filters — deliberately, so the Farsi `ChallengeCategory` values are not retyped into a second JS map that can drift. Because every views router builds its own `Jinja2Templates`, each one rendering a category or cadence must call `register_icon_filters(templates.env)`; forgetting it is a template error at render time, not import time. `create-challenge.html` is the one exception — its pill grids are built client-side and keep their own copy of the mapping, so a new category means editing `CATEGORY_ICONS` *and* that `cats` array.
+
+**Breadcrumbs and back buttons.** `layout.html` renders a `[data-crumb-trail]` element that `initNavTrail()` in `app.js` fills from a sessionStorage trail of the pages actually visited. A page marked `data-crumb-root` (the four bottom-nav destinations) *clears* the trail — the bottom nav is a switch, not a step — while anything reached from one appends; revisiting a page already in the trail truncates back to it, so list → detail → list collapses. A one-entry trail stays hidden, which is why the nav ships `hidden` and un-hides itself. Pages set their own label by overriding `{% block breadcrumb %}` (or, for the roots, `{% set crumb_label = … %}`); the create wizard overrides it with nothing and so never enters the trail at all. Icon-only back controls are `[data-back]` and must ship a real fallback `href` for a cold landing — `wireBackButtons()` only retargets them at the previous trail entry; add `data-back-optional` to one that should hide itself when there is nothing behind it.
 
 ### Dates and times in the UI
 

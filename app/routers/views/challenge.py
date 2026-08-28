@@ -1,24 +1,27 @@
 # routers/views/challenge.py
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.auth import get_current_user_id, get_optional_user_id
+from app.auth import get_current_user_id, get_optional_user_id, get_page_user
 from app.config import BASE_DIR
 from app.database import get_db
+from app.icons import register_icon_filters
 from app.models.challenge import Challenge, ChallengeCategory
 from app.models.checkin import CheckIn
 from app.models.enrollment import Enrollment
 from app.models.stats import ChallengeStats
+from app.models.user import User
 from app.occurrences import (
+    count_occurrences_between,
     derive_state,
     expected_keys_desc,
     is_key_writable,
@@ -26,18 +29,28 @@ from app.occurrences import (
     occurrences_due,
     period_bounds,
     period_key,
+    upcoming_occurrences,
     week_start,
 )
 from app.routers.challenge import (
     DEFAULT_PAGE_SIZE,
     DEFAULT_TIMEZONE,
     MAX_PAGE_SIZE,
+    MINE_ALL,
+    STATUS_ALL,
+    challenge_status,
     challenge_visibility_filter,
     fetch_challenge_page,
     resolve_timezone,
 )
 from app.routers.checkin import occurrence_local_date, parse_cadence
-from app.schemas.cadence import CadenceUnion, RecurringQuotaCadence
+from app.schemas.cadence import (
+    CadenceUnion,
+    OnceCadence,
+    RecurringDaysCadence,
+    RecurringQuotaCadence,
+    ScheduleCadence,
+)
 from app.schemas.challenge import ChallengeCreate
 
 logger = logging.getLogger(__name__)
@@ -50,18 +63,74 @@ HISTORY_LIMIT = 12
 # shows, in addition to the current period.
 QUOTA_PERIODS_BACK = 5
 
+# How many upcoming occurrences the cadence plan card previews, and how far
+# ahead the "how often is this" density line looks.
+UPCOMING_LIMIT = 4
+DENSITY_WINDOW_DAYS = 30
+
+# 0 = Saturday .. 6 = Friday -- the Iranian indexing used everywhere in this
+# codebase (see to_ir_weekday). Spelled the same way as create-challenge.html's
+# weekdayNames so a day reads identically on both screens.
+WEEKDAY_NAMES = ("شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه")
+
+# CLAUDE.md (D7): these enums carry English codes and there is no shared Farsi
+# display map, so each surface spells its own labels -- same as
+# create-challenge.html's cadenceKindLabels.
+CADENCE_LABELS = {
+    "once": "یک‌باره",
+    "schedule": "زمان‌بندی‌شده",
+    "recurring_days": "تکرار روزانه",
+    "recurring_quota": "سهمیه‌ای",
+}
+
+VISIBILITY_LABELS = {
+    "public": "عمومی",
+    "unlisted": "فقط با لینک",
+    "private": "خصوصی",
+}
+
+LIFECYCLE_LABELS = {
+    "draft": "پیش‌نویس",
+    "active": "فعال",
+    "archived": "بایگانی‌شده",
+}
+
+# How the derived status (app.routers.challenge.challenge_status) reads on a
+# card: a Farsi label, an icon from app.js's set, and the CSS colour key the
+# card's accent stripe and pill share. Same per-surface labelling pattern as
+# CADENCE_LABELS above (D7 -- there is no shared Farsi display map).
+STATUS_META = {
+    "upcoming": {"label": "شروع نشده", "icon": "clock"},
+    "active": {"label": "در حال اجرا", "icon": "flame"},
+    "finished": {"label": "تمام شده", "icon": "seal"},
+}
+
 router = APIRouter(prefix="/views/challenges", tags=["challenge-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 
+def _clean_number(value) -> str:
+    """Numeric(12,2) round-trips as "100.00" -- nobody writes a goal that way."""
+    if value is None:
+        return ""
+    text = f"{float(value):.2f}".rstrip("0").rstrip(".")
+    return text or "0"
+
+
+templates.env.filters["num"] = _clean_number
+# A card renders the derived status; the fragment endpoint renders the same
+# card template with its own context, so the label/icon map is a global rather
+# than something both routes have to remember to pass.
+templates.env.filters["challenge_status"] = challenge_status
+templates.env.globals["status_meta"] = STATUS_META
+register_icon_filters(templates.env)
+
+
 @router.get("/create")
 async def create_challenge_form(
-    request: Request, current_user_id: int | None = Depends(get_optional_user_id)
+    request: Request, db_user: User = Depends(get_page_user)
 ):
-    if current_user_id is None:
-        return RedirectResponse(
-            url="/views/auth/?next=/views/challenges/create", status_code=303
-        )
+    current_user_id = db_user.id
     return templates.TemplateResponse(
         "challenge/create-challenge.html",
         {
@@ -126,6 +195,10 @@ async def challenge_list(
     db: AsyncSession = Depends(get_db),
     category: str | None = None,
     q: str | None = Query(default=None, max_length=100),
+    mine: str = Query(default=MINE_ALL, pattern="^(all|only|hide)$"),
+    status: str = Query(
+        default=STATUS_ALL, pattern="^(all|upcoming|active|finished)$"
+    ),
 ):
     challenges, has_more = await fetch_challenge_page(
         db,
@@ -135,6 +208,8 @@ async def challenge_list(
         offset=0,
         limit=DEFAULT_PAGE_SIZE,
         sort="velocity",
+        mine=mine,
+        status=status,
         options=(selectinload(Challenge.enrollments),),
     )
     return templates.TemplateResponse(
@@ -146,6 +221,9 @@ async def challenge_list(
             "categories": ChallengeCategory,
             "active_category": category or None,
             "query": q or "",
+            "active_mine": mine,
+            "active_status": status,
+            "status_options": STATUS_META,
             "has_more": has_more,
             "page_size": DEFAULT_PAGE_SIZE,
             "current_user_id": current_user_id,
@@ -163,6 +241,10 @@ async def challenge_list_fragment(
     q: str | None = Query(default=None, max_length=100),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+    mine: str = Query(default=MINE_ALL, pattern="^(all|only|hide)$"),
+    status: str = Query(
+        default=STATUS_ALL, pattern="^(all|upcoming|active|finished)$"
+    ),
 ):
     """Returns just the next page of challenge cards, for infinite scroll."""
     challenges, has_more = await fetch_challenge_page(
@@ -173,6 +255,8 @@ async def challenge_list_fragment(
         offset=offset,
         limit=limit,
         sort="velocity",
+        mine=mine,
+        status=status,
         options=(selectinload(Challenge.enrollments),),
     )
     response = templates.TemplateResponse(
@@ -181,6 +265,171 @@ async def challenge_list_fragment(
     )
     response.headers["X-Has-More"] = "true" if has_more else "false"
     return response
+
+
+def _join_fa(parts: list[str]) -> str:
+    """«شنبه، دوشنبه و چهارشنبه» -- Farsi joins the last item with «و»."""
+    if len(parts) <= 1:
+        return "".join(parts)
+    return "، ".join(parts[:-1]) + " و " + parts[-1]
+
+
+def describe_cadence(cadence: CadenceUnion) -> str:
+    """One Farsi sentence naming the rule this cadence encodes."""
+    if isinstance(cadence, OnceCadence):
+        return "یک بار، هر وقت آماده بودی"
+
+    if isinstance(cadence, ScheduleCadence):
+        return f"{len(cadence.datetimes)} جلسهٔ زمان‌بندی‌شده"
+
+    if isinstance(cadence, RecurringDaysCadence):
+        if cadence.mode == "weekdays":
+            days = _join_fa([WEEKDAY_NAMES[d] for d in cadence.weekdays])
+            return f"هر هفته: {days}"
+        if cadence.mode == "every_n_days":
+            return "هر روز" if cadence.n == 1 else f"هر {cadence.n} روز یک بار"
+        if cadence.mode == "every_n_weeks":
+            return "هر هفته" if cadence.n == 1 else f"هر {cadence.n} هفته یک بار"
+        if cadence.mode == "every_n_months":
+            return "هر ماه" if cadence.n == 1 else f"هر {cadence.n} ماه یک بار"
+
+    if isinstance(cadence, RecurringQuotaCadence):
+        period = "ماه" if cadence.period == "month" else "هفته"
+        return f"{cadence.count} بار در هر {period}"
+
+    return ""
+
+
+def build_cadence_plan(
+    cadence: CadenceUnion,
+    *,
+    start_date: date,
+    tz: str,
+    now_utc: datetime,
+) -> dict:
+    """The "how this challenge actually runs" card.
+
+    Cadence-specific, and deliberately built for non-participants too: the
+    shape of a challenge is the main thing someone weighs before enrolling.
+
+    Dates come back as ISO strings plus a `format` hint rather than as
+    formatted text -- renderDates() in app.js is the only place this app turns
+    a date into something a human reads, and it renders Jalali.
+    """
+    today = local_today(tz, now_utc)
+    upcoming = upcoming_occurrences(
+        cadence,
+        start_date=start_date,
+        tz=tz,
+        now_utc=now_utc,
+        limit=UPCOMING_LIMIT,
+    )
+
+    plan: dict = {
+        "kind": cadence.kind,
+        "label": CADENCE_LABELS.get(cadence.kind, cadence.kind),
+        "rule": describe_cadence(cadence),
+        "weekdays": None,
+        "timezone": tz,
+        "facts": [],
+        "upcoming": [
+            {
+                "key": u.key,
+                "date": u.local_date.isoformat(),
+                "at": u.at_utc.isoformat() if u.at_utc else None,
+                "is_next": i == 0,
+            }
+            for i, u in enumerate(upcoming)
+        ],
+        "upcoming_label": "نوبت‌های بعدی",
+        "upcoming_format": "weekday-day-month",
+        "upcoming_prefix": "",
+        "density": None,
+        "progress": None,
+        "end_date": None,
+    }
+
+    end_date = getattr(cadence, "end_date", None)
+    if end_date is not None:
+        plan["end_date"] = end_date.date().isoformat()
+        plan["facts"].append(
+            {
+                "label": "پایان تکرار",
+                "date": plan["end_date"],
+                "format": "day-month-year",
+            }
+        )
+
+    if isinstance(cadence, OnceCadence):
+        # A one-off has no calendar to preview -- listing "today" as an
+        # upcoming occurrence would just restate the CTA.
+        plan["upcoming"] = []
+        plan["facts"].append({"label": "مهلت ثبت", "text": "بدون محدودیت زمانی"})
+
+    elif isinstance(cadence, ScheduleCadence):
+        plan["upcoming_label"] = "جلسه‌های پیش رو"
+        zone = ZoneInfo(tz)
+        dates = sorted(dt.astimezone(zone).date() for dt in cadence.datetimes)
+        passed = sum(1 for d in dates if d < today)
+        plan["progress"] = {
+            "done": passed,
+            "total": len(dates),
+            "pct": round(passed / len(dates) * 100) if dates else 0,
+            "label": "جلسهٔ سپری‌شده",
+        }
+        plan["facts"].append(
+            {
+                "label": "اولین جلسه",
+                "date": dates[0].isoformat(),
+                "format": "day-month-year",
+            }
+        )
+        plan["facts"].append(
+            {
+                "label": "آخرین جلسه",
+                "date": dates[-1].isoformat(),
+                "format": "day-month-year",
+            }
+        )
+
+    elif isinstance(cadence, RecurringDaysCadence):
+        if cadence.mode == "weekdays":
+            plan["weekdays"] = [
+                {"index": i, "name": WEEKDAY_NAMES[i], "on": i in cadence.weekdays}
+                for i in range(7)
+            ]
+        # Counted rather than derived: "every 10 days" or "every 2 Jalali
+        # months" has no round per-week answer to quote.
+        n = count_occurrences_between(
+            cadence,
+            start_date=start_date,
+            tz=tz,
+            since=today,
+            until=today + timedelta(days=DENSITY_WINDOW_DAYS - 1),
+        )
+        plan["density"] = f"{n} نوبت در {DENSITY_WINDOW_DAYS} روز آینده"
+
+    elif isinstance(cadence, RecurringQuotaCadence):
+        plan["upcoming_label"] = "دوره‌های بعدی"
+        plan["upcoming_format"] = "month" if cadence.period == "month" else "day-month"
+        plan["upcoming_prefix"] = "" if cadence.period == "month" else "هفتهٔ "
+        period_start, period_end = period_bounds(today, cadence.period)
+        plan["facts"].append(
+            {
+                "label": "دورهٔ جاری",
+                "date": period_start.isoformat(),
+                "format": "day-month",
+                "date_to": period_end.isoformat(),
+            }
+        )
+        # The rule line already says "N times a month"; the useful extra fact
+        # is how long a period actually is -- Jalali months are 29/30/31 days.
+        plan["density"] = f"هر دوره {(period_end - period_start).days + 1} روزه"
+        # The current period leads the upcoming list, but the quota history
+        # strip below already covers it in far more detail.
+        plan["upcoming"] = plan["upcoming"][1:]
+
+    return plan
 
 
 async def build_history_timeline(
@@ -231,6 +480,16 @@ async def build_history_timeline(
             row_state=row.state if row else None,
         )
         local_date = date_for(key)
+        # The backfill window governs recording *and* correcting an occurrence
+        # -- POST, PATCH and DELETE on /checkins all check the same predicate,
+        # so one flag decides which action the row can offer.
+        key_writable = is_key_writable(
+            cadence,
+            start_date=enrollment.start_date,
+            tz=enrollment.timezone,
+            key=key,
+            now_utc=now_utc,
+        )
         items.append(
             {
                 "key": key,
@@ -239,19 +498,15 @@ async def build_history_timeline(
                 "state": state,
                 "amount": row.amount if row else None,
                 "note": row.note if row else None,
-                # Only offer the sheet for occurrences with nothing recorded
-                # yet -- an already completed/skipped row has no PATCH/DELETE
-                # UI here, and re-POSTing it would silently no-op (the
-                # idempotent-conflict path in POST /checkins returns 200 for
-                # the existing row without changing its state).
-                "writable": state in ("pending", "missed")
-                and is_key_writable(
-                    cadence,
-                    start_date=enrollment.start_date,
-                    tz=enrollment.timezone,
-                    key=key,
-                    now_utc=now_utc,
-                ),
+                # Nothing recorded yet -> offer the check-in sheet. Re-POSTing
+                # an existing row would silently no-op (the idempotent-conflict
+                # path returns 200 without changing state), so a recorded row
+                # gets the edit path below instead.
+                "writable": state in ("pending", "missed") and key_writable,
+                # Recorded and still inside the window -> offer PATCH/DELETE,
+                # so a mis-logged amount or a wrong state isn't permanent.
+                "checkin_id": row.id if row is not None else None,
+                "editable": row is not None and key_writable,
             }
         )
 
@@ -339,6 +594,51 @@ async def build_quota_period_rows(
     return rows, summary
 
 
+async def build_my_stats(
+    db: AsyncSession, enrollment: Enrollment
+) -> dict:
+    """The participant's own tally on this challenge.
+
+    Read live off `CheckIns` rather than off `Enrollments`: the only personal
+    counters kept on the enrollment row are the two streaks (recomputed, never
+    incremented -- see compute_streaks), and `legacy_completed_count` is
+    frozen pre-migration data that must not be shown as a live number.
+    """
+    result = await db.execute(
+        select(
+            CheckIn.state,
+            func.count(CheckIn.id),
+            func.sum(CheckIn.amount),
+            func.max(CheckIn.occurred_at_utc),
+        )
+        .where(CheckIn.enrollment_id == enrollment.id)
+        .group_by(CheckIn.state)
+    )
+    completed = skipped = 0
+    total_amount = 0.0
+    last_at = None
+    for state, count, amount_sum, max_at in result.all():
+        if state == "completed":
+            completed = count
+            total_amount = float(amount_sum or 0)
+        elif state == "skipped":
+            skipped = count
+        if max_at is not None and (last_at is None or max_at > last_at):
+            last_at = max_at
+
+    return {
+        "completed": completed,
+        "skipped": skipped,
+        "total_amount": total_amount,
+        "last_checkin_at": last_at,
+        "start_date": enrollment.start_date,
+        "timezone": enrollment.timezone,
+        "status": enrollment.status,
+        "current_streak": enrollment.current_streak,
+        "longest_streak": enrollment.longest_streak,
+    }
+
+
 @router.get("/{challenge_id}")
 async def challenge_detail(
     challenge_id: int,
@@ -348,7 +648,10 @@ async def challenge_detail(
 ):
     result = await db.execute(
         select(Challenge)
-        .options(selectinload(Challenge.enrollments).selectinload(Enrollment.user))
+        .options(
+            selectinload(Challenge.owner),
+            selectinload(Challenge.enrollments).selectinload(Enrollment.user),
+        )
         .where(
             Challenge.id == challenge_id,
             challenge_visibility_filter(current_user_id),
@@ -365,6 +668,17 @@ async def challenge_detail(
         )
     is_enrolled = my_enrollment is not None
 
+    # The owner's management affordances mirror the API's own guards rather
+    # than guessing at them: cadence/goal are locked and hard delete is
+    # refused once anyone else has joined (see update_challenge /
+    # delete_challenge), so the sheet only offers what would actually succeed.
+    is_owner = current_user_id is not None and db_challenge.owner_id == current_user_id
+    has_other_participants = False
+    if is_owner:
+        has_other_participants = any(
+            e.user_id != db_challenge.owner_id for e in db_challenge.enrollments
+        )
+
     stats_result = await db.execute(
         select(ChallengeStats).where(ChallengeStats.challenge_id == challenge_id)
     )
@@ -377,6 +691,13 @@ async def challenge_detail(
 
     now_utc = datetime.now(UTC)
     cadence = parse_cadence(db_challenge)
+
+    # The plan is read in the viewer's own enrollment timezone when they have
+    # one -- two people enrolled in the same challenge from different zones do
+    # genuinely have different occurrence dates (CLAUDE.md, timezone note).
+    # A non-participant gets the app default, same as the collective progress
+    # figures below.
+    plan_tz = my_enrollment.timezone if my_enrollment else DEFAULT_TIMEZONE
 
     # Collective progress (D9: due_date is unrelated to cadence, so it plays
     # no part here). With a goal, progress is amount-based; without one it's
@@ -394,6 +715,11 @@ async def challenge_detail(
             until=local_today(DEFAULT_TIMEZONE, now_utc),
         )
     )
+    plan_start = my_enrollment.start_date if my_enrollment else created_local
+    cadence_plan = build_cadence_plan(
+        cadence, start_date=plan_start, tz=plan_tz, now_utc=now_utc
+    )
+
     if db_challenge.goal_amount:
         progress = float(total_amount) / float(db_challenge.goal_amount)
     else:
@@ -408,7 +734,9 @@ async def challenge_detail(
     quota_rows = []
     history_summary = None
     has_more_history = False
+    my_stats = None
     if my_enrollment is not None:
+        my_stats = await build_my_stats(db, my_enrollment)
         if isinstance(cadence, RecurringQuotaCadence):
             quota_rows, history_summary = await build_quota_period_rows(
                 db, my_enrollment, cadence, now_utc
@@ -425,7 +753,21 @@ async def challenge_detail(
             "request": request,
             "challenge": db_challenge,
             "cadence_kind": db_challenge.cadence_kind,
+            "cadence_plan": cadence_plan,
+            "visibility_label": VISIBILITY_LABELS.get(
+                db_challenge.visibility, db_challenge.visibility
+            ),
+            "lifecycle_label": LIFECYCLE_LABELS.get(
+                db_challenge.lifecycle_status, db_challenge.lifecycle_status
+            ),
+            "default_timezone": DEFAULT_TIMEZONE,
+            "last_activity_at": stats.last_checkin_at if stats else None,
+            "my_stats": my_stats,
             "is_enrolled": is_enrolled,
+            "is_owner": is_owner,
+            "can_delete": is_owner and not has_other_participants,
+            "visibility_options": VISIBILITY_LABELS,
+            "lifecycle_options": LIFECYCLE_LABELS,
             "participant_count": participant_count,
             "total_completions": total_completions,
             "total_amount": total_amount,

@@ -1,3 +1,5 @@
+from urllib.parse import quote
+
 from fastapi import FastAPI, Request
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import RedirectResponse
@@ -5,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.auth import LoginRequired, clear_session_cookie
 from app.config import BASE_DIR
 from app.routers import auth, challenge, checkin, enrollment, today, user
 from app.routers.views import auth as auth_views
@@ -35,6 +38,30 @@ class RevalidatedStaticFiles(StaticFiles):
         response = super().file_response(*args, **kwargs)
         response.headers["Cache-Control"] = "no-cache"
         return response
+
+
+@app.exception_handler(LoginRequired)
+async def login_required_page(request: Request, exc: LoginRequired):
+    """Send an anonymous visitor to the login page, then back where they were.
+
+    ``next`` carries the full path *and* query so a deep link survives the
+    round trip -- landing back on a bare ``/views/home/`` after logging in
+    would silently drop whatever filter or challenge they were opening.
+    ``views/auth.py`` re-clamps it to a same-site path on the way out, so a
+    crafted URL cannot turn this into an open redirect.
+
+    The cookie is cleared on the way out: reaching here with one at all means
+    it was expired, forged, or signed for an account that no longer exists, so
+    leaving it in place would only re-fail the same way on the next page.
+    """
+    target = request.url.path
+    if request.url.query:
+        target = f"{target}?{request.url.query}"
+    response = RedirectResponse(
+        url=f"/views/auth/?next={quote(target, safe='')}", status_code=303
+    )
+    clear_session_cookie(response)
+    return response
 
 
 @app.exception_handler(StarletteHTTPException)

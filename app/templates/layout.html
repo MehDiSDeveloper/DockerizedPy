@@ -31,6 +31,19 @@
             {% endblock %}
         </header>
 
+        {#- Trail of the pages the visitor actually walked through, kept in
+            sessionStorage and rendered by initBreadcrumbs() in app.js. A page
+            marked data-crumb-root is a bottom-nav destination and clears the
+            trail; anything reached *from* one appends to it. It starts hidden
+            because a one-entry trail (a fresh landing) has nothing to offer,
+            and a trail bar that appears and then empties itself would flicker
+            on every root page. Pages with nowhere to go back to -- the create
+            wizard -- override this block with nothing. -#}
+        {% block breadcrumb %}
+        <nav class="crumbs" aria-label="مسیر صفحه" hidden
+            data-crumb-trail data-crumb-label="{{ crumb_label | default(title) }}" data-crumb-root></nav>
+        {% endblock %}
+
         {% block content %}
         {% endblock %}
 

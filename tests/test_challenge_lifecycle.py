@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import create_session_cookie, hash_password
+from app.models.checkin import CheckIn
 from app.models.enrollment import Enrollment
 from app.models.stats import ChallengeStats
 from app.models.user import User
@@ -192,3 +193,105 @@ async def test_unlisted_excluded_from_listing_but_reachable_by_url(
     detail = await client.get(f"/challenges/{challenge_id}")
     assert detail.status_code == 200
     assert detail.json()["id"] == challenge_id
+
+
+@pytest.mark.asyncio
+async def test_delete_challenge_cascades_stats_and_owner_enrollment(
+    client: AsyncClient, db: AsyncSession
+):
+    """Every challenge is born with a ChallengeStats row and the owner's
+    auto-enrollment, both on NOT NULL FKs -- so this is the ordinary case,
+    not an edge one."""
+    owner = await make_user(db, "Owner")
+    authenticate(client, owner.id)
+    created = await create_challenge(client)
+    challenge_id = created.json()["id"]
+
+    resp = await client.delete(f"/challenges/{challenge_id}")
+    assert resp.status_code == 204, resp.text
+
+    assert (await client.get(f"/challenges/{challenge_id}")).status_code == 404
+
+    enrollments = await db.execute(
+        select(Enrollment).where(Enrollment.challenge_id == challenge_id)
+    )
+    assert enrollments.scalars().all() == []
+    stats = await db.execute(
+        select(ChallengeStats).where(ChallengeStats.challenge_id == challenge_id)
+    )
+    assert stats.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_delete_challenge_cascades_own_checkins(
+    client: AsyncClient, db: AsyncSession
+):
+    owner = await make_user(db, "Owner")
+    authenticate(client, owner.id)
+    created = await create_challenge(client)
+    challenge_id = created.json()["id"]
+
+    checkin = await client.post(
+        "/checkins/",
+        json={
+            "challenge_id": challenge_id,
+            "occurrence_key": "single",
+            "state": "completed",
+        },
+    )
+    assert checkin.status_code == 201, checkin.text
+
+    resp = await client.delete(f"/challenges/{challenge_id}")
+    assert resp.status_code == 204, resp.text
+
+    remaining = await db.execute(
+        select(CheckIn).where(CheckIn.challenge_id == challenge_id)
+    )
+    assert remaining.scalars().all() == []
+
+
+@pytest.mark.asyncio
+async def test_delete_challenge_blocked_once_others_enrolled(
+    client: AsyncClient, db: AsyncSession
+):
+    """Deleting cascades through other people's check-ins, so it is barred at
+    the same threshold that locks cadence/goal edits."""
+    owner = await make_user(db, "Owner")
+    other = await make_user(db, "Other")
+
+    authenticate(client, owner.id)
+    created = await create_challenge(client)
+    challenge_id = created.json()["id"]
+
+    authenticate(client, other.id)
+    enrolled = await client.post(f"/enrollments/{challenge_id}")
+    assert enrolled.status_code == 201, enrolled.text
+
+    authenticate(client, owner.id)
+    resp = await client.delete(f"/challenges/{challenge_id}")
+    assert resp.status_code == 409, resp.text
+
+    assert (await client.get(f"/challenges/{challenge_id}")).status_code == 200
+
+    # Archiving is the supported way out once a challenge has participants.
+    archived = await client.patch(
+        f"/challenges/{challenge_id}", json={"lifecycle_status": "archived"}
+    )
+    assert archived.status_code == 200
+    assert archived.json()["lifecycle_status"] == "archived"
+
+
+@pytest.mark.asyncio
+async def test_delete_challenge_rejects_non_owner(
+    client: AsyncClient, db: AsyncSession
+):
+    owner = await make_user(db, "Owner")
+    stranger = await make_user(db, "Stranger")
+
+    authenticate(client, owner.id)
+    created = await create_challenge(client)
+    challenge_id = created.json()["id"]
+
+    authenticate(client, stranger.id)
+    resp = await client.delete(f"/challenges/{challenge_id}")
+    assert resp.status_code == 403

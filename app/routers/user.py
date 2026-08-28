@@ -13,15 +13,60 @@ from app.schemas.user import UserCreate, UserPublicRead, UserRead, UserUpdate
 router = APIRouter(prefix="/users", tags=["users"])
 
 
+def profile_visibility_filter(user_id: int):
+    """A profile is visible only to the member it belongs to.
+
+    Same shape as ``challenge_visibility_filter`` -- a clause composed into
+    the query rather than a check bolted on after the row is loaded -- so the
+    rule lives in one place and a miss falls out as "no such row" instead of
+    a separate branch each caller has to remember.
+
+    Own-profile-only is the honest rule for what the app actually is today:
+    nothing anywhere links to another member's profile (the bottom nav points
+    at your own id; challenge-detail shows participant initials, never a
+    roster), so there is no legitimate way to arrive at someone else's. The
+    path id is a bare sequential integer, so anything looser than this is a
+    walk of ``1..n`` that harvests the whole membership. If a participant
+    list ever ships, loosen *this function* -- e.g. to "or we share a
+    challenge" -- and both the page and the JSON endpoint follow.
+    """
+    return User.id == user_id
+
+
 @router.get("/", response_model=list[UserPublicRead])
-async def list_users(db: AsyncSession = Depends(get_db)):
+async def list_users(
+    _current_user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """Every member -- held for a future admin panel, not called by the app.
+
+    This is the one endpoint that does *not* follow
+    ``profile_visibility_filter``: it deliberately returns other people's
+    rows. There is no role column on ``Users`` yet, so the only gate that can
+    be written today is authentication, which merely narrows the roster
+    harvest from "anyone" to "anyone who signs up". **Give this a real admin
+    check before the panel ships** -- until then it is the widest read in the
+    app, and it is only defensible because nothing links to it.
+    """
     result = await db.execute(select(User))
     return result.scalars().all()
 
 
 @router.get("/{user_id}", response_model=UserPublicRead)
-async def get_user(user_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.id == user_id))
+async def get_user(
+    user_id: int,
+    current_user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """404, not 403, for someone else's id.
+
+    A 403 here would answer the only question an enumerator is asking -- it
+    confirms which ids exist -- and the caller has no business distinguishing
+    "not yours" from "not there" for a resource they can never be shown.
+    """
+    result = await db.execute(
+        select(User).where(User.id == user_id, profile_visibility_filter(current_user_id))
+    )
     db_user = result.scalar_one_or_none()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")

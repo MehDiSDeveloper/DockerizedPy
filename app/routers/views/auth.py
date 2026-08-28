@@ -1,7 +1,9 @@
 # routers/views/auth.py
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from app.auth import get_optional_user_id
 from app.config import BASE_DIR
 
 router = APIRouter(prefix="/views/auth", tags=["auth-views"])
@@ -31,7 +33,20 @@ def _safe_next(raw: str) -> str:
 
 
 @router.get("/")
-async def auth_page(request: Request, next: str = DEFAULT_NEXT):
+async def auth_page(
+    request: Request,
+    next: str = DEFAULT_NEXT,
+    current_user_id: int | None = Depends(get_optional_user_id),
+):
+    target = _safe_next(next)
+    # Already signed in: go straight where they were headed. Without this the
+    # bottom nav's profile tab and any stale bookmark of this URL park a
+    # logged-in user on a login form, and submitting it just re-issues the
+    # cookie they already hold. ``get_optional_user_id`` only checks the
+    # signature, which is enough here -- the destination page runs
+    # ``get_page_user`` and bounces a cookie whose account is gone right back.
+    if current_user_id is not None:
+        return RedirectResponse(url=target, status_code=303)
     return templates.TemplateResponse(
-        "user/auth.html", {"request": request, "next": _safe_next(next)}
+        "user/auth.html", {"request": request, "next": target}
     )

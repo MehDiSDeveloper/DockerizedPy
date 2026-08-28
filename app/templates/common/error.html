@@ -10,6 +10,13 @@
 <div class="app-bg"></div>
 
 <div class="shell">
+<!-- No app.js on this page, so the back control is a plain link with an inline
+     chevron; history.back() is preferred when there is a history to go back to,
+     and the href is the fallback when the error page was opened cold. -->
+<a href="/views/challenges/" class="back-btn floating-back" aria-label="بازگشت"
+   onclick="if (history.length > 1) { history.back(); return false; }">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+</a>
   <div class="auth-wrap">
     <div class="auth-logo">
       <h1>مشکلی پیش اومد</h1>

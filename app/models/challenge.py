@@ -73,6 +73,21 @@ class Challenge(AuditBase):
         "User", foreign_keys=[owner_id], back_populates="owned_challenges"
     )
     participants = relationship("User", secondary="Enrollments", viewonly=True)
-    enrollments = relationship("Enrollment", back_populates="challenge")
-    stats = relationship("ChallengeStats", back_populates="challenge", uselist=False)
-    checkins = relationship("CheckIn", back_populates="challenge")
+    # Cascades are required, not an optimisation: every child FK here is
+    # NOT NULL (ChallengeStats.challenge_id is even the PK), so SQLAlchemy's
+    # default de-association on parent delete tries to NULL them out and
+    # raises before it ever reaches the database. Without these, deleting any
+    # challenge is an unconditional 500 -- and every challenge has both a
+    # stats row and the owner's auto-enrollment from the moment it is created.
+    enrollments = relationship(
+        "Enrollment", back_populates="challenge", cascade="all, delete-orphan"
+    )
+    stats = relationship(
+        "ChallengeStats",
+        back_populates="challenge",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    checkins = relationship(
+        "CheckIn", back_populates="challenge", cascade="all, delete-orphan"
+    )

@@ -2,14 +2,13 @@ from datetime import UTC, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user_id, get_optional_user_id
+from app.auth import get_current_user_id, get_page_user
 from app.config import BASE_DIR
 from app.database import get_db
+from app.icons import register_icon_filters
 from app.models.user import User
 from app.routers.today import get_today_items
 
@@ -34,26 +33,16 @@ def _local_time(dt: datetime, tz: str) -> str:
 
 
 templates.env.filters["local_time"] = _local_time
-
-
-def _redirect_to_login() -> RedirectResponse:
-    return RedirectResponse(url="/views/auth/?next=/views/today/", status_code=303)
+register_icon_filters(templates.env)
 
 
 @router.get("/")
 async def today_page(
     request: Request,
-    current_user_id: int | None = Depends(get_optional_user_id),
+    db_user: User = Depends(get_page_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if current_user_id is None:
-        return _redirect_to_login()
-
-    user_result = await db.execute(select(User).where(User.id == current_user_id))
-    db_user = user_result.scalar_one_or_none()
-    if db_user is None:
-        return _redirect_to_login()
-
+    current_user_id = db_user.id
     items = await get_today_items(
         db, user_id=current_user_id, now_utc=datetime.now(UTC)
     )

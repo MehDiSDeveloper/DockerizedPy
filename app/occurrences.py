@@ -20,6 +20,10 @@ BACKFILL_DAYS = 2
 PLAUSIBLE_JALALI_YEARS = (1200, 1700)
 IR_WEEK_OFFSET = 2
 MAX_STREAK_WALK = 400
+# How far forward the "what's coming up" preview on challenge-detail is
+# allowed to walk before giving up. A `every_n_months` cadence can leave
+# months between occurrences, so this is deliberately wider than a year.
+MAX_LOOKAHEAD_DAYS = 400
 
 
 @dataclass
@@ -31,6 +35,21 @@ class DueOccurrence:
     sequence: int | None
     quota_done: int | None
     quota_target: int | None
+
+
+@dataclass
+class UpcomingOccurrence:
+    """A future (or still-open) occurrence, for previewing a cadence.
+
+    Unlike `DueOccurrence` this says nothing about whether anything was
+    recorded -- it is pure calendar shape, so the detail page can describe a
+    challenge to someone who isn't even enrolled in it.
+    """
+
+    key: str
+    local_date: date
+    at_utc: datetime | None
+    sequence: int | None
 
 
 def to_ir_weekday(d: date) -> int:
@@ -231,6 +250,142 @@ def occurrences_due(
         return results
 
     return results
+
+
+def upcoming_occurrences(
+    cadence: CadenceUnion,
+    *,
+    start_date: date,
+    tz: str,
+    now_utc: datetime,
+    limit: int = 5,
+    lookahead_days: int = MAX_LOOKAHEAD_DAYS,
+) -> list[UpcomingOccurrence]:
+    """The next `limit` occurrences at or after today, soonest first.
+
+    Mirror image of `expected_keys_desc`, which only ever looks backwards.
+    Same key formats, same Iranian week / Jalali month rules -- so a date
+    previewed here is the same date that later shows up in the history.
+    """
+    today = local_today(tz, now_utc)
+    horizon = today + timedelta(days=lookahead_days)
+    results: list[UpcomingOccurrence] = []
+
+    if isinstance(cadence, OnceCadence):
+        # `once` never closes, so it is "upcoming" until it is recorded --
+        # which this layer deliberately doesn't know about.
+        return [
+            UpcomingOccurrence(
+                key="single",
+                local_date=max(today, start_date),
+                at_utc=None,
+                sequence=None,
+            )
+        ]
+
+    if isinstance(cadence, ScheduleCadence):
+        for dt in cadence.datetimes:
+            local_date = dt.astimezone(ZoneInfo(tz)).date()
+            # An instant earlier today is still shown: it stays writable for
+            # the rest of the local day (see `is_key_writable`).
+            if local_date < today:
+                continue
+            if local_date > horizon:
+                break
+            results.append(
+                UpcomingOccurrence(
+                    key=f"S{dt.isoformat()}",
+                    local_date=local_date,
+                    at_utc=dt,
+                    sequence=None,
+                )
+            )
+            if len(results) >= limit:
+                break
+        return results
+
+    if isinstance(cadence, RecurringDaysCadence):
+        d = max(today, start_date)
+        while d <= horizon and len(results) < limit:
+            if is_occurrence_day(cadence, start_date, d):
+                results.append(
+                    UpcomingOccurrence(
+                        key=f"D{d.isoformat()}",
+                        local_date=d,
+                        at_utc=None,
+                        sequence=None,
+                    )
+                )
+            d += timedelta(days=1)
+        return results
+
+    if isinstance(cadence, RecurringQuotaCadence):
+        d = max(today, start_date)
+        while d <= horizon and len(results) < limit:
+            period_start, period_end = period_bounds(d, cadence.period)
+            if cadence.end_date is not None and period_start > cadence.end_date.date():
+                break
+            results.append(
+                UpcomingOccurrence(
+                    key=period_key(d, cadence.period),
+                    local_date=max(period_start, start_date),
+                    at_utc=None,
+                    sequence=None,
+                )
+            )
+            d = period_end + timedelta(days=1)
+        return results
+
+    return results
+
+
+def count_occurrences_between(
+    cadence: CadenceUnion,
+    *,
+    start_date: date,
+    tz: str,
+    since: date,
+    until: date,
+) -> int:
+    """How many occurrences fall in [since, until] -- the honest way to say
+    "how often is this, really" for a cadence whose rule doesn't map onto a
+    round number per week (every 10 days, every 2 Jalali months, ...)."""
+    if until < since:
+        return 0
+
+    if isinstance(cadence, OnceCadence):
+        # A one-off has no scheduled date -- it counts as pending work for
+        # every window that hasn't already ended before it became available.
+        return 1 if start_date <= until else 0
+
+    if isinstance(cadence, ScheduleCadence):
+        return sum(
+            1
+            for dt in cadence.datetimes
+            if since <= dt.astimezone(ZoneInfo(tz)).date() <= until
+        )
+
+    if isinstance(cadence, RecurringDaysCadence):
+        count = 0
+        d = since
+        while d <= until:
+            if is_occurrence_day(cadence, start_date, d):
+                count += 1
+            d += timedelta(days=1)
+        return count
+
+    if isinstance(cadence, RecurringQuotaCadence):
+        periods = 0
+        d = since
+        while d <= until:
+            _, period_end = period_bounds(d, cadence.period)
+            if cadence.end_date is not None and d > cadence.end_date.date():
+                break
+            periods += 1
+            d = period_end + timedelta(days=1)
+        return periods * cadence.count
+
+    return 0
 
 
 def is_key_writable(

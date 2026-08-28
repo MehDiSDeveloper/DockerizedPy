@@ -13,6 +13,10 @@
 <button class="icon-btn" aria-label="بستن" data-icon="x" id="wizardCloseBtn"></button>
 {% endblock %}
 
+{#- The wizard is a modal-ish flow with its own stepper and close button;
+    a breadcrumb trail into a half-filled form would be misleading. -#}
+{% block breadcrumb %}{% endblock %}
+
 {% block bottom_nav %}{% endblock %}
 
 {% block content %}
@@ -197,13 +201,15 @@ document.getElementById("wizardCloseBtn").addEventListener("click", () => {
   window.location.href = "/views/challenges/";
 });
 
+// Mirrors CATEGORY_ICONS in app/icons.py -- this grid is the one place a
+// category is rendered without a server-side `category_icon` filter to ask.
 const cats = [
-  { name: "سلامت جسمانی", icon: "target" },
-  { name: "تغذیه", icon: "flame" },
-  { name: "سلامت ذهنی", icon: "seal" },
-  { name: "بهره‌وری", icon: "list" },
-  { name: "مسئولیت اجتماعی", icon: "home" },
-  { name: "سایر", icon: "plus" },
+  { name: "سلامت جسمانی", icon: "catFitness" },
+  { name: "تغذیه", icon: "catNutrition" },
+  { name: "سلامت ذهنی", icon: "catMental" },
+  { name: "بهره‌وری", icon: "catProductivity" },
+  { name: "مسئولیت اجتماعی", icon: "catSocial" },
+  { name: "سایر", icon: "catOther" },
 ];
 let selectedCat = cats[0].name;
 
@@ -248,10 +254,10 @@ renderVisibilityGrid();
 
 // -------------------- cadence kind --------------------
 const cadenceKinds = [
-  { value: "once", label: "یک‌باره", icon: "check" },
-  { value: "schedule", label: "زمان‌بندی‌شده", icon: "calendar" },
-  { value: "recurring_days", label: "روزهای تکراری", icon: "clock" },
-  { value: "recurring_quota", label: "سهمیه‌ای", icon: "target" },
+  { value: "once", label: "یک‌باره", icon: "cadenceOnce" },
+  { value: "schedule", label: "زمان‌بندی‌شده", icon: "cadenceSchedule" },
+  { value: "recurring_days", label: "روزهای تکراری", icon: "cadenceDays" },
+  { value: "recurring_quota", label: "سهمیه‌ای", icon: "cadenceQuota" },
 ];
 let selectedCadenceKind = "once";
 

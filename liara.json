@@ -1,0 +1,11 @@
+{
+  "platform": "docker",
+  "port": 8000,
+  "app": "challenges",
+  "disks": [
+    {
+      "name": "sqlit-disk",
+      "mountTo": "/app/data"
+    }
+  ]
+}

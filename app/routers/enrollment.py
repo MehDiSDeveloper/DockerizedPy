@@ -159,8 +159,13 @@ async def build_enrollment_history(
     from_: date,
     to: date,
 ) -> list[EnrollmentHistoryItem]:
-    """Shared by the JSON history endpoint and the challenge-detail heatmap
-    (views/challenge.py) -- see CLAUDE.md on reusing router logic from views."""
+    """Backs the JSON `/history` endpoint only.
+
+    Not reused by the challenge-detail page -- views/challenge.py has its own
+    build_history_timeline/build_quota_period_rows, which additionally derive
+    per-occurrence `writable` flags and truncate to HISTORY_LIMIT. Keep both
+    in sync by hand if the occurrence-state rules here change.
+    """
     cadence = parse_cadence(challenge)
     now_utc = datetime.now(UTC)
 

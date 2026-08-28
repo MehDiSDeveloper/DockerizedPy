@@ -1,5 +1,20 @@
 {% extends "layout.html" %}
 
+{% block topbar_leading %}
+<a href="/views/home/" class="back-btn" data-back data-back-optional aria-label="بازگشت"><span
+    data-icon="chevronRight"></span></a>
+{% endblock %}
+
+{#- Only your own profile is reachable (routers/user.py:profile_visibility_filter),
+    and it is a bottom-nav tab, so it resets the trail. The non-own branches
+    below are kept for the day a participant list makes someone else's
+    profile linkable. -#}
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر صفحه" hidden
+  data-crumb-trail data-crumb-label="{{ 'پروفایل من' if is_own_profile else user.name }}"
+  {% if is_own_profile %}data-crumb-root{% endif %}></nav>
+{% endblock %}
+
 {% block topbar_action %}
 {% if is_own_profile %}
 <button class="icon-btn" aria-label="ویرایش" data-icon="edit" data-coming-soon="ویرایش پروفایل به‌زودی اضافه می‌شود"></button>

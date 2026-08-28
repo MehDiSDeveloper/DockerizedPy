@@ -1,4 +1,5 @@
 {% extends "layout.html" %}
+{% set crumb_label = "چالش‌ها" %}
 {% block content %}
 
 <section class="hero">
@@ -6,19 +7,37 @@
   <h1 class="hero-title">دنبال چه چالشی هستی؟</h1>
 </section>
 
+{#- Search plus one button for everything else. The cut that decides whether a
+    challenge is worth looking at at all -- its status -- stays on the page;
+    category and the "my challenges" scope live behind the button, which
+    carries a count so a filter can never be left on invisibly. -#}
 <div class="search-bar">
   <span data-icon="search"></span>
   <input type="text" id="clSearch" placeholder="جستجوی چالش..." value="{{ query }}" />
+  <button type="button" class="filter-btn" id="clFilterBtn" aria-label="فیلترها">
+    <span data-icon="filter"></span>
+    <span class="filter-badge" id="clFilterCount" hidden></span>
+  </button>
 </div>
 
-<div class="chip-row" id="clCategoryChips" role="tablist" aria-label="فیلتر دسته‌بندی">
-  <button class="chip{{ ' active' if not active_category }}" data-cat="همه" role="tab"
-    aria-selected="{{ 'true' if not active_category else 'false' }}">همه</button>
-  {% for cat in categories %}
-  <button class="chip{{ ' active' if active_category == cat.value }}" data-cat="{{ cat.value }}" role="tab"
-    aria-selected="{{ 'true' if active_category == cat.value else 'false' }}">{{ cat.value }}</button>
-  {% endfor %}
+{#- Status: the primary cut, so it stays visible as a segmented control. The
+    codes mirror STATUS_VALUES in app/routers/challenge.py, and each button
+    wears the same st-* colour its cards do. -#}
+<div class="seg-row">
+  <div class="seg" id="clStatusSeg" role="tablist" aria-label="فیلتر وضعیت چالش">
+    <button class="seg-btn{{ ' active' if active_status == 'all' }}" data-status="all" role="tab"
+      aria-selected="{{ 'true' if active_status == 'all' else 'false' }}">همه</button>
+    {% for code, meta in status_options.items() %}
+    <button class="seg-btn st-{{ code }}{{ ' active' if active_status == code }}" data-status="{{ code }}" role="tab"
+      aria-selected="{{ 'true' if active_status == code else 'false' }}"><span
+        data-icon="{{ meta.icon }}"></span>{{ meta.label }}</button>
+    {% endfor %}
+  </div>
 </div>
+
+{#- What the hidden filters are currently doing, and a one-tap way out of each.
+    Rendered by JS from the same state the sheet writes, so it can't drift. -#}
+<div class="active-filters" id="clActiveFilters" hidden></div>
 
 <section>
   <div class="challenge-list" id="clList" data-page-size="{{ page_size }}" data-initial-count="{{ challenges|length }}"
@@ -27,7 +46,7 @@
   </div>
   <div class="empty" id="clEmpty" {{ 'hidden' if challenges }}>
     <span data-icon="empty"></span>
-    <p id="clEmptyText">هنوز چالشی ثبت نشده.</p>
+    <p id="clEmptyText">{{ "چالشی با این مشخصات پیدا نشد." if (active_category or query or active_mine != "all" or active_status != "all") else "هنوز چالشی ثبت نشده." }}</p>
   </div>
   <div class="scroll-sentinel" id="clSentinel" aria-hidden="true"></div>
   <div class="list-loading" id="clLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
@@ -44,74 +63,207 @@
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => {
-    const chipRow = document.getElementById("clCategoryChips");
-    const chips = Array.from(chipRow.querySelectorAll(".chip"));
     const search = document.getElementById("clSearch");
     const listEl = document.getElementById("clList");
     const emptyEl = document.getElementById("clEmpty");
     const emptyText = document.getElementById("clEmptyText");
+    const statusSeg = document.getElementById("clStatusSeg");
+    const filterBtn = document.getElementById("clFilterBtn");
+    const filterCount = document.getElementById("clFilterCount");
+    const activeFilters = document.getElementById("clActiveFilters");
 
-    let activeCat = {{ (active_category or "همه") | tojson }};
-  let query = search.value.trim();
+    const ALL_CATEGORIES = "همه";
+    // Built from the `category_icon` filter rather than a second JS map, so
+    // the Farsi category values are never retyped here (CLAUDE.md, D7).
+    const CATEGORY_ICONS = {
+      {%- for cat in categories %}
+      {{ cat.value | tojson }}: {{ (cat | category_icon) | tojson }},
+      {%- endfor %}
+    };
+    const MINE_LABELS = {
+      all: "همه",
+      only: "فقط چالش‌های من",
+      hide: "بدون چالش‌های من",
+    };
+    // An anonymous visitor owns nothing, so the "my challenges" scope is not
+    // a filter that can mean anything to them.
+    const SIGNED_IN = {{ 'true' if current_user_id else 'false' }};
 
-  function hasActiveFilter() {
-    return activeCat !== "همه" || !!query;
-  }
+    const state = {
+      cat: {{ (active_category or "همه") | tojson }},
+      mine: {{ (active_mine or "all") | tojson }},
+      status: {{ (active_status or "all") | tojson }},
+      q: search.value.trim(),
+    };
 
-  function updateEmptyMessage() {
-    emptyText.textContent = hasActiveFilter()
-      ? "چالشی با این مشخصات پیدا نشد."
-      : "هنوز چالشی ثبت نشده.";
-  }
+    // Only the filters tucked behind the button count here -- status and
+    // search are visible on the page and speak for themselves.
+    function hiddenFilters() {
+      const out = [];
+      if (state.cat !== ALL_CATEGORIES) {
+        out.push({ key: "cat", label: state.cat, reset: ALL_CATEGORIES });
+      }
+      if (SIGNED_IN && state.mine !== "all") {
+        out.push({ key: "mine", label: MINE_LABELS[state.mine], reset: "all" });
+      }
+      return out;
+    }
 
-  function updateURL() {
-    const params = new URLSearchParams();
-    if (activeCat !== "همه") params.set("category", activeCat);
-    if (query) params.set("q", query);
-    const qs = params.toString();
-    history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-  }
+    function anyFilter() {
+      return hiddenFilters().length > 0 || state.status !== "all" || !!state.q;
+    }
 
-  const scroller = createInfiniteScroller({
-    container: listEl,
-    sentinel: document.getElementById("clSentinel"),
-    loadingEl: document.getElementById("clLoading"),
-    emptyEl: emptyEl,
-    pageSize: Number(listEl.dataset.pageSize) || 20,
-    initialOffset: Number(listEl.dataset.initialCount) || 0,
-    initialHasMore: listEl.dataset.hasMore === "true",
-    buildUrl: (offset, limit) => {
-      const params = new URLSearchParams({ offset, limit });
-      if (activeCat !== "همه") params.set("category", activeCat);
-      if (query) params.set("q", query);
-      return `/views/challenges/fragment?${params.toString()}`;
-    },
-    onEmpty: () => {
-      updateEmptyMessage();
-      emptyEl.hidden = false;
-    },
-  });
+    function renderFilterState() {
+      const hidden = hiddenFilters();
+      filterCount.textContent = hidden.length;
+      filterCount.hidden = hidden.length === 0;
+      filterBtn.classList.toggle("has-filters", hidden.length > 0);
 
-  chips.forEach(chip => {
-    chip.addEventListener("click", () => {
-      if (chip.dataset.cat === activeCat) return;
-      chips.forEach(c => { c.classList.remove("active"); c.setAttribute("aria-selected", "false"); });
-      chip.classList.add("active");
-      chip.setAttribute("aria-selected", "true");
-      chip.scrollIntoView({ inline: "nearest", behavior: "smooth", block: "nearest" });
-      activeCat = chip.dataset.cat;
+      activeFilters.textContent = "";
+      activeFilters.hidden = hidden.length === 0;
+      hidden.forEach(f => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "filter-tag";
+        chip.setAttribute("aria-label", `حذف فیلتر ${f.label}`);
+        chip.append(f.label);
+        const x = document.createElement("span");
+        x.dataset.icon = "x";
+        chip.appendChild(x);
+        chip.addEventListener("click", () => {
+          state[f.key] = f.reset;
+          apply();
+        });
+        activeFilters.appendChild(chip);
+      });
+      if (hidden.length > 1) {
+        const clear = document.createElement("button");
+        clear.type = "button";
+        clear.className = "filter-tag clear";
+        clear.textContent = "پاک کردن همه";
+        clear.addEventListener("click", clearHiddenFilters);
+        activeFilters.appendChild(clear);
+      }
+      renderIcons(activeFilters);
+    }
+
+    function clearHiddenFilters() {
+      state.cat = ALL_CATEGORIES;
+      state.mine = "all";
+      apply();
+    }
+
+    function updateEmptyMessage() {
+      emptyText.textContent = anyFilter()
+        ? "چالشی با این مشخصات پیدا نشد."
+        : "هنوز چالشی ثبت نشده.";
+    }
+
+    function queryParams() {
+      const params = new URLSearchParams();
+      if (state.cat !== ALL_CATEGORIES) params.set("category", state.cat);
+      if (state.mine !== "all") params.set("mine", state.mine);
+      if (state.status !== "all") params.set("status", state.status);
+      if (state.q) params.set("q", state.q);
+      return params;
+    }
+
+    function updateURL() {
+      const qs = queryParams().toString();
+      history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+    }
+
+    const scroller = createInfiniteScroller({
+      container: listEl,
+      sentinel: document.getElementById("clSentinel"),
+      loadingEl: document.getElementById("clLoading"),
+      emptyEl: emptyEl,
+      pageSize: Number(listEl.dataset.pageSize) || 20,
+      initialOffset: Number(listEl.dataset.initialCount) || 0,
+      initialHasMore: listEl.dataset.hasMore === "true",
+      buildUrl: (offset, limit) => {
+        const params = queryParams();
+        params.set("offset", offset);
+        params.set("limit", limit);
+        return `/views/challenges/fragment?${params.toString()}`;
+      },
+      onEmpty: () => {
+        updateEmptyMessage();
+        emptyEl.hidden = false;
+      },
+    });
+
+    // Every filter change funnels through here, so the segmented control, the
+    // chips, the badge count, the URL and the list can't drift apart.
+    function apply() {
       emptyEl.hidden = true;
+      syncStatusSeg();
+      renderFilterState();
       updateURL();
       scroller.reset();
-    });
-  });
+    }
 
-  search.addEventListener("input", debounce(() => {
-    query = search.value.trim();
-    emptyEl.hidden = true;
-    updateURL();
-    scroller.reset();
-  }, 300));
+    const statusBtns = Array.from(statusSeg.querySelectorAll(".seg-btn"));
+    function syncStatusSeg() {
+      statusBtns.forEach(b => {
+        const on = b.dataset.status === state.status;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-selected", on ? "true" : "false");
+      });
+    }
+    statusBtns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        if (btn.dataset.status === state.status) return;
+        state.status = btn.dataset.status;
+        apply();
+      });
+    });
+
+    filterBtn.addEventListener("click", () => {
+      const fields = [
+        {
+          name: "cat",
+          label: "دسته‌بندی",
+          type: "chips",
+          value: state.cat,
+          options: [{ value: ALL_CATEGORIES, label: ALL_CATEGORIES }].concat(
+            Object.keys(CATEGORY_ICONS).map(v => ({ value: v, label: v, icon: CATEGORY_ICONS[v] }))
+          ),
+        },
+      ];
+      if (SIGNED_IN) {
+        fields.push({
+          name: "mine",
+          label: "چالش‌های من",
+          type: "chips",
+          value: state.mine,
+          options: [
+            { value: "all", label: MINE_LABELS.all, icon: "users" },
+            { value: "only", label: MINE_LABELS.only, icon: "user" },
+            { value: "hide", label: MINE_LABELS.hide, icon: "eyeOff" },
+          ],
+        });
+      }
+      createSheet({
+        title: "فیلترها",
+        fields,
+        confirmLabel: "نمایش نتایج",
+        skipLabel: "پاک کردن",
+        onSkip: clearHiddenFilters,
+        onConfirm: (values) => {
+          state.cat = values.cat || ALL_CATEGORIES;
+          if (SIGNED_IN) state.mine = values.mine || "all";
+          apply();
+        },
+      });
+    });
+
+    search.addEventListener("input", debounce(() => {
+      state.q = search.value.trim();
+      apply();
+    }, 300));
+
+    renderFilterState();
   });
 </script>
 {% endblock %}
