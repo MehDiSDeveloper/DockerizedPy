@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" aria-hidden="true"><!-- The "no pick yet" avatar. Not from DiceBear: it is drawn in the app's own
+     «شن و مریم‌گلی» palette (sand ground, sage figure) so an unset member
+     reads as part of the family rather than as a grey stock silhouette, and
+     stays muted enough that it never competes with a real pick. Its colours
+     are deliberately fixed for both themes: an img element cannot see
+     [data-theme], and the catalogue is bright on either ground anyway. -->
+<defs><radialGradient id="d-bg" cx="50%" cy="34%" r="78%"><stop offset="0" stop-color="#f4eee4"/><stop offset="1" stop-color="#ddd3c3"/></radialGradient><linearGradient id="d-fg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9aa79c"/><stop offset="1" stop-color="#7f8d83"/></linearGradient></defs>
+<rect width="100" height="100" fill="url(#d-bg)"/>
+<g fill="url(#d-fg)"><circle cx="50" cy="40" r="15.5"/><path d="M50 59c-18.4 0-33.6 13.7-35.8 31.4L13 100h74l-1.2-9.6C83.6 72.7 68.4 59 50 59Z"/></g>
+</svg>

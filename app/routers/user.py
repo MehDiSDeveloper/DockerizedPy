@@ -81,7 +81,10 @@ async def create_user(
         raise HTTPException(status_code=400, detail="Passwords do not match")
 
     db_user = User(
-        name=user.name, email=user.email, password_hash=hash_password(user.password)
+        name=user.name,
+        email=user.email,
+        password_hash=hash_password(user.password),
+        avatar=user.avatar,
     )
     db.add(db_user)
     await db.commit()

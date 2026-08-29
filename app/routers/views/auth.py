@@ -4,10 +4,12 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.auth import get_optional_user_id
+from app.avatars import AVATAR_IDS, register_avatar_filters
 from app.config import BASE_DIR
 
 router = APIRouter(prefix="/views/auth", tags=["auth-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_avatar_filters(templates.env)
 
 
 DEFAULT_NEXT = "/views/home/"
@@ -48,5 +50,6 @@ async def auth_page(
     if current_user_id is not None:
         return RedirectResponse(url=target, status_code=303)
     return templates.TemplateResponse(
-        "user/auth.html", {"request": request, "next": target}
+        "user/auth.html",
+        {"request": request, "next": target, "avatars": AVATAR_IDS},
     )

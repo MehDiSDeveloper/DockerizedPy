@@ -26,10 +26,21 @@
 {% block content %}
 
   <div class="profile-head">
+    {#- The picture is its own control: tapping it opens the catalogue sheet.
+        The camera badge was already drawn here as an affordance, so putting
+        the action anywhere else (a menu row further down) would have left it
+        pointing at nothing. Someone else's profile gets the same picture
+        with no button and no badge. -#}
+    {% if is_own_profile %}
+    <button type="button" class="profile-avatar" id="avatarEdit" aria-label="تغییر آواتار">
+      <img src="{{ user.avatar | avatar_url }}" alt="آواتار {{ user.name }}" width="84" height="84">
+      <span class="edit-badge"><span data-icon="camera"></span></span>
+    </button>
+    {% else %}
     <div class="profile-avatar">
-      {{ user.name[:1] }}
-      <div class="edit-badge"><span data-icon="camera"></span></div>
+      <img src="{{ user.avatar | avatar_url }}" alt="آواتار {{ user.name }}" width="84" height="84">
     </div>
+    {% endif %}
     <h1>{{user.name}}</h1>
     <p>عضو از <span data-jalali="{{ user.created_at.isoformat() }}"
       data-jalali-format="day-month-year">{{ user.created_at.strftime('%Y-%m-%d') }}</span></p>
@@ -91,6 +102,61 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
+{% if is_own_profile %}
+<script id="avatarOptions" type="application/json">{{ avatar_options | tojson }}</script>
+<script>
+  // Change picture. The catalogue and the current pick both come from the
+  // server, and the sheet is the same grid the signup page shows, so there
+  // is one picker look in the app rather than two.
+  //
+  // The empty string is the sheet's "no pick" value and PATCHes as null --
+  // "no avatar" is a real, permanent state here (app/avatars.py), not a
+  // pending one, so clearing has to stay reachable after signup too.
+  const avatarEdit = document.getElementById("avatarEdit");
+  if (avatarEdit) {
+    const avatarImg = avatarEdit.querySelector("img");
+    const avatarOptions = JSON.parse(document.getElementById("avatarOptions").textContent);
+    let currentAvatar = {{ (user.avatar or '') | tojson }};
+
+    avatarEdit.addEventListener("click", () => {
+      createSheet({
+        title: "تصویر پروفایل",
+        confirmLabel: "ذخیره",
+        fields: [{
+          name: "avatar",
+          label: "یکی را انتخاب کن",
+          type: "avatars",
+          value: currentAvatar,
+          options: avatarOptions.map((a, i) => ({
+            value: a.id, url: a.url, label: "آواتار " + (i + 1),
+          })),
+        }],
+        onConfirm: async (values) => {
+          const picked = values.avatar || "";
+          if (picked === currentAvatar) return true;
+          const res = await fetch("/users/{{ user.id }}", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ avatar: picked || null }),
+          });
+          if (!res.ok) {
+            showToast("تغییر تصویر انجام نشد");
+            return false;
+          }
+          const updated = await res.json();
+          currentAvatar = updated.avatar || "";
+          // Nothing else on the page renders the avatar, so swapping the src
+          // is the whole update -- no reload needed.
+          const match = avatarOptions.find((a) => a.id === currentAvatar);
+          avatarImg.src = match ? match.url : {{ default_avatar_url | tojson }};
+          showToast(currentAvatar ? "تصویر پروفایل به‌روز شد" : "تصویر پروفایل برداشته شد");
+          return true;
+        },
+      });
+    });
+  }
+</script>
+{% endif %}
 <script>
   const logoutBtn = document.getElementById("logoutBtn");
   if (logoutBtn) {

@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_page_user
+from app.avatars import AVATAR_IDS, avatar_url, register_avatar_filters
 from app.config import BASE_DIR
 from app.database import get_db
 from app.models.enrollment import Enrollment, EnrollmentStatus
@@ -13,6 +14,7 @@ from app.routers.user import profile_visibility_filter
 
 router = APIRouter(prefix="/views/users", tags=["user-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_avatar_filters(templates.env)
 
 
 @router.get("/{user_id}")
@@ -82,6 +84,15 @@ async def user_detail(
             "stat_active": stat_active,
             "stat_done": stat_done,
             "is_own_profile": is_own_profile,
+            # The whole catalogue, id + path, for the "change picture" sheet.
+            # Built here rather than in the template so the picker never has
+            # to know where avatar files live -- `avatar_url` stays the one
+            # id-to-path function, same as the `| avatar_url` filter above.
+            "avatar_options": [
+                {"id": avatar_id, "url": avatar_url(avatar_id)}
+                for avatar_id in AVATAR_IDS
+            ],
+            "default_avatar_url": avatar_url(None),
             "current_user_id": current_user_id,
             "active_nav": "profile",
         },

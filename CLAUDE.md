@@ -30,7 +30,7 @@ Debugging in Docker: `.vscode/launch.json` has "Docker: Attach to FastAPI" (atta
 
 ## Testing
 
-`tests/` covers the occurrence engine (`test_occurrences.py`), the Jalali converter against ICU (`test_jalali.py`), timezone/backfill-window edge cases (`test_timezone_boundaries.py`), check-in idempotency (`test_checkin_idempotency.py`), the challenge lock/visibility/auto-enrollment rules (`test_challenge_lifecycle.py`), which SSR pages require a session (`test_page_authorization.py`), and who may see a given row once they have one (`test_object_authorization.py`). Run with:
+`tests/` covers the occurrence engine (`test_occurrences.py`), the Jalali converter against ICU (`test_jalali.py`), timezone/backfill-window edge cases (`test_timezone_boundaries.py`), check-in idempotency (`test_checkin_idempotency.py`), the challenge lock/visibility/auto-enrollment rules (`test_challenge_lifecycle.py`), which SSR pages require a session (`test_page_authorization.py`), who may see a given row once they have one (`test_object_authorization.py`), and the avatar catalogue (`test_avatars.py`). Run with:
 
 ```powershell
 .venv\Scripts\python -m pytest tests\ -q
@@ -123,6 +123,7 @@ The cascades on `Challenge.enrollments` / `.stats` / `.checkins` are **load-bear
 
 ### Models (`app/models/`)
 
+- `User.avatar` holds an **id from a fixed catalogue** (`app/avatars.py`), never a path or a URL — see "Avatars" below. `NULL` is permanent and legitimate.
 - `AuditBase` is an abstract `Base` subclass adding `created_at` / `updated_at` / `last_modifier_user_id`. Routers set `updated_at` and `last_modifier_user_id` by hand on every mutation — there is no ORM event hook doing it.
 - `Challenge` is a flat table — the old single-table-inheritance split into `OneTimeChallenge`/`RecurringChallenge` is gone, and with it the `with_polymorphic`/`MissingGreenlet` hazard that used to be documented here. Recurrence now lives in two columns: `cadence_kind` (`once` | `schedule` | `recurring_days` | `recurring_quota`) and `cadence` (JSON, shaped by the `CadenceUnion` discriminated union — see "Cadence, occurrences, and check-ins" below). `visibility` (`private`/`unlisted`/`public`) and `lifecycle_status` (`draft`/`active`/`archived`) are plain `String` columns, not native Postgres enums (only `category` stays a native PG enum — see the enum bullet below). `goal_amount`/`goal_unit` describe an optional collective target; a check-in's `amount` is required iff `goal_unit is not None`. `legacy_cadence` is a verbatim JSON snapshot of the pre-migration recurrence columns for rows the new cadence model can't losslessly re-express — it's preserved user data, never read by application code, and must not be treated as scaffolding to clean up.
 - `Enrollment` joins `User`↔`Challenge`, unique on `(user_id, challenge_id)`. `status` is `active`/`completed`/`abandoned`. Per-enrollment `timezone` (IANA name, default `Asia/Tehran`), `start_date`, `current_streak`/`longest_streak`, and `last_checkin_local_date` feed the occurrence engine. `legacy_completed_count` is the old `completed_count`, kept read-only — nothing writes it and it is never converted into `CheckIn` rows.
@@ -131,11 +132,26 @@ The cascades on `Challenge.enrollments` / `.stats` / `.checkins` are **load-bear
 - **Table names are capitalized** (`Users`, `Challenges`, `Enrollments`, `CheckIns`, `ChallengeStats`) and must be quoted in raw SQL on Postgres. Match this when adding FKs or hand-written migrations.
 - **`ChallengeCategory` is the one enum that keeps Farsi values; every enum introduced by the cadence migration uses English codes instead (D7).** `ChallengeCategory.FITNESS == "سلامت جسمانی"` still travels all the way to the browser — JS payloads and template `data-cat` attributes contain the literal Farsi text, and renaming that enum's *value* is a data migration plus a template/JS change, not a rename. `Visibility`, `LifecycleStatus`, `CadenceKind`, and `EnrollmentStatus`, by contrast, are plain English codes (`"public"`, `"active"`, `"recurring_days"`, ...); there is no shared Farsi display-map module for them yet, so each template/script that shows one to a user inlines its own Farsi label (e.g. `challenge-detail.html`'s `visibility != 'public'` check, or `create-challenge.html`'s `cadenceKindLabels`) — follow that existing per-template pattern rather than introducing a new one.
 
+### Avatars
+
+Members pick a picture at signup from a fixed catalogue of 40 SVGs in `app/static/img/avatars/`, generated once from [DiceBear](https://www.dicebear.com) and **committed, not fetched at render time** — the app has to work inside the Docker image with no outbound network, and an avatar that 404s on someone else's outage is worse than none. Ten DiceBear styles, four each: `glyphs`, `cameo`, `marbles`, `clay`, `critters`, `bottts-neutral`, `shapes`, `squircles`, `slice`, `stack` (CC0 except `glyphs`, CC BY 4.0 / Matt Houser, and `bottts-neutral`, free for commercial use / Pablo Stanley). Regenerating one means replacing its file, not editing code.
+
+`app/avatars.py` is the whole subsystem: `AVATAR_IDS` (ordered by style, which is the order the picker's grid reads in), `is_valid_avatar`, `avatar_url`, and `register_avatar_filters(env)` — the same per-router registration `register_icon_filters` needs, so a views router rendering a member must call it or the filter is missing at render time.
+
+Two rules hold it together:
+
+- **`Users.avatar` stores the id, never a path.** The stored value is fed straight back out as a static path, so the only gate that matters is the one at the write boundary — the `avatar` field validator in `schemas/user.py`, which both `POST /users/` and `PATCH /users/{id}` inherit from `UserBase`. Nothing else validates, and nothing else needs to.
+- **`None` is a permanent state, not a pending one.** Every account predating the column has it, picking is optional, and the profile picker can clear a pick, so `avatar_url(None)` — and `avatar_url` of any id whose file was retired — answers `_default.svg`, a head and shoulders that reads as *unset* rather than as a quieter avatar. Migration `a7c31d8be402` deliberately backfills nothing. `_default.svg` is the one file here **not** from DiceBear: it is drawn in the app's own sand/sage palette so an unset member looks like part of the catalogue, and its colours are hardcoded for both themes on purpose — an `<img>` cannot see `[data-theme]`, so a `prefers-color-scheme` block inside it would contradict an explicit theme choice.
+
+**Picking happens twice, from one catalogue.** Signup renders the grid server-side into `auth.html` (`.avatar-pick` / `.ap-item`, selected tile toggles off to mean "no pick"); the profile reopens *the same markup* inside a sheet via `createSheet`'s `type: "avatars"` field — options are `{value, url, label}`, `""` is the real "no pick" value, and the field drops the boxed input shell exactly like `type: "chips"` does (`.field-avatars`/`.field-chips` share that rule). The control is the profile picture itself: `button.profile-avatar` with the camera badge that was already drawn there. It saves with `PATCH /users/{id}` carrying **only** `avatar` — which is why `UserUpdate` overrides `name` to optional, with a validator rejecting an explicit `{"name": null}` because that column is NOT NULL. Nothing else on the profile renders the avatar, so the handler swaps the `<img>` src instead of reloading.
+
+Several catalogue styles ship a **transparent** ground, so whatever sits behind the `<img>` becomes part of the avatar. Every surface that renders one therefore paints an *opaque* neutral (`--bg-1`) behind it — `.profile-avatar` traded its accent gradient for exactly this reason, since the gradient gave those members a halo that members who picked an opaque style never got from the same picker. A translucent `--fill-*` token would let it back through.
+
 ### Schemas (`app/schemas/`)
 
 `schemas/challenge.py` is flat, not a discriminated union — `ChallengeCreate`/`ChallengeRead`/`ChallengeUpdate` each carry a single `cadence: CadenceUnion` field. The discriminated union lives in `app/schemas/cadence.py` instead: `OnceCadence` / `ScheduleCadence` / `RecurringDaysCadence` / `RecurringQuotaCadence`, keyed on `Field(discriminator="kind")`. Adding a cadence kind means adding a member to that union plus the matching branches in `app/occurrences.py` — not conditional fields on one flat schema.
 
-`UserRead` vs `UserPublicRead` matters: the public variant drops `email` and is what `/users/` list/detail return.
+`UserRead` vs `UserPublicRead` matters: the public variant drops `email` and is what `/users/` list/detail return. `UserUpdate` is the one shape that is genuinely partial — see Avatars above for why its `name` is optional and why null is still refused.
 
 ### Cadence, occurrences, and check-ins
 

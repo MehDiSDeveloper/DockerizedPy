@@ -699,6 +699,40 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 .field-input input::placeholder{color:var(--text-3);}
 .field-toggle{cursor:pointer; color:var(--text-3);}
 
+/* --- avatar picker (signup) ---
+   A 40-tile grid would push the submit button off-screen, so the grid scrolls
+   inside a fixed-height well and the button stays reachable. The tiles are
+   flat SVGs with their own palettes, so the *selection* has to be carried by
+   the frame around them -- an accent ring plus a lift -- and never by a tint
+   over the picture. */
+.field-hint{font-weight:500; color:var(--text-3);}
+.avatar-pick{
+  display:grid; grid-template-columns:repeat(5, 1fr); gap:10px;
+  max-height:232px; overflow-y:auto; padding:12px;
+  background:var(--fill-1); border:1px solid var(--border); border-radius:var(--radius-sm);
+  overscroll-behavior:contain;
+}
+.ap-item{
+  appearance:none; border:none; padding:0; cursor:pointer; background:transparent;
+  display:block; border-radius:50%; overflow:hidden; position:relative;
+  box-shadow:0 0 0 2px var(--border);
+  transition:box-shadow .15s var(--ease), transform .15s var(--ease);
+}
+/* The square comes off the image, not the button: sizing the button by
+   aspect-ratio while its only child is height:100% leaves the row track with
+   nothing to measure, and the tiles overlap. */
+.ap-item img{width:100%; height:auto; aspect-ratio:1; display:block; object-fit:cover; background:var(--bg-1);}
+.ap-item:hover{transform:translateY(-1px); box-shadow:0 0 0 2px var(--fayrouzeh-dim);}
+.ap-item:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:3px;}
+.ap-item.selected{
+  box-shadow:0 0 0 3px var(--fayrouzeh), var(--glow-accent-lift);
+  transform:translateY(-1px);
+}
+@media (max-width:360px){.avatar-pick{grid-template-columns:repeat(4, 1fr);}}
+/* the same grid inside a sheet, where the panel is already scrolling and a
+   232px window would strand the tiles in a scroller inside a scroller */
+.sheet-avatars{max-height:min(46vh, 320px); background:transparent; border:none; padding:2px;}
+
 .btn-primary{
   width:100%; padding:13px; border:none; border-radius:var(--radius-sm);
   background:linear-gradient(145deg, var(--fayrouzeh), var(--fayrouzeh-dim));
@@ -884,9 +918,10 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 .avatar-stack{display:flex; align-items:center;}
 .avatar-stack .av{
   width:30px; height:30px; border-radius:50%; border:2px solid var(--bg-0);
-  background:linear-gradient(145deg, var(--fayrouzeh-dim), var(--mohr-dim));
+  background:var(--bg-1); overflow:hidden;
   margin-inline-start:-10px; display:grid; place-items:center; font-size:10px; font-weight:700;
 }
+.avatar-stack .av img{width:100%; height:100%; display:block; object-fit:cover;}
 .avatar-stack .av:first-child{margin-inline-start:0;}
 
 /* --- history: occurrence timeline ---
@@ -1060,15 +1095,33 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 .profile-head{text-align:center; padding:10px 20px 24px;}
 .profile-avatar{
   width:84px; height:84px; border-radius:50%; margin:0 auto 12px; position:relative;
-  background:linear-gradient(145deg, var(--fayrouzeh), var(--mohr-dim));
-  display:grid; place-items:center; font-size:26px; font-weight:800; color:var(--on-accent);
+  background:var(--bg-1);
+  display:grid; place-items:center; font-size:26px; font-weight:800; color:var(--text-1);
   box-shadow:var(--glow-accent-lift);
+}
+/* On your own profile the picture is a <button> that opens the avatar sheet;
+   on anyone else's it stays a plain <div>, so the reset lives here rather
+   than in the base rule. */
+button.profile-avatar{appearance:none; border:none; padding:0; cursor:pointer; font:inherit;}
+button.profile-avatar:active{transform:scale(.97);}
+button.profile-avatar:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:4px;}
+/* Several catalogue styles ship a transparent ground (bottts-neutral, cameo,
+   glyphs), so whatever sits behind the image shows through and becomes part
+   of it. It has to be one *opaque* neutral for everyone -- the accent
+   gradient this used to carry gave those members a halo the ones who picked
+   an opaque style never got, from the same picker, and a translucent fill
+   token would let it back through. */
+.profile-avatar > img{
+  width:100%; height:100%; border-radius:50%; display:block; object-fit:cover;
 }
 .profile-avatar .edit-badge{
   position:absolute; bottom:0; left:0; width:26px; height:26px; border-radius:50%;
   background:var(--bg-1); border:2px solid var(--bg-0); display:grid; place-items:center; color:var(--text-1);
 }
 .profile-avatar .edit-badge svg{width:12px; height:12px;}
+/* the badge is the only thing saying the picture is tappable, so it takes
+   the accent when it actually is */
+button.profile-avatar .edit-badge{background:var(--fayrouzeh); color:var(--on-accent);}
 .profile-head h1{font-size:17px; font-weight:800; margin:0 0 4px;}
 .profile-head p{font-size:12.5px; color:var(--text-3); margin:0;}
 
@@ -1375,10 +1428,10 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
   background:transparent; border-color:var(--border); color:var(--text-3);
 }
 
-/* --- chips inside a sheet --- */
-/* A chips field is its own grid of pills, so it drops the boxed input shell
+/* --- chips and avatars inside a sheet --- */
+/* Both are their own grid of controls, so they drop the boxed input shell
    that wraps every other field type. */
-.field-chips .field-input{
+.field-chips .field-input, .field-avatars .field-input{
   display:block; background:transparent; border:none; padding:0;
 }
 .sheet-chips{padding:0; gap:8px;}

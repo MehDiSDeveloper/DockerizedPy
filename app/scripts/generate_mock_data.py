@@ -14,6 +14,7 @@ from faker import Faker
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import hash_password
+from app.avatars import AVATAR_IDS
 from app.database import (
     AsyncSessionLocal as async_session_maker,
 )  # adjust import to your actual session factory
@@ -53,6 +54,9 @@ async def create_users(session: AsyncSession) -> list[User]:
             name=fake.name(),
             email=fake.unique.email(),
             password_hash=hash_password("placeholder-password"),
+            # One seeded user is left without a pick so the placeholder is
+            # visible in a freshly seeded database, not only on legacy rows.
+            avatar=random.choice(AVATAR_IDS) if len(users) else None,
         )
         session.add(user)
         users.append(user)

@@ -640,13 +640,18 @@ function createSheet({
   const form = document.createElement("form");
   form.className = "sheet-body";
   const inputs = {};
-  // A chips field's selection lives on a hidden input (so collectValues stays
-  // a plain read of .value), but the highlight can only be painted after the
-  // generic `f.value` prefill below has run.
+  // A chips or avatars field's selection lives on a hidden input (so
+  // collectValues stays a plain read of .value), but the highlight can only
+  // be painted after the generic `f.value` prefill below has run.
   const chipSyncers = [];
   fields.forEach((f) => {
     const wrap = document.createElement("div");
-    wrap.className = f.type === "chips" ? "field field-chips" : "field";
+    // chips and avatars are their own grid of controls, so they drop the
+    // boxed input shell every other field type wears (see .field-chips /
+    // .field-avatars in styles.css).
+    wrap.className = f.type === "chips" || f.type === "avatars"
+      ? `field field-${f.type}`
+      : "field";
     const label = document.createElement("label");
     label.textContent = f.label + (f.required ? " *" : "");
     label.setAttribute("for", `sheet-${f.name}`);
@@ -688,6 +693,64 @@ function createSheet({
         });
       }
       chipSyncers.push(paint);
+      fieldInput.appendChild(group);
+    } else if (f.type === "avatars") {
+      // Same mechanics as "chips" -- a hidden input holds the value, the
+      // visible grid only paints it -- but the options are pictures, so it
+      // reuses the signup picker's .avatar-pick/.ap-item markup rather than
+      // growing a second look for the same choice. Options are
+      // {value, url, label}; "" is a real, selectable value meaning "no
+      // pick", which is why clicking the selected tile clears it.
+      input = document.createElement("input");
+      input.type = "hidden";
+      const group = document.createElement("div");
+      group.className = "avatar-pick sheet-avatars";
+      group.setAttribute("role", "radiogroup");
+      group.setAttribute("aria-label", f.label);
+      const tiles = (f.options || []).map((o) => {
+        const tile = document.createElement("button");
+        tile.type = "button";
+        tile.className = "ap-item";
+        tile.setAttribute("role", "radio");
+        tile.dataset.value = o.value;
+        if (o.label) tile.setAttribute("aria-label", o.label);
+        const img = document.createElement("img");
+        img.src = o.url;
+        img.alt = "";
+        img.loading = "lazy";
+        img.width = 52;
+        img.height = 52;
+        tile.appendChild(img);
+        tile.addEventListener("click", () => {
+          input.value = input.value === o.value ? "" : o.value;
+          paintAvatars();
+        });
+        group.appendChild(tile);
+        return tile;
+      });
+      // The grid scrolls, and 40 tiles is well past one screen, so the first
+      // paint (which runs before the sheet is in the DOM -- hence the rAF)
+      // brings the current pick into view instead of opening on strangers.
+      let firstPaint = true;
+      function paintAvatars() {
+        let selected = null;
+        tiles.forEach((tile) => {
+          const on = tile.dataset.value === input.value;
+          if (on) selected = tile;
+          tile.classList.toggle("selected", on);
+          tile.setAttribute("aria-checked", on ? "true" : "false");
+        });
+        if (firstPaint && selected) {
+          // scrollTop on the grid rather than scrollIntoView, which would
+          // also scroll the sheet body and the page behind it.
+          requestAnimationFrame(() => {
+            group.scrollTop =
+              selected.offsetTop - group.clientHeight / 2 + selected.offsetHeight / 2;
+          });
+        }
+        firstPaint = false;
+      }
+      chipSyncers.push(paintAvatars);
       fieldInput.appendChild(group);
     } else if (f.type === "textarea") {
       input = document.createElement("textarea");

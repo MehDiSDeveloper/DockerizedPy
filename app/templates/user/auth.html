@@ -85,6 +85,22 @@
             <span class="field-toggle" data-icon="eye" data-toggle="regConfirmPass"></span>
           </div>
         </div>
+        {#- Avatar picking sits *after* the credentials on purpose: it is the
+            one optional field on this form, and putting a 40-tile grid above
+            the password would read as a required step. Skipping it leaves
+            `avatar` null, which renders the shadowed-head placeholder -- the
+            same thing every pre-existing account shows. -#}
+        <div class="field">
+          <label>آواتار <span class="field-hint">(اختیاری)</span></label>
+          <div class="avatar-pick" id="avatarPick" role="radiogroup" aria-label="انتخاب آواتار">
+            {% for avatar in avatars %}
+            <button type="button" class="ap-item" role="radio" aria-checked="false"
+                    data-avatar="{{ avatar }}" aria-label="آواتار {{ loop.index }}">
+              <img src="{{ avatar | avatar_url }}" alt="" loading="lazy" width="52" height="52">
+            </button>
+            {% endfor %}
+          </div>
+        </div>
         <button type="submit" class="btn-primary">ساخت حساب کاربری <span data-icon="chevronLeft"></span></button>
       </form>
     </div>
@@ -114,6 +130,28 @@
       : `قبلاً ثبت‌نام کردی؟ <a href="#" data-switch="login">وارد شو</a>`;
     authFoot.querySelector("a").addEventListener("click", (e) => { e.preventDefault(); switchTo(e.target.dataset.switch); });
   }
+
+  // Avatar picker: a single-select radiogroup that is allowed to end up with
+  // nothing selected. `selectedAvatar` stays null until a tile is clicked, and
+  // null is what the signup body carries -- the server stores it as "no pick".
+  let selectedAvatar = null;
+  const avatarPick = document.getElementById("avatarPick");
+  avatarPick.addEventListener("click", (e) => {
+    const item = e.target.closest(".ap-item");
+    if (!item) return;
+    const isSame = item.dataset.avatar === selectedAvatar;
+    avatarPick.querySelectorAll(".ap-item").forEach(el => {
+      el.classList.remove("selected");
+      el.setAttribute("aria-checked", "false");
+    });
+    // Clicking the selected tile clears it, so "I changed my mind, no avatar"
+    // does not require reloading the page.
+    selectedAvatar = isSame ? null : item.dataset.avatar;
+    if (selectedAvatar) {
+      item.classList.add("selected");
+      item.setAttribute("aria-checked", "true");
+    }
+  });
 
   tabs.forEach(t => t.addEventListener("click", () => switchTo(t.dataset.tab)));
   authFoot.querySelector("a").addEventListener("click", (e) => { e.preventDefault(); switchTo(e.target.dataset.switch); });
@@ -161,6 +199,7 @@
           email: document.getElementById("regEmail").value,
           password: document.getElementById("regPass").value,
           confirm_password: document.getElementById("regConfirmPass").value,
+          avatar: selectedAvatar,
         }),
       });
       if (!res.ok) {

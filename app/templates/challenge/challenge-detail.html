@@ -406,7 +406,11 @@
         {% if challenge.enrollments %}
         <div class="avatar-stack" aria-hidden="true">
           {% for enrollment in challenge.enrollments[:4] %}
-          <div class="av">{{ enrollment.user.name[:1] if enrollment.user else "" }}</div>
+          {#- Picture, not name: the roster stays anonymous here (see
+              profile_visibility_filter) and an avatar from a fixed catalogue
+              identifies nobody. -#}
+          <div class="av"><img src="{{ (enrollment.user.avatar if enrollment.user else None) | avatar_url }}"
+                               alt="" loading="lazy" width="30" height="30"></div>
           {% endfor %}
         </div>
         {% endif %}

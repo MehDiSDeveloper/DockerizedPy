@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth import get_current_user_id, get_optional_user_id, get_page_user
+from app.avatars import register_avatar_filters
 from app.config import BASE_DIR
 from app.database import get_db
 from app.icons import register_icon_filters
@@ -129,6 +130,7 @@ templates.env.filters["num"] = _clean_number
 templates.env.filters["challenge_status"] = challenge_status
 templates.env.globals["status_meta"] = STATUS_META
 register_icon_filters(templates.env)
+register_avatar_filters(templates.env)
 
 
 @router.get("/create")
