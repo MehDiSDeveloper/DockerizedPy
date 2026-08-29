@@ -36,7 +36,7 @@ from app.schemas.cadence import (
     ScheduleCadence,
 )
 
-fake = Faker()
+fake = Faker("fa_IR")
 
 NUM_USERS = 10
 NUM_CHALLENGES = 30
