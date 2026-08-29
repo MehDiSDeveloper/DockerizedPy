@@ -13,7 +13,7 @@
 {% set status = c | challenge_status %}
 {% set status_label = status_meta[status].label %}
 <a href="/views/challenges/{{ c.id }}" class="challenge-card glass explore-card st-{{ status }}"
-  data-status="{{ status }}">
+  data-status="{{ status }}" data-cat="{{ c.category | category_slug }}">
   <div class="explore-thumb">
     <span data-icon="{{ c.category | category_icon }}"></span>
     <span class="cadence-badge" title="{{ cadence_label }}" aria-label="{{ cadence_label }}"
@@ -25,7 +25,7 @@
       <span class="status-pill"><span data-icon="{{ status_meta[status].icon }}"></span>{{ status_label }}</span>
     </div>
     <p>
-      <span>{{ c.category.value }}</span>
+      <span class="cat-name">{{ c.category.value }}</span>
       <span data-icon="users"></span><span>{{ c.enrollments|length }}</span>
       {% if c.due_date %}<span data-icon="calendar"></span><span data-jalali="{{ c.due_date.isoformat() }}"
         data-jalali-format="day-month-year">{{ c.due_date.strftime('%Y-%m-%d') }}</span>{% endif %}

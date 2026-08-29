@@ -7,10 +7,11 @@
   'recurring_quota': 'سهمیه‌ای',
 } %}
 {% for e in enrollments %}
-<div class="challenge-card glass {{ 'completed' if e.status.value == 'completed' else '' }}" data-enrollment-challenge-id="{{ e.challenge.id }}">
+<div class="challenge-card glass {{ 'completed' if e.status.value == 'completed' else '' }}" data-enrollment-challenge-id="{{ e.challenge.id }}"
+  data-cat="{{ e.challenge.category | category_slug }}">
   {% if e.status.value == 'completed' %}<div class="seal"><span>تکمیل<br/>شده</span></div>{% endif %}
   <div class="cc-top">
-    <span class="cc-tag"><span data-icon="{{ e.challenge.category | category_icon }}"></span>{{ e.challenge.category.value }}</span>
+    <span class="cc-tag cat-tag"><span data-icon="{{ e.challenge.category | category_icon }}"></span>{{ e.challenge.category.value }}</span>
     <span class="cc-tag accent"><span data-icon="{{ e.challenge.cadence_kind | cadence_icon }}"></span>{{ cadence_labels.get(e.challenge.cadence_kind, 'نامشخص') }}</span>
   </div>
   <h3 class="cc-title"><a href="/views/challenges/{{ e.challenge.id }}">{{ e.challenge.title }}</a></h3>

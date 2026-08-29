@@ -11,3 +11,4 @@ tests/
 .env.docker
 *.db
 *.session.sql
+data/

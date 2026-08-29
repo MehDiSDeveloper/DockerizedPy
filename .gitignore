@@ -13,3 +13,5 @@ __pycache__/
 .mypy_cache/
 *.session.sql
 .DS_Store
+# SQLite database files (local dev; the deploy keeps its own on a disk)
+data/

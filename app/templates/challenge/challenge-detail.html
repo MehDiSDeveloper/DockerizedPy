@@ -41,12 +41,12 @@
     progress and streak, a visitor the challenge's size and deadline. Every
     other figure lives in the panel it belongs to instead of being repeated
     here, in a details grid, and in a section of its own. -#}
-<div class="detail-hero glass">
+<div class="detail-hero glass" data-cat="{{ challenge.category | category_slug }}">
   <div class="detail-icon"><span data-icon="{{ challenge.category | category_icon }}"></span>
     <span class="cadence-badge" title="{{ cadence_plan.label }}" aria-label="{{ cadence_plan.label }}"
       data-icon="{{ challenge.cadence_kind | cadence_icon }}"></span></div>
   <div class="detail-tags">
-    <span class="cc-tag"><span data-icon="{{ challenge.category | category_icon }}"></span>{{ challenge.category.value }}</span>
+    <span class="cc-tag cat-tag"><span data-icon="{{ challenge.category | category_icon }}"></span>{{ challenge.category.value }}</span>
     <span class="cc-tag accent"><span data-icon="{{ challenge.cadence_kind | cadence_icon }}"></span>{{ cadence_plan.label }}</span>
     {% if challenge.visibility != 'public' %}<span class="cc-tag">{{ visibility_label }}</span>{% endif %}
     {% if challenge.lifecycle_status != 'active' %}<span class="cc-tag warn">{{ lifecycle_label }}</span>{% endif %}

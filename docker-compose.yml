@@ -1,4 +1,6 @@
 services:
+  # Kept for the switch back to Postgres -- the app now reads the SQLite
+  # URL in .env.docker, so this service is idle until that line is swapped.
   db:
     image: postgres:17
     environment:

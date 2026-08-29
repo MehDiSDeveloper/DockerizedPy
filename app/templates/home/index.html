@@ -3,31 +3,169 @@
 
 {% block content %}
 
-  <!-- greeting -->
+  {#- The greeting keeps the eyebrow for the date -- «امروز» does the same,
+      and it is the one thing a dashboard has to anchor every figure to. -#}
   <section class="hero">
-    <p class="hero-eyebrow">خوش برگشتی</p>
-    <h1 class="hero-title">سلام <b>{{ user.name }}</b> 👋<br/>امروز نوبت کدوم چالشه؟</h1>
+    <p class="hero-eyebrow" data-jalali="{{ dash.local_today.isoformat() }}"
+       data-jalali-format="weekday-day-month">{{ dash.local_today.isoformat() }}</p>
+    <h1 class="hero-title">سلام <b>{{ user.name }}</b> 👋<br/>کارنامهٔ تو تا اینجا.</h1>
   </section>
 
-  <!-- stats -->
-  <section class="stats">
-    <div class="stat-card glass accent">
-      <span class="stat-num" id="statActive">{{ stat_active }}</span>
-      <span class="stat-label">چالش فعال</span>
+  {#- ============================ نبض امروز ============================
+      The ring is the same primitive the challenge-detail «من» panel uses, at
+      the same meaning: a share, because a share is the thing a bare number
+      cannot show. Here it is scoped to today -- done vs. everything today
+      asked for -- so the first thing the page answers is "am I clear yet".
+      ==================================================================== -#}
+  <section class="detail-section">
+    <div class="section-head">
+      <h2>نبض امروز</h2>
+      <span class="cc-tag"><span data-icon="clock"></span>{{ dash.today.done }} از {{ dash.today.total }}</span>
     </div>
-    <div class="stat-card glass mohr">
-      <span class="stat-num" id="statDone">{{ stat_done }}</span>
-      <span class="stat-label">تکمیل‌شده</span>
+
+    {% if dash.today.total %}
+    <div class="mine-card glass">
+      <div class="ring-wrap">
+        {#- r=20 -> circumference 125.66; the fill's dash length is the
+            completion share of that, and CSS rotates it to start at twelve. -#}
+        <svg class="ring" viewBox="0 0 48 48" aria-hidden="true">
+          <circle class="ring-track" cx="24" cy="24" r="20"></circle>
+          {#- omitted entirely at zero: a round-capped stroke of length 0 still
+              paints a dot, which reads as "one done" when none are. -#}
+          {% if dash.today.pct %}
+          <circle class="ring-fill" cx="24" cy="24" r="20"
+            style="stroke-dasharray:{{ (dash.today.pct * 1.2566) | round(1) }} 200;"></circle>
+          {% endif %}
+        </svg>
+        <div class="ring-center">
+          <b>{{ dash.today.pct }}٪</b>
+          <span>{{ dash.today.done }}/{{ dash.today.total }}</span>
+        </div>
+      </div>
+      {#- Exactly the ring's own two parts. Anything else on this list would
+          borrow a swatch that already means a slice of the ring. -#}
+      <ul class="ring-legend">
+        <li><span class="lg-dot ok"></span>ثبت‌شدهٔ امروز<b>{{ dash.today.done }}</b></li>
+        <li><span class="lg-dot wait"></span>مانده تا پایان روز<b>{{ dash.today.due }}</b></li>
+      </ul>
+    </div>
+
+    {% if dash.today.due %}
+    <a class="dash-link" href="/views/today/">
+      {{ dash.today.due }} مورد منتظر ثبت است
+      <span data-icon="chevronLeft"></span>
+    </a>
+    {% endif %}
+    {% else %}
+    <p class="mine-empty glass">امروز نوبتی نداری. یه نفس بکش 🎉</p>
+    {% endif %}
+
+    {#- The rhythm figures: the streak pair is the app's own measure of
+        consistency (recomputed on every check-in, never incremented), the
+        week is the horizon a habit is actually managed on, and the tally is
+        the one number here that never goes down. -#}
+    <div class="mine-grid pairs">
+      <div class="mine-tile gold">
+        <b><span data-icon="flame"></span>{{ dash.streak_current }}</b><span>بهترین رشتهٔ فعلی</span>
+      </div>
+      <div class="mine-tile gold">
+        <b><span data-icon="seal"></span>{{ dash.streak_best }}</b><span>رکورد پیاپی</span>
+      </div>
+      <div class="mine-tile ok">
+        <b>{{ dash.week_done }}</b><span>ثبت این هفته</span>
+      </div>
+      <div class="mine-tile">
+        <b>{{ dash.total_completed }}</b><span>مجموع ثبت‌ها</span>
+      </div>
     </div>
   </section>
+
+  {#- ========================= فعالیت ۱۲ هفته =========================
+      One cell per day, seven rows, one column per Saturday-aligned week. The
+      rows are what earn it: each row is a single weekday, so a habit that
+      always breaks on the same day shows up as a pale row rather than as
+      noise. Deliberately unlabelled per cell -- the title is the readable
+      version, this is the pattern.
+      ==================================================================== -#}
+  <section class="detail-section">
+    <div class="section-head">
+      <h2>روند فعالیت</h2>
+      <span class="cc-tag"><span data-icon="chart"></span>{{ dash.grid.weeks }} هفتهٔ اخیر</span>
+    </div>
+
+    <div class="glass hm-card">
+      {#- Months row and the grid share one column count so the labels sit
+          over the week they name; column 1 is the weekday-label column, and
+          in RTL both grids start from the right. -#}
+      <div class="hm-months" style="--hm-cols:{{ dash.grid.cols }};" aria-hidden="true">
+        {% for col in dash.grid.columns %}{% if col.starts_month %}<span
+          style="grid-column:{{ loop.index + 1 }};"
+          data-jalali="{{ col.start.isoformat() }}" data-jalali-format="month-only">{{ col.start.isoformat() }}</span>{% endif %}{% endfor %}
+      </div>
+
+      <div class="hm-grid" style="--hm-cols:{{ dash.grid.cols }};" role="img"
+        aria-label="فعالیت {{ dash.grid.window_days }} روز اخیر: {{ dash.grid.active_days }} روز با حداقل یک ثبت">
+        {% for wd in dash.grid.weekdays %}<span class="hm-day" aria-hidden="true">{{ wd }}</span>{% endfor %}
+        {% for col in dash.grid.columns %}{% for d in col.days %}<span
+          class="hm-cell l{{ d.level }}{{ ' is-future' if d.is_future }}{{ ' is-today' if d.is_today }}"
+          data-jalali="{{ d.date.isoformat() }}" data-jalali-format="weekday-day-month"
+          data-jalali-attr="title" title="{{ d.date.isoformat() }}"></span>{% endfor %}{% endfor %}
+      </div>
+
+      <div class="hm-foot">
+        <span>{{ dash.grid.active_days }} روز فعال از {{ dash.grid.window_days }} روز</span>
+        <span class="hm-scale" aria-hidden="true">
+          کمتر
+          <i class="hm-cell l0"></i><i class="hm-cell l1"></i><i class="hm-cell l2"></i><i class="hm-cell l3"></i><i class="hm-cell l4"></i>
+          بیشتر
+        </span>
+      </div>
+    </div>
+  </section>
+
+  {#- =========================== تمرکز ماه ============================
+      Where the effort actually went, ranked. Bars scale to the leader, so the
+      list reads as an order rather than as five stubs; the number beside each
+      is the real count, so nothing is only a proportion.
+      ==================================================================== -#}
+  {% if dash.focus.rows %}
+  <section class="detail-section">
+    <div class="section-head">
+      <h2>تمرکز تو</h2>
+      <span class="cc-tag">{{ dash.focus.window_days }} روز اخیر</span>
+    </div>
+
+    <div class="glass hm-card focus-list">
+      {% for row in dash.focus.rows %}
+      <div class="focus-row" data-cat="{{ row.category | category_slug }}">
+        <span class="focus-ic" data-icon="{{ row.category | category_icon }}"></span>
+        <div class="focus-main">
+          <div class="focus-head">
+            <b>{{ row.category.value }}</b>
+            <span>{{ row.count }} ثبت</span>
+          </div>
+          <div class="cc-progress"><i style="width:{{ row.pct }}%;"></i></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
 
   <!-- my challenges -->
   <section>
     <div class="section-head">
       <h2>چالش‌های من</h2>
+      {#- The two counts used to be their own stat cards above the list. They
+          say the same thing sitting inside the tabs that filter by them, and
+          the row they vacated is what the dashboard above is built on. -#}
       <div class="tabs" role="tablist" aria-label="فیلتر وضعیت چالش‌ها">
-        <button class="tab active" data-filter="active" role="tab" aria-selected="true">فعال</button>
-        <button class="tab" data-filter="completed" role="tab" aria-selected="false">تکمیل‌شده</button>
+        <button class="tab active" data-filter="active" role="tab" aria-selected="true">
+          فعال <i class="tab-count" id="statActive">{{ stat_active }}</i>
+        </button>
+        <button class="tab" data-filter="completed" role="tab" aria-selected="false">
+          تکمیل‌شده <i class="tab-count" id="statDone">{{ stat_done }}</i>
+        </button>
       </div>
     </div>
 
@@ -59,8 +197,6 @@
     const listEl = document.getElementById("challengeList");
     const emptyEl = document.getElementById("homeEmpty");
     const emptyText = document.getElementById("homeEmptyText");
-    const statActive = document.getElementById("statActive");
-    const statDone = document.getElementById("statDone");
 
     const emptyMessages = {
       active: "هنوز چالش فعالی نداری. یکی رو از فهرست چالش‌ها انتخاب کن یا خودت بساز.",
@@ -119,18 +255,11 @@
           btn.disabled = false;
           return;
         }
-        const card = btn.closest("[data-enrollment-challenge-id]");
-        if (card) {
-          card.remove();
-          scroller.notifyRemoved();
-        }
-        if (statActive) {
-          statActive.textContent = Math.max(0, Number(statActive.textContent) - 1);
-        }
-        if (!listEl.querySelector("[data-enrollment-challenge-id]")) {
-          emptyText.textContent = emptyMessages[activeStatus];
-          emptyEl.hidden = false;
-        }
+        // Leaving a challenge moves the today ring, both streak tiles, the
+        // week counter and the active count at once. Same rule as the
+        // check-in mutations on challenge-detail: patching derived figures by
+        // hand is how they drift apart, so the page is re-derived instead.
+        window.location.reload();
       } catch (err) {
         alert("خطای شبکه: " + err.message);
         btn.disabled = false;

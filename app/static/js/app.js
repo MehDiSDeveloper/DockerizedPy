@@ -99,6 +99,11 @@ const JALALI_FORMATS = {
   "day-month": { day: "numeric", month: "long" },
   "day-month-year": { day: "numeric", month: "long", year: "numeric" },
   month: { month: "long", year: "numeric" },
+  // The month alone, for an axis that already establishes the year -- the
+  // home dashboard's activity grid spans one season, so repeating «۱۴۰۵»
+  // over every label is noise. Not affected by the year-first reassembly
+  // below: with no year part there is nothing to reorder.
+  "month-only": { month: "long" },
   numeric: { year: "numeric", month: "2-digit", day: "2-digit" },
   time: { hour: "2-digit", minute: "2-digit", hour12: false },
   datetime: {
@@ -963,3 +968,118 @@ document.addEventListener("DOMContentLoaded", () => initThemeToggles());
 window.getTheme = getTheme;
 window.setTheme = setTheme;
 window.cycleTheme = cycleTheme;
+
+
+// ==========================================================================
+// Press feedback — every tappable thing sinks under the finger and springs back
+//
+// One delegated listener rather than a class per control: the animation is
+// pure CSS (see "Press feedback" in styles.css, which owns the scale, the
+// spring and the lit state); this half only decides *which* element is being
+// pressed and for how long.
+//
+// It is not `:active`, for three reasons that all show up on a phone:
+//   - iOS Safari never applies `:active` to a plain element unless the page
+//     carries a touch listener, so half the app would stay dead on the one
+//     device it is designed for;
+//   - `:active` survives a gesture that turns into a scroll, so every flick
+//     down a card list would light a card on the way past;
+//   - a quick tap holds it for a single frame, which reads as a flicker.
+// So: the squeeze is held for PRESS_MIN_MS even on a flick tap, and it is
+// cancelled the moment the pointer travels far enough to be a scroll.
+//
+// New markup needs nothing — the listener is on the document, so infinite
+// scroll fragments and sheet contents built after load are covered.
+// Opt in something that is none of the roles below with [data-press]; opt a
+// subtree out with [data-no-press].
+// ==========================================================================
+const PRESS_MIN_MS = 110;   // minimum time the squeeze stays down
+const PRESS_OUT_MS = 340;   // must match press-out's duration in styles.css
+const PRESS_SLOP = 12;      // px of travel that reclassifies a tap as a scroll
+
+const PRESS_SELECTOR = [
+  "button:not([disabled])",
+  "a[href]",
+  "summary",
+  '[role="button"]',
+  '[role="tab"]',
+  '[role="radio"]',
+  '[role="option"]',
+  "label[for]",
+  "[data-press]",
+].join(",");
+
+let pressEl = null;
+let pressStartedAt = 0;
+let pressX = 0;
+let pressY = 0;
+
+function startPress(target, x, y) {
+  const el = target && target.closest ? target.closest(PRESS_SELECTOR) : null;
+  if (!el) return;
+  if (el.hasAttribute("disabled") || el.getAttribute("aria-disabled") === "true") return;
+  if (el.closest("[data-no-press]")) return;
+
+  if (pressEl && pressEl !== el) endPress(true);
+  pressEl = el;
+  pressStartedAt = Date.now();
+  pressX = x;
+  pressY = y;
+
+  clearTimeout(el._pressTimer);
+  clearTimeout(el._releaseTimer);
+  el.classList.remove("is-releasing");
+  // A second tap landing mid-spring has to restart the animation, and the
+  // browser only notices the class going away if the layout is read between.
+  el.classList.remove("is-pressed");
+  void el.offsetWidth;
+  el.classList.add("is-pressed");
+}
+
+// `immediate` skips the minimum hold — used when the gesture was cancelled
+// (a scroll, a lost pointer) rather than completed, where lingering on a
+// control the finger has already left is exactly the wrong feedback.
+function endPress(immediate) {
+  const el = pressEl;
+  if (!el) return;
+  pressEl = null;
+
+  const wait = immediate ? 0 : Math.max(0, PRESS_MIN_MS - (Date.now() - pressStartedAt));
+  el._pressTimer = setTimeout(() => {
+    el.classList.remove("is-pressed");
+    el.classList.add("is-releasing");
+    el._releaseTimer = setTimeout(() => el.classList.remove("is-releasing"), PRESS_OUT_MS);
+  }, wait);
+}
+
+function initPressFeedback() {
+  document.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;               // right/middle click is not a tap
+    startPress(e.target, e.clientX, e.clientY);
+  }, { passive: true });
+
+  document.addEventListener("pointermove", (e) => {
+    if (!pressEl) return;
+    if (Math.hypot(e.clientX - pressX, e.clientY - pressY) > PRESS_SLOP) endPress(true);
+  }, { passive: true });
+
+  document.addEventListener("pointerup", () => endPress(false), { passive: true });
+  document.addEventListener("pointercancel", () => endPress(true), { passive: true });
+  window.addEventListener("blur", () => endPress(true));
+  // capture, so a scroll inside a sheet or a card list cancels too — those
+  // scroll events never reach window on their own.
+  window.addEventListener("scroll", () => endPress(true), { capture: true, passive: true });
+
+  // Keyboard activation gets the same beat, so a control reached with Tab
+  // confirms the press the way a tap does.
+  document.addEventListener("keydown", (e) => {
+    if (e.repeat || (e.key !== "Enter" && e.key !== " ")) return;
+    const el = document.activeElement;
+    if (el && el.matches && el.matches(PRESS_SELECTOR)) startPress(el, 0, 0);
+  });
+  document.addEventListener("keyup", (e) => {
+    if (e.key === "Enter" || e.key === " ") endPress(false);
+  });
+}
+
+document.addEventListener("DOMContentLoaded", () => initPressFeedback());

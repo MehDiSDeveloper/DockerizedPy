@@ -45,6 +45,23 @@ def category_icon(value: ChallengeCategory | str | None) -> str:
         return FALLBACK_ICON
 
 
+def category_slug(value: ChallengeCategory | str | None) -> str:
+    """Stable ASCII slug for a category, used as the `data-cat` a card carries.
+
+    The colour of a category lives in CSS (`--cat-*` plus the `[data-cat]`
+    rules in `styles.css`), and the enum's own values are Farsi, so the hook
+    has to be the English member name -- derived here rather than typed into
+    four card templates. Same both-shapes contract as `category_icon`: the ORM
+    hands back the enum, `TodayItem` hands back the raw Farsi string.
+    """
+    if value is None:
+        return "other"
+    try:
+        return ChallengeCategory(value).name.lower()
+    except ValueError:
+        return "other"
+
+
 def cadence_icon(value: CadenceKind | str | None) -> str:
     """Icon name for a cadence kind, given either the enum or its raw value."""
     if value is None:
@@ -58,4 +75,5 @@ def cadence_icon(value: CadenceKind | str | None) -> str:
 def register_icon_filters(env) -> None:
     """Expose the two lookups as Jinja filters on one templates environment."""
     env.filters["category_icon"] = category_icon
+    env.filters["category_slug"] = category_slug
     env.filters["cadence_icon"] = cadence_icon
