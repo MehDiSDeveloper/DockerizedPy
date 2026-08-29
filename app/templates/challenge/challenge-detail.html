@@ -19,8 +19,9 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<nav class="crumbs" aria-label="مسیر صفحه" hidden
-  data-crumb-trail data-crumb-label="{{ challenge.title }}"></nav>
+<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="{{ challenge.title }}">
+  <span class="crumb current" aria-current="page">{{ challenge.title }}</span>
+</nav>
 {% endblock %}
 
 {% block topbar_action %}
@@ -34,6 +35,12 @@
 
 {% block content %}
 
+{#- The hero is the only thing that stays above the tabs, so it carries the
+    three numbers that answer "should I care about this / how am I doing" --
+    and they change with the viewer: a participant is shown their own
+    progress and streak, a visitor the challenge's size and deadline. Every
+    other figure lives in the panel it belongs to instead of being repeated
+    here, in a details grid, and in a section of its own. -#}
 <div class="detail-hero glass">
   <div class="detail-icon"><span data-icon="{{ challenge.category | category_icon }}"></span>
     <span class="cadence-badge" title="{{ cadence_plan.label }}" aria-label="{{ cadence_plan.label }}"
@@ -44,342 +51,428 @@
     {% if challenge.visibility != 'public' %}<span class="cc-tag">{{ visibility_label }}</span>{% endif %}
     {% if challenge.lifecycle_status != 'active' %}<span class="cc-tag warn">{{ lifecycle_label }}</span>{% endif %}
   </div>
-  <h1>{{challenge.title}}</h1>
+  <h1>{{ challenge.title }}</h1>
   <div class="detail-stats">
     <div><b id="participantCount">{{ participant_count }}</b><span>شرکت‌کننده</span></div>
-    <div><b{% if challenge.due_date %} data-jalali="{{ challenge.due_date.isoformat() }}"
-      data-jalali-format="numeric"{% endif %}>{{ challenge.due_date.strftime('%Y-%m-%d') if challenge.due_date else '—' }}</b><span>مهلت</span></div>
+    {% if is_enrolled and history_summary %}
+    <div><b>{{ history_summary.pct }}٪</b><span>پیشرفت من</span></div>
     <div class="gold">
-      <b>{% if my_streak is not none %}<span data-icon="flame"></span>{{ my_streak }}{% else %}—{% endif %}</b>
+      <b><span data-icon="flame"></span>{{ my_streak or 0 }}</b>
       <span>پیاپی من</span>
     </div>
+    {% elif challenge.due_date %}
+    <div><b>{{ total_completions }}</b><span>ثبت انجام‌شده</span></div>
+    <div><b data-jalali="{{ challenge.due_date.isoformat() }}"
+        data-jalali-format="numeric">{{ challenge.due_date.strftime('%Y-%m-%d') }}</b><span>مهلت</span></div>
+    {% else %}
+    <div><b>{{ total_completions }}</b><span>ثبت انجام‌شده</span></div>
+    <div><b>{{ progress_pct }}٪</b><span>پیشرفت جمعی</span></div>
+    {% endif %}
   </div>
 </div>
 
-
-{#- The cadence is the single most important thing about a challenge and was
-    the one thing this page never showed. Everything here is server-derived
-    from the same occurrence engine the check-in flow uses, so a date previewed
-    here is the date that later shows up in the history below. -#}
-<section class="detail-section">
-  <div class="section-head">
-    <h2>برنامهٔ چالش</h2>
-    {% if cadence_plan.kind != 'once' %}
-    <span class="cc-tag" title="{{ cadence_plan.timezone }}">{{ cadence_plan.timezone }}</span>
-    {% endif %}
-  </div>
-
-  <div class="plan-card glass">
-    <div class="plan-rule">
-      <span class="plan-rule-icon"
-        data-icon="{{ cadence_plan.kind | cadence_icon }}"></span>
-      <div class="plan-rule-text">
-        <b>{{ cadence_plan.rule }}</b>
-        {% if cadence_plan.density %}<span>{{ cadence_plan.density }}</span>{% endif %}
-      </div>
-    </div>
-
-    {% if cadence_plan.weekdays %}
-    <div class="weekday-strip" role="img" aria-label="{{ cadence_plan.rule }}">
-      {% for d in cadence_plan.weekdays %}
-      <span class="wd{{ ' on' if d.on else '' }}" title="{{ d.name }}" aria-hidden="true">{{ d.name[0] }}</span>
-      {% endfor %}
-    </div>
-    {% endif %}
-
-    {% if cadence_plan.progress %}
-    <div class="plan-progress">
-      <div class="cc-progress"><i style="width:{{ cadence_plan.progress.pct }}%;"></i></div>
-      <span>{{ cadence_plan.progress.done }} از {{ cadence_plan.progress.total }}
-        {{ cadence_plan.progress.label }}</span>
-    </div>
-    {% endif %}
-
-    {% if cadence_plan.facts %}
-    <dl class="fact-list">
-      {% for f in cadence_plan.facts %}
-      <div class="fact">
-        <dt>{{ f.label }}</dt>
-        <dd>
-          {%- if f.date -%}
-          <span data-jalali="{{ f.date }}"
-            data-jalali-format="{{ f.format or 'day-month-year' }}">{{ f.date }}</span>
-          {%- if f.date_to %} تا <span data-jalali="{{ f.date_to }}"
-            data-jalali-format="{{ f.format or 'day-month-year' }}">{{ f.date_to }}</span>{% endif -%}
-          {%- else -%}
-          {{ f.text }}
-          {%- endif -%}
-        </dd>
-      </div>
-      {% endfor %}
-    </dl>
-    {% endif %}
-  </div>
-
-  {% if cadence_plan.upcoming %}
-  <h3 class="sub-head">{{ cadence_plan.upcoming_label }}</h3>
-  <ul class="up-list">
-    {% for u in cadence_plan.upcoming %}
-    <li class="up-row{{ ' next' if u.is_next else '' }}">
-      <span class="up-dot" aria-hidden="true"></span>
-      <span class="up-date" data-jalali="{{ u.date }}"
-        data-jalali-format="{{ cadence_plan.upcoming_format }}"
-        data-jalali-prefix="{{ cadence_plan.upcoming_prefix }}">{{ u.date }}</span>
-      {%- if u.at %}
-      {#- A scheduled occurrence is an instant, so it is read in the zone it
-          was judged in -- not the viewer's. -#}
-      <span class="up-time" data-jalali="{{ u.at }}" data-jalali-format="time"
-        data-jalali-tz="{{ cadence_plan.timezone }}">{{ u.at }}</span>
-      {%- endif %}
-      {% if u.is_next %}<span class="up-flag">بعدی</span>{% endif %}
-    </li>
-    {% endfor %}
-  </ul>
+{#- Three answers, three panels, instead of nine stacked sections. The split
+    is by question, not by data source: «من» is what I still have to do and
+    what I have done, «برنامه» is what this challenge asks of anyone, «درباره»
+    is what it is and who runs it. A visitor with no enrollment has no «من»,
+    so «برنامه» leads -- which is also the thing they are deciding on. -#}
+<div class="detail-tabs" role="tablist" aria-label="بخش‌های این چالش">
+  {% if is_enrolled %}
+  <button type="button" class="dtab" role="tab" id="tab-me" data-panel="me"
+    aria-controls="panel-me" aria-selected="true">
+    <span data-icon="flame"></span>من
+    {%- if today_key %}<span class="dtab-dot" title="امروز نوبت داری"></span>{% endif %}
+  </button>
   {% endif %}
-</section>
-
-<section class="detail-section">
-  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-    <h2 style="margin:0;">پیشرفت جمعی</h2>
-    <span class="cc-tag">خوداظهاری</span>
-  </div>
-  <div class="cc-progress"><i style="width:{{ progress_pct }}%;"></i></div>
-  <p class="progress-note">
-    {% if challenge.goal_amount %}
-    {{ total_amount | num }} از {{ challenge.goal_amount | num }} {{ challenge.goal_unit or '' }} ({{ progress_pct }}٪)
-    {% else %}
-    {{ total_completions }} ثبت تکمیل‌شده ({{ progress_pct }}٪)
-    {% endif %}
-    {%- if last_activity_at %} · آخرین فعالیت <span data-jalali="{{ last_activity_at.isoformat() }}"
-      data-jalali-format="day-month" data-jalali-tz="{{ default_timezone }}">{{ last_activity_at.isoformat() }}</span>
-    {%- endif %}
-  </p>
-</section>
-
-<section class="detail-section">
-  <h2>درباره چالش</h2>
-  <p>
-    {{challenge.description}}
-  </p>
-</section>
-
-{% if challenge.rules %}
-<section class="detail-section">
-  <h2>قوانین</h2>
-  <div class="rule-list">
-    {{challenge.rules}}
-  </div>
-</section>
-{% endif %}
-
-
-<section class="detail-section">
-  <h2>جزئیات</h2>
-  <div class="meta-grid">
-    <div class="meta-item">
-      <span data-icon="user"></span>
-      <div><b>{{ challenge.owner.name if challenge.owner else '—' }}</b><span>سازنده</span></div>
-    </div>
-    <div class="meta-item">
-      <span data-icon="calendar"></span>
-      <div>
-        <b {% if challenge.created_at %}data-jalali="{{ challenge.created_at.isoformat() }}"
-          data-jalali-format="day-month-year"
-          data-jalali-tz="{{ default_timezone }}"{% endif %}>{{ challenge.created_at.isoformat() if challenge.created_at else '—' }}</b>
-        <span>تاریخ ساخت</span>
-      </div>
-    </div>
-    <div class="meta-item">
-      <span data-icon="eye"></span>
-      <div><b>{{ visibility_label }}</b><span>دسترسی</span></div>
-    </div>
-    <div class="meta-item">
-      <span data-icon="seal"></span>
-      <div><b>{{ lifecycle_label }}</b><span>وضعیت</span></div>
-    </div>
-    {% if challenge.goal_amount %}
-    <div class="meta-item">
-      <span data-icon="target"></span>
-      <div><b>{{ challenge.goal_amount | num }} {{ challenge.goal_unit or '' }}</b><span>هدف جمعی</span></div>
-    </div>
-    {% endif %}
-    {% if challenge.due_date %}
-    <div class="meta-item">
-      <span data-icon="clock"></span>
-      <div>
-        <b data-jalali="{{ challenge.due_date.isoformat() }}" data-jalali-format="day-month-year"
-          data-jalali-tz="{{ default_timezone }}">{{ challenge.due_date.isoformat() }}</b>
-        <span>مهلت کلی</span>
-      </div>
-    </div>
-    {% endif %}
-    <div class="meta-item">
-      <span data-icon="chart"></span>
-      <div><b>{{ total_completions }}</b><span>ثبت تکمیل‌شده</span></div>
-    </div>
-    <div class="meta-item">
-      <span data-icon="users"></span>
-      <div><b>{{ participant_count }}</b><span>شرکت‌کننده</span></div>
-    </div>
-  </div>
-</section>
-
-<section class="detail-section">
-  <h2>شرکت‌کننده‌ها</h2>
-  <div style="display:flex; align-items:center; justify-content:space-between;">
-    {% if challenge.enrollments %}
-    <div class="avatar-stack">
-      {% for enrollment in challenge.enrollments[:4] %}
-      <div class="av">{{ enrollment.user.name[:1] if enrollment.user else "" }}</div>
-      {% endfor %}
-    </div>
-    {% if challenge.enrollments|length > 4 %}
-    <span style="font-size:12px; color:var(--text-3);">و {{ challenge.enrollments|length - 4 }} نفر دیگه</span>
-    {% endif %}
-    {% else %}
-    <span style="font-size:12px; color:var(--text-3);">هنوز شرکت‌کننده‌ای نیست</span>
-    {% endif %}
-  </div>
-</section>
+  <button type="button" class="dtab" role="tab" id="tab-plan" data-panel="plan"
+    aria-controls="panel-plan" aria-selected="{{ 'false' if is_enrolled else 'true' }}">
+    <span data-icon="calendar"></span>برنامه
+  </button>
+  <button type="button" class="dtab" role="tab" id="tab-about" data-panel="about"
+    aria-controls="panel-about" aria-selected="false">
+    <span data-icon="info"></span>درباره
+  </button>
+</div>
 
 {% if is_enrolled %}
-{% if my_stats %}
-<section class="detail-section">
-  <h2>وضعیت من</h2>
-  <div class="mine-grid">
-    <div class="mine-tile ok">
-      <b>{{ my_stats.completed }}</b><span>تکمیل‌شده</span>
-    </div>
-    <div class="mine-tile">
-      <b>{{ my_stats.skipped }}</b><span>رد شده</span>
-    </div>
-    <div class="mine-tile gold">
-      <b><span data-icon="flame"></span>{{ my_stats.current_streak }}</b><span>پیاپی فعلی</span>
-    </div>
-    <div class="mine-tile gold">
-      <b><span data-icon="seal"></span>{{ my_stats.longest_streak }}</b><span>رکورد پیاپی</span>
-    </div>
-  </div>
-  <dl class="fact-list">
-    <div class="fact">
-      <dt>شروع من</dt>
-      <dd><span data-jalali="{{ my_stats.start_date.isoformat() }}"
-          data-jalali-format="day-month-year">{{ my_stats.start_date.isoformat() }}</span></dd>
-    </div>
-    {% if my_stats.last_checkin_at %}
-    <div class="fact">
-      <dt>آخرین ثبت من</dt>
-      <dd><span data-jalali="{{ my_stats.last_checkin_at.isoformat() }}" data-jalali-format="datetime"
-          data-jalali-tz="{{ my_stats.timezone }}">{{ my_stats.last_checkin_at.isoformat() }}</span></dd>
-    </div>
-    {% endif %}
-    {% if challenge.goal_unit and my_stats.total_amount %}
-    <div class="fact">
-      <dt>مجموع ثبت‌شده</dt>
-      <dd>{{ my_stats.total_amount | num }} {{ challenge.goal_unit }}</dd>
-    </div>
-    {% endif %}
-    <div class="fact">
-      <dt>منطقهٔ زمانی من</dt>
-      <dd>{{ my_stats.timezone }}</dd>
-    </div>
-  </dl>
-</section>
-{% endif %}
+{# ========================= پنل: من ========================= #}
+<div class="tab-panel" id="panel-me" role="tabpanel" aria-labelledby="tab-me" tabindex="-1">
 
-{% set state_labels = {'completed': 'تکمیل‌شده', 'skipped': 'رد شده', 'missed': 'ازدست‌رفته', 'pending': 'در انتظار'} %}
-<section class="detail-section">
-  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-    <h2 style="margin:0;">تاریخچه من</h2>
-    <span class="cc-tag">خوداظهاری</span>
-  </div>
+  {% if my_stats %}
+  <section class="detail-section">
+    <div class="section-head">
+      <h2>وضعیت من</h2>
+      <span class="cc-tag">خوداظهاری</span>
+    </div>
 
-  {% if history_summary %}
-  <div class="history-summary">
-    <div class="history-metric">
-      <b>{{ history_summary.pct }}٪</b>
-      <span>{{ history_summary.completed }} از {{ history_summary.total }} {{ history_summary.unit }}</span>
-    </div>
-    <div class="history-metric gold">
-      <b><span data-icon="flame"></span>{{ my_longest_streak }}</b>
-      <span>بلندترین پیاپی</span>
-    </div>
-    <div class="history-metric">
-      <b>{{ history_summary.period_done }}<span class="dim"> / {{ history_summary.period_total }}</span></b>
-      <span>{{ history_summary.period_label }}</span>
-    </div>
-  </div>
-  {% endif %}
-
-  {% if cadence_kind == 'recurring_quota' %}
-  <div class="quota-history" id="quotaHistory">
-    {% for row in quota_rows %}
-    <div class="quota-row{{ ' current' if row.is_current else '' }}">
-      <div class="quota-row-head">
-        <span class="quota-row-label" data-jalali="{{ row.start.isoformat() }}"
-          data-jalali-format="{{ 'month' if challenge.cadence.period == 'month' else 'day-month' }}"
-          data-jalali-prefix="{{ '' if challenge.cadence.period == 'month' else 'هفتهٔ ' }}">{{ row.start.isoformat() }}</span>
-        <span class="quota-row-count">{{ row.done }} از {{ row.target }}</span>
-      </div>
-      <div class="quota-pips" role="img"
-        aria-label="{{ row.done }} از {{ row.target }} نوبت انجام شده">
-        {% for i in range(row.target) %}
-        <span class="quota-pip{{ ' done' if i < row.done else '' }}"></span>
-        {% endfor %}
-      </div>
-      {% if row.writable_key %}
-      <button type="button" class="tl-action solid quota-submit" data-key="{{ row.writable_key }}">
-        ثبت نوبت جدید
-      </button>
-      {% endif %}
-    </div>
-    {% endfor %}
-  </div>
-
-  {% else %}
-  <ol class="timeline" id="historyTimeline">
-    {% for item in timeline %}
-    <li class="tl-row {{ item.state }}{{ ' today' if item.is_today else '' }}" data-key="{{ item.key }}"
-      data-date="{{ item.date.isoformat() }}">
-      <span class="tl-badge" aria-hidden="true"></span>
-      <div class="tl-main">
-        <div class="tl-date" data-jalali="{{ item.date.isoformat() }}" data-jalali-format="weekday-day-month">
-          {{ item.date.isoformat() }}</div>
-        <div class="tl-meta">
-          {{ 'امروز · ' if item.is_today else '' }}{{ state_labels.get(item.state, item.state) }}{% if item.amount %} ·
-          {{ item.amount }} {{ goal_unit or '' }}{% endif %}
+    {% if history_summary and history_summary.total %}
+    {#- A ring plus a legend rather than four bare tiles: the same figures,
+        but it is the proportion between them that reads at a glance, and
+        «ازدست‌رفته» only means something beside what it is a share of. -#}
+    <div class="mine-card glass">
+      <div class="ring-wrap">
+        {#- r=20 -> circumference 125.66, so the fill's dash length is the
+            completion share of that. CSS rotates it to start at twelve. -#}
+        <svg class="ring" viewBox="0 0 48 48" aria-hidden="true">
+          <circle class="ring-track" cx="24" cy="24" r="20"></circle>
+          {#- omitted entirely at zero: a round-capped stroke of length 0 still
+              paints a dot, which reads as "one done" when none are. -#}
+          {% if history_summary.pct %}
+          <circle class="ring-fill" cx="24" cy="24" r="20"
+            style="stroke-dasharray:{{ (history_summary.pct * 1.2566) | round(1) }} 200;"></circle>
+          {% endif %}
+        </svg>
+        <div class="ring-center">
+          <b>{{ history_summary.pct }}٪</b>
+          <span>{{ history_summary.completed }}/{{ history_summary.total }}</span>
         </div>
       </div>
-      {% if item.writable %}
-      <button type="button" class="tl-action" data-key="{{ item.key }}"
-        data-jalali="{{ item.date.isoformat() }}" data-jalali-format="weekday-day-month"
-        data-jalali-prefix="ثبت " data-jalali-attr="aria-label"
-        aria-label="ثبت {{ item.date.isoformat() }}">ثبت</button>
-      {% elif item.editable %}
-      <button type="button" class="tl-action tl-edit" data-checkin-id="{{ item.checkin_id }}"
-        data-state="{{ item.state }}" data-amount="{{ item.amount | num }}"
-        data-note="{{ item.note or '' }}"
-        data-jalali="{{ item.date.isoformat() }}" data-jalali-format="weekday-day-month"
-        data-jalali-prefix="ویرایش " data-jalali-attr="aria-label"
-        aria-label="ویرایش {{ item.date.isoformat() }}">ویرایش</button>
-      {% endif %}
-    </li>
+      <ul class="ring-legend">
+        <li><span class="lg-dot ok"></span>تکمیل‌شده<b>{{ history_summary.completed }}</b></li>
+        {% if history_summary.skipped %}
+        <li><span class="lg-dot skip"></span>رد شده<b>{{ history_summary.skipped }}</b></li>
+        {% endif %}
+        <li><span class="lg-dot miss"></span>{{ history_summary.missed_label or 'ازدست‌رفته' }}<b>{{ history_summary.missed }}</b></li>
+        {% if history_summary.pending %}
+        <li><span class="lg-dot wait"></span>در انتظار<b>{{ history_summary.pending }}</b></li>
+        {% endif %}
+      </ul>
+    </div>
+
+    <div class="mine-grid">
+      <div class="mine-tile gold">
+        <b><span data-icon="flame"></span>{{ my_stats.current_streak }}</b><span>پیاپی فعلی</span>
+      </div>
+      <div class="mine-tile gold">
+        <b><span data-icon="seal"></span>{{ my_stats.longest_streak }}</b><span>رکورد پیاپی</span>
+      </div>
+      <div class="mine-tile">
+        {#- no spaces around the slash: "0 / 1" splits into two number runs
+            that an RTL paragraph then orders right-to-left, so it reads back
+            as "1 / 0". "0/1" is a single LTR run and stays put. -#}
+        <b>{{ history_summary.period_done }}<span class="dim">/{{ history_summary.period_total }}</span></b>
+        <span>{{ history_summary.period_label }}</span>
+      </div>
+    </div>
     {% else %}
-    <li class="tl-empty">هنوز نوبتی برای این چالش نرسیده.</li>
-    {% endfor %}
-  </ol>
-  {% if has_more_history %}
-  <p class="tl-more">فقط {{ timeline|length }} نوبت اخیر نشان داده شده.</p>
+    <p class="mine-empty glass">هنوز نوبتی برای این چالش نرسیده.</p>
+    {% endif %}
+
+    {% if history_strip | length > 1 %}
+    {#- The shape of the run: one square per occurrence, oldest first, so in
+        RTL the oldest sits top-right and "now" ends up bottom-left, right
+        above the timeline's newest row. Deliberately unlabelled -- the
+        timeline below is the readable version; this is the pattern. -#}
+    <h3 class="sub-head">روند {{ history_strip | length }} نوبت اخیر</h3>
+    <div class="occ-strip" role="img"
+      aria-label="روند {{ history_strip | length }} نوبت اخیر، {{ history_summary.completed }} نوبت تکمیل‌شده از {{ history_summary.total }}">
+      {% for c in history_strip %}
+      <span class="occ {{ c.state }}" data-jalali="{{ c.date.isoformat() }}"
+        data-jalali-format="weekday-day-month" data-jalali-attr="title"
+        title="{{ c.date.isoformat() }}"></span>
+      {% endfor %}
+    </div>
+    <div class="occ-key">
+      <span><i class="lg-dot ok"></i>تکمیل‌شده</span>
+      <span><i class="lg-dot skip"></i>رد شده</span>
+      <span><i class="lg-dot miss"></i>ازدست‌رفته</span>
+      <span><i class="lg-dot wait"></i>در انتظار</span>
+    </div>
+    {% endif %}
+  </section>
   {% endif %}
+
+  {% set state_labels = {'completed': 'تکمیل‌شده', 'skipped': 'رد شده', 'missed': 'ازدست‌رفته', 'pending': 'در انتظار'} %}
+  <section class="detail-section">
+    <h2>تاریخچه من</h2>
+
+    {% if cadence_kind == 'recurring_quota' %}
+    <div class="quota-history" id="quotaHistory">
+      {% for row in quota_rows %}
+      <div class="quota-row{{ ' current' if row.is_current else '' }}">
+        <div class="quota-row-head">
+          <span class="quota-row-label" data-jalali="{{ row.start.isoformat() }}"
+            data-jalali-format="{{ 'month' if challenge.cadence.period == 'month' else 'day-month' }}"
+            data-jalali-prefix="{{ '' if challenge.cadence.period == 'month' else 'هفتهٔ ' }}">{{ row.start.isoformat() }}</span>
+          <span class="quota-row-count">{{ row.done }} از {{ row.target }}</span>
+        </div>
+        <div class="quota-pips" role="img"
+          aria-label="{{ row.done }} از {{ row.target }} نوبت انجام شده">
+          {% for i in range(row.target) %}
+          <span class="quota-pip{{ ' done' if i < row.done else '' }}"></span>
+          {% endfor %}
+        </div>
+        {% if row.writable_key %}
+        <button type="button" class="tl-action solid quota-submit" data-key="{{ row.writable_key }}">
+          ثبت نوبت جدید
+        </button>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    {% else %}
+    <ol class="timeline" id="historyTimeline">
+      {% for item in timeline %}
+      <li class="tl-row {{ item.state }}{{ ' today' if item.is_today else '' }}" data-key="{{ item.key }}"
+        data-date="{{ item.date.isoformat() }}">
+        <span class="tl-badge" aria-hidden="true"></span>
+        <div class="tl-main">
+          <div class="tl-date" data-jalali="{{ item.date.isoformat() }}" data-jalali-format="weekday-day-month">
+            {{ item.date.isoformat() }}</div>
+          <div class="tl-meta">
+            {{ 'امروز · ' if item.is_today else '' }}{{ state_labels.get(item.state, item.state) }}{% if item.amount %} ·
+            {{ item.amount }} {{ goal_unit or '' }}{% endif %}
+          </div>
+        </div>
+        {% if item.writable %}
+        <button type="button" class="tl-action" data-key="{{ item.key }}"
+          data-jalali="{{ item.date.isoformat() }}" data-jalali-format="weekday-day-month"
+          data-jalali-prefix="ثبت " data-jalali-attr="aria-label"
+          aria-label="ثبت {{ item.date.isoformat() }}">ثبت</button>
+        {% elif item.editable %}
+        <button type="button" class="tl-action tl-edit" data-checkin-id="{{ item.checkin_id }}"
+          data-state="{{ item.state }}" data-amount="{{ item.amount | num }}"
+          data-note="{{ item.note or '' }}"
+          data-jalali="{{ item.date.isoformat() }}" data-jalali-format="weekday-day-month"
+          data-jalali-prefix="ویرایش " data-jalali-attr="aria-label"
+          aria-label="ویرایش {{ item.date.isoformat() }}">ویرایش</button>
+        {% endif %}
+      </li>
+      {% else %}
+      <li class="tl-empty">هنوز نوبتی برای این چالش نرسیده.</li>
+      {% endfor %}
+    </ol>
+    {% if has_more_history %}
+    <p class="tl-more">فقط {{ timeline | length }} نوبت اخیر نشان داده شده.</p>
+    {% endif %}
+    {% endif %}
+  </section>
+
+  {% if my_stats %}
+  <section class="detail-section">
+    <h3 class="sub-head">جزئیات عضویت من</h3>
+    <dl class="fact-list boxed glass">
+      <div class="fact">
+        <dt>شروع من</dt>
+        <dd><span data-jalali="{{ my_stats.start_date.isoformat() }}"
+            data-jalali-format="day-month-year">{{ my_stats.start_date.isoformat() }}</span></dd>
+      </div>
+      {% if my_stats.last_checkin_at %}
+      <div class="fact">
+        <dt>آخرین ثبت من</dt>
+        <dd><span data-jalali="{{ my_stats.last_checkin_at.isoformat() }}" data-jalali-format="datetime"
+            data-jalali-tz="{{ my_stats.timezone }}">{{ my_stats.last_checkin_at.isoformat() }}</span></dd>
+      </div>
+      {% endif %}
+      {% if challenge.goal_unit and my_stats.total_amount %}
+      <div class="fact">
+        <dt>مجموع ثبت‌شده</dt>
+        <dd>{{ my_stats.total_amount | num }} {{ challenge.goal_unit }}</dd>
+      </div>
+      {% endif %}
+      <div class="fact">
+        <dt>منطقهٔ زمانی من</dt>
+        <dd dir="ltr">{{ my_stats.timezone }}</dd>
+      </div>
+    </dl>
+  </section>
   {% endif %}
-</section>
+</div>
 {% endif %}
 
+{# ========================= پنل: برنامه ========================= #}
+{#- The cadence is the single most important thing about a challenge.
+    Everything here is server-derived from the same occurrence engine the
+    check-in flow uses, so a date previewed here is the date that later shows
+    up in the history. Rendered for non-participants too -- the shape of a
+    challenge is what someone weighs before enrolling. -#}
+<div class="tab-panel" id="panel-plan" role="tabpanel" aria-labelledby="tab-plan" tabindex="-1"
+  {% if is_enrolled %}hidden{% endif %}>
+  <section class="detail-section">
+    <div class="section-head">
+      <h2>برنامهٔ چالش</h2>
+      {% if cadence_plan.kind != 'once' %}
+      <span class="cc-tag" title="{{ cadence_plan.timezone }}">{{ cadence_plan.timezone }}</span>
+      {% endif %}
+    </div>
+
+    <div class="plan-card glass">
+      <div class="plan-rule">
+        <span class="plan-rule-icon"
+          data-icon="{{ cadence_plan.kind | cadence_icon }}"></span>
+        <div class="plan-rule-text">
+          <b>{{ cadence_plan.rule }}</b>
+          {% if cadence_plan.density %}<span>{{ cadence_plan.density }}</span>{% endif %}
+        </div>
+      </div>
+
+      {% if cadence_plan.weekdays %}
+      <div class="weekday-strip" role="img" aria-label="{{ cadence_plan.rule }}">
+        {% for d in cadence_plan.weekdays %}
+        <span class="wd{{ ' on' if d.on else '' }}" title="{{ d.name }}" aria-hidden="true">{{ d.name[0] }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if cadence_plan.progress %}
+      <div class="plan-progress">
+        <div class="cc-progress"><i style="width:{{ cadence_plan.progress.pct }}%;"></i></div>
+        <span>{{ cadence_plan.progress.done }} از {{ cadence_plan.progress.total }}
+          {{ cadence_plan.progress.label }}</span>
+      </div>
+      {% endif %}
+
+      {% if cadence_plan.facts or challenge.due_date %}
+      <dl class="fact-list">
+        {% for f in cadence_plan.facts %}
+        <div class="fact">
+          <dt>{{ f.label }}</dt>
+          <dd>
+            {%- if f.date -%}
+            <span data-jalali="{{ f.date }}"
+              data-jalali-format="{{ f.format or 'day-month-year' }}">{{ f.date }}</span>
+            {%- if f.date_to %} تا <span data-jalali="{{ f.date_to }}"
+              data-jalali-format="{{ f.format or 'day-month-year' }}">{{ f.date_to }}</span>{% endif -%}
+            {%- else -%}
+            {{ f.text }}
+            {%- endif -%}
+          </dd>
+        </div>
+        {% endfor %}
+        {#- due_date is a challenge-level deadline, unrelated to the cadence
+            (D9) -- but it is still the outer bound the plan runs inside, so
+            it reads here rather than in a details grid nobody scrolls to. -#}
+        {% if challenge.due_date %}
+        <div class="fact">
+          <dt>مهلت کلی چالش</dt>
+          <dd><span data-jalali="{{ challenge.due_date.isoformat() }}" data-jalali-format="day-month-year"
+              data-jalali-tz="{{ default_timezone }}">{{ challenge.due_date.isoformat() }}</span></dd>
+        </div>
+        {% endif %}
+      </dl>
+      {% endif %}
+    </div>
+
+    {% if cadence_plan.upcoming %}
+    <h3 class="sub-head">{{ cadence_plan.upcoming_label }}</h3>
+    <ul class="up-list">
+      {% for u in cadence_plan.upcoming %}
+      <li class="up-row{{ ' next' if u.is_next else '' }}">
+        <span class="up-dot" aria-hidden="true"></span>
+        <span class="up-date" data-jalali="{{ u.date }}"
+          data-jalali-format="{{ cadence_plan.upcoming_format }}"
+          data-jalali-prefix="{{ cadence_plan.upcoming_prefix }}">{{ u.date }}</span>
+        {%- if u.at %}
+        {#- A scheduled occurrence is an instant, so it is read in the zone it
+            was judged in -- not the viewer's. -#}
+        <span class="up-time" data-jalali="{{ u.at }}" data-jalali-format="time"
+          data-jalali-tz="{{ cadence_plan.timezone }}">{{ u.at }}</span>
+        {%- endif %}
+        {% if u.is_next %}<span class="up-flag">بعدی</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+</div>
+
+{# ========================= پنل: درباره ========================= #}
+<div class="tab-panel" id="panel-about" role="tabpanel" aria-labelledby="tab-about" tabindex="-1" hidden>
+  <section class="detail-section">
+    <h2>درباره چالش</h2>
+    <p>{{ challenge.description or 'برای این چالش توضیحی نوشته نشده.' }}</p>
+  </section>
+
+  {% if challenge.rules %}
+  <section class="detail-section">
+    <h2>قوانین</h2>
+    <div class="rule-list">
+      {{ challenge.rules }}
+    </div>
+  </section>
+  {% endif %}
+
+  {#- Collective progress and the people making it are one fact, not two
+      sections: the bar means nothing without knowing how many are pushing
+      it, and a lone avatar row means nothing without the bar. -#}
+  <section class="detail-section">
+    <div class="section-head">
+      <h2>پیشرفت جمعی</h2>
+      <span class="cc-tag">خوداظهاری</span>
+    </div>
+    <div class="plan-card glass">
+      <div class="collective-head">
+        {% if challenge.enrollments %}
+        <div class="avatar-stack" aria-hidden="true">
+          {% for enrollment in challenge.enrollments[:4] %}
+          <div class="av">{{ enrollment.user.name[:1] if enrollment.user else "" }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <span>{% if participant_count %}{{ participant_count }} شرکت‌کننده{% else %}هنوز شرکت‌کننده‌ای نیست{% endif %}</span>
+      </div>
+      <div class="cc-progress"><i style="width:{{ progress_pct }}%;"></i></div>
+      <p class="progress-note">
+        {% if challenge.goal_amount %}
+        {{ total_amount | num }} از {{ challenge.goal_amount | num }} {{ challenge.goal_unit or '' }} ({{ progress_pct }}٪)
+        {% else %}
+        {{ total_completions }} ثبت تکمیل‌شده ({{ progress_pct }}٪)
+        {% endif %}
+        {%- if last_activity_at %} · آخرین فعالیت <span data-jalali="{{ last_activity_at.isoformat() }}"
+          data-jalali-format="day-month" data-jalali-tz="{{ default_timezone }}">{{ last_activity_at.isoformat() }}</span>
+        {%- endif %}
+      </p>
+    </div>
+  </section>
+
+  {#- Only what nothing else on the page already says: the hero carries the
+      counts and the non-default visibility/lifecycle tags, and the plan
+      panel carries every date the cadence implies. -#}
+  <section class="detail-section">
+    <h2>جزئیات</h2>
+    <div class="meta-grid">
+      <div class="meta-item">
+        <span data-icon="user"></span>
+        <div><b>{{ challenge.owner.name if challenge.owner else '—' }}</b><span>سازنده</span></div>
+      </div>
+      <div class="meta-item">
+        <span data-icon="calendar"></span>
+        <div>
+          <b {% if challenge.created_at %}data-jalali="{{ challenge.created_at.isoformat() }}"
+            data-jalali-format="day-month-year"
+            data-jalali-tz="{{ default_timezone }}"{% endif %}>{{ challenge.created_at.isoformat() if challenge.created_at else '—' }}</b>
+          <span>تاریخ ساخت</span>
+        </div>
+      </div>
+      <div class="meta-item">
+        <span data-icon="eye"></span>
+        <div><b>{{ visibility_label }}</b><span>دسترسی</span></div>
+      </div>
+      <div class="meta-item">
+        <span data-icon="seal"></span>
+        <div><b>{{ lifecycle_label }}</b><span>وضعیت</span></div>
+      </div>
+      {% if challenge.goal_amount %}
+      <div class="meta-item">
+        <span data-icon="target"></span>
+        <div><b>{{ challenge.goal_amount | num }} {{ challenge.goal_unit or '' }}</b><span>هدف جمعی</span></div>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+
+{#- One panel, two controls: the primary button is whatever the visitor's
+    next move actually is -- join, or record today's occurrence -- and
+    leaving is demoted to the icon beside it. Someone already enrolled opens
+    this page to check in, not to quit. -#}
 <div class="sticky-cta">
-  <button class="btn-primary" id="detailCta">
-    <span data-icon="x"></span>
-    انصراف از چالش
-  </button>
+  <div class="cta-row">
+    <button class="btn-primary" id="detailCta"></button>
+    <button type="button" class="cta-side" id="leaveBtn" hidden
+      aria-label="انصراف از چالش"><span data-icon="x"></span></button>
+  </div>
 </div>
 {% endblock %}
 
@@ -387,22 +480,91 @@
 
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
 <script>
-  const cta = document.getElementById("detailCta");
   const challengeId = {{ challenge.id }};
+  const goalUnit = {{ (challenge.goal_unit or "") | tojson }};
   let enrolled = {{ 'true' if is_enrolled else 'false' }};
+  // The one occurrence the CTA can record right now, or null. Derived by the
+  // server on every load from the same backfill-window rule the API enforces
+  // -- never advanced client-side.
+  let todayKey = {{ (today_key or none) | tojson }};
   let busy = false;
 
-  function renderCta() {
-    cta.innerHTML = enrolled
-      ? `${icons.x} انصراف از چالش`
-      : `${icons.check} ثبت‌نام در چالش`;
-    cta.style.background = enrolled ? "rgba(193,67,67,0.16)" : "";
-    cta.style.color = enrolled ? "#ff9d9d" : "";
-    cta.style.boxShadow = enrolled ? "none" : "";
-    cta.style.border = enrolled ? "1px solid rgba(255,120,120,0.3)" : "none";
+  // ---- tabs --------------------------------------------------------------
+  const tabs = Array.from(document.querySelectorAll(".dtab"));
+  const tabBar = document.querySelector(".detail-tabs");
+
+  function selectTab(name, { focus = false, remember = true } = {}) {
+    const target = tabs.find((t) => t.dataset.panel === name);
+    if (!target) return false;
+    tabs.forEach((t) => {
+      const on = t === target;
+      t.setAttribute("aria-selected", on ? "true" : "false");
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById("panel-" + t.dataset.panel).hidden = !on;
+    });
+    if (focus) target.focus();
+    // replaceState rather than assigning location.hash: switching panel is
+    // not a navigation and must not stack up history entries -- but the hash
+    // still has to survive the reload a check-in triggers, and make a shared
+    // link land on the panel it was shared from.
+    if (remember) history.replaceState(null, "", "#" + name);
+    return true;
   }
 
-  cta.addEventListener("click", async () => {
+  tabs.forEach((t) => t.addEventListener("click", () => selectTab(t.dataset.panel)));
+
+  tabBar.addEventListener("keydown", (e) => {
+    const i = tabs.indexOf(document.activeElement);
+    if (i < 0) return;
+    // RTL: the tabs run right-to-left, so ArrowLeft is "next".
+    let next = null;
+    if (e.key === "ArrowLeft") next = (i + 1) % tabs.length;
+    else if (e.key === "ArrowRight") next = (i - 1 + tabs.length) % tabs.length;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = tabs.length - 1;
+    if (next === null) return;
+    e.preventDefault();
+    selectTab(tabs[next].dataset.panel, { focus: true });
+  });
+
+  selectTab(decodeURIComponent(location.hash.slice(1)), { remember: false }) ||
+    selectTab(tabs[0].dataset.panel, { remember: false });
+
+  // The tab bar sticks below the topbar, which is sticky itself and whose
+  // height depends on how the challenge title wraps -- so it is measured,
+  // not guessed, and re-measured whenever the header reflows.
+  const topbar = document.querySelector(".topbar");
+  if (topbar) {
+    const syncTabOffset = () =>
+      tabBar.style.setProperty("--topbar-h", topbar.offsetHeight + "px");
+    syncTabOffset();
+    // renderIcons() and the nav trail both land after this script runs and
+    // both change the header's height, so one measurement at parse time is
+    // not enough.
+    window.addEventListener("load", syncTabOffset);
+    if ("ResizeObserver" in window) {
+      new ResizeObserver(syncTabOffset).observe(topbar, { box: "border-box" });
+    } else {
+      window.addEventListener("resize", syncTabOffset);
+    }
+  }
+
+  // ---- the sticky CTA ----------------------------------------------------
+  const cta = document.getElementById("detailCta");
+  const leaveBtn = document.getElementById("leaveBtn");
+
+  function renderCta() {
+    const checkingIn = Boolean(enrolled && todayKey);
+    // Leaving is the primary action only when there is nothing to record --
+    // otherwise it steps aside into the icon button.
+    cta.classList.toggle("is-leave", enrolled && !checkingIn);
+    leaveBtn.hidden = !checkingIn;
+    if (!enrolled) cta.innerHTML = `${icons.check} ثبت‌نام در چالش`;
+    else if (checkingIn) cta.innerHTML = `${icons.check} ثبت نوبت امروز`;
+    else cta.innerHTML = `${icons.x} انصراف از چالش`;
+  }
+
+  async function toggleEnrollment() {
     if (busy) return;
     const msg = enrolled ? "از این چالش انصراف می‌دی؟" : "می‌خوای در این چالش ثبت‌نام کنی؟";
     if (!confirm(msg)) return;
@@ -426,25 +588,45 @@
         return;
       }
       enrolled = !enrolled;
-      renderCta();
-      const countEl = document.getElementById("participantCount");
-      if (countEl) {
-        countEl.textContent = Math.max(0, Number(countEl.textContent) + (enrolled ? 1 : -1));
-      }
+      // Joining creates the whole personal panel (and today's occurrence);
+      // leaving takes it away. Neither is patchable in place, so the server
+      // rebuilds the page -- landing on the panel that now makes sense.
+      window.location.hash = enrolled ? "#me" : "#plan";
+      window.location.reload();
     } catch (e) {
       alert("خطای شبکه: " + e.message);
     } finally {
       busy = false;
     }
+  }
+
+  cta.addEventListener("click", () => {
+    if (busy) return;
+    if (enrolled && todayKey) {
+      openCheckinSheet(todayKey, "ثبت نوبت امروز");
+      return;
+    }
+    toggleEnrollment();
   });
+  leaveBtn.addEventListener("click", toggleEnrollment);
 
   renderCta();
 
-  const goalUnit = {{ (challenge.goal_unit or "")| tojson }};
+  // ---- check-ins ---------------------------------------------------------
+  // Every mutation below ends in a reload rather than a DOM patch. One
+  // check-in moves the ring, the legend, both streak tiles, the recent-run
+  // strip, the week counter and the CTA at once -- hand-patching six derived
+  // figures is how they drift apart. The occurrence stays inside its backfill
+  // window, so the reloaded page renders it as editable and a mis-tap is
+  // still one tap from being undone; the panel hash survives the reload.
+  function reloadPage() {
+    window.location.reload();
+  }
 
-  // Shared by the occurrence timeline and the quota period rows -- both
-  // post to the same /checkins/ endpoint with a different occurrence_key.
-  function openCheckinSheet(occurrenceKey, dateLabel, onDone) {
+  // Shared by the sticky CTA, the occurrence timeline and the quota period
+  // rows -- all three post to the same /checkins/ endpoint with a different
+  // occurrence_key.
+  function openCheckinSheet(occurrenceKey, dateLabel) {
     const fields = [];
     if (goalUnit) {
       fields.push({
@@ -473,11 +655,7 @@
         showToast("خطا: " + (data && data.detail ? data.detail : "ثبت انجام نشد"));
         return false;
       }
-
-      showToast(state === "completed" ? "ثبت شد" : "رد شد");
-      // `data` carries the created row, so callers can leave the occurrence
-      // immediately editable rather than requiring a reload to undo a mistake.
-      onDone(state, data, values);
+      reloadPage();
       return true;
     }
 
@@ -541,8 +719,7 @@
             showToast("خطا: " + (data && data.detail ? data.detail : "حذف انجام نشد"));
             return false;
           }
-          showToast("حذف شد");
-          window.location.reload();
+          reloadPage();
           return true;
         },
       },
@@ -557,13 +734,7 @@
           showToast("خطا: " + (data && data.detail ? data.detail : "ذخیره نشد"));
           return false;
         }
-        row.classList.remove("completed", "skipped");
-        row.classList.add(values.state);
-        row.querySelector(".tl-meta").textContent = stateLabels[values.state];
-        btn.dataset.state = values.state;
-        btn.dataset.note = values.note || "";
-        if (goalUnit) btn.dataset.amount = values.amount || "";
-        showToast("ذخیره شد");
+        reloadPage();
         return true;
       },
     });
@@ -581,37 +752,7 @@
       }
       const btn = e.target.closest(".tl-action");
       if (btn) {
-        openCheckinSheet(
-          btn.dataset.key,
-          row.querySelector(".tl-date").textContent.trim(),
-          (state, created, values) => {
-            row.classList.remove("pending", "missed");
-            row.classList.add(state === "completed" ? "completed" : "skipped");
-            row.querySelector(".tl-meta").textContent =
-              state === "completed" ? "تکمیل‌شده" : "رد شده";
-            // Becomes the edit affordance rather than disappearing -- the
-            // occurrence is still inside its backfill window, so undoing a
-            // mis-tap shouldn't need a page reload.
-            if (created && created.id) {
-              btn.classList.add("tl-edit");
-              btn.textContent = "ویرایش";
-              btn.dataset.checkinId = created.id;
-              btn.dataset.state = state;
-              btn.dataset.note = (values && values.note) || "";
-              btn.dataset.amount = (values && values.amount) || "";
-              // renderDates already wrote the "ثبت …" aria-label from
-              // data-jalali-prefix; relabel it to match the new action.
-              btn.dataset.jalaliPrefix = "ویرایش ";
-              btn.setAttribute(
-                "aria-label",
-                "ویرایش " + row.querySelector(".tl-date").textContent.trim()
-              );
-              delete btn.dataset.key;
-            } else {
-              btn.remove();
-            }
-          }
-        );
+        openCheckinSheet(btn.dataset.key, row.querySelector(".tl-date").textContent.trim());
         return;
       }
       // Recorded / expired rows explain themselves rather than sitting inert.
@@ -626,24 +767,15 @@
       const btn = e.target.closest(".quota-submit");
       if (!btn) return;
       const row = btn.closest(".quota-row");
-      openCheckinSheet(btn.dataset.key, row.querySelector(".quota-row-label").textContent.trim(), () => {
-        const countEl = row.querySelector(".quota-row-count");
-        const [done, target] = countEl.textContent.split(" از ").map(Number);
-        const newDone = Math.min(done + 1, target);
-        countEl.textContent = `${newDone} از ${target}`;
-        const pips = row.querySelectorAll(".quota-pip");
-        if (pips[newDone - 1]) pips[newDone - 1].classList.add("done");
-        row.querySelector(".quota-pips").setAttribute(
-          "aria-label", `${newDone} از ${target} نوبت انجام شده`);
-        if (newDone >= target) btn.remove();
-      });
+      openCheckinSheet(btn.dataset.key, row.querySelector(".quota-row-label").textContent.trim());
     });
   }
 
-  // Owner management. The API is the authority on what may change -- cadence
-  // and goal are locked once others enrol, and hard delete is refused then
-  // too -- so this sheet deliberately offers only the always-editable fields
-  // and hides delete when the server would answer 409 anyway.
+  // ---- owner management --------------------------------------------------
+  // The API is the authority on what may change -- cadence and goal are
+  // locked once others enrol, and hard delete is refused then too -- so this
+  // sheet deliberately offers only the always-editable fields and hides
+  // delete when the server would answer 409 anyway.
   const manageBtn = document.getElementById("manageBtn");
   if (manageBtn) {
     const challengeData = {{ {

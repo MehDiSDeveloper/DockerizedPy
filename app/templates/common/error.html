@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>چالش | خطا</title>
 <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
+{#- Theme applied before first paint -- same guard as layout.html. This
+    page is a standalone document (no template inheritance in this app), so
+    it carries its own copy rather than inheriting one. -#}
+<script>
+  try {
+    var t = localStorage.getItem("chalesh-theme");
+    if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+  } catch (e) { /* private mode: fall back to the device preference */ }
+</script>
 </head>
 <body>
 <div class="app-bg"></div>

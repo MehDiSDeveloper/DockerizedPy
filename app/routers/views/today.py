@@ -10,6 +10,7 @@ from app.config import BASE_DIR
 from app.database import get_db
 from app.icons import register_icon_filters
 from app.models.user import User
+from app.routers.challenge import DEFAULT_TIMEZONE
 from app.routers.today import get_today_items
 
 router = APIRouter(prefix="/views/today", tags=["today-views"])
@@ -43,16 +44,20 @@ async def today_page(
     db: AsyncSession = Depends(get_db),
 ):
     current_user_id = db_user.id
-    items = await get_today_items(
-        db, user_id=current_user_id, now_utc=datetime.now(UTC)
-    )
+    now_utc = datetime.now(UTC)
+    items = await get_today_items(db, user_id=current_user_id, now_utc=now_utc)
     page = items[:DEFAULT_PAGE_SIZE]
     has_more = len(items) > DEFAULT_PAGE_SIZE
+    # The hero's date line. Each *card* still judges its own deadline in its
+    # enrollment's zone; this is a challenge-level "what day is it" label, so
+    # it takes the app default the same way due_date/created_at do.
+    local_today = now_utc.astimezone(ZoneInfo(DEFAULT_TIMEZONE)).date().isoformat()
 
     return templates.TemplateResponse(
         "today/index.html",
         {
             "title": "امروز",
+            "local_today": local_today,
             "request": request,
             "user": db_user,
             "items": page,

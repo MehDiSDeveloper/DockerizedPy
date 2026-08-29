@@ -51,6 +51,7 @@ const icons = {
   cadenceSchedule: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2h5.5"/><path d="M8 2.5v4M16 2.5v4M3 9.5h17"/><circle cx="17.5" cy="17.5" r="4.5"/><path d="M17.5 15.6v2l1.4 1.2"/></svg>`,
   cadenceDays: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.5l3.2 3.2L17 8.9"/><path d="M3.8 11.7V9.7a4 4 0 014-4h12.4"/><path d="M7 21.5l-3.2-3.2L7 15.1"/><path d="M20.2 12.3v2a4 4 0 01-4 4H3.8"/></svg>`,
   cadenceQuota: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 18.5a8.5 8.5 0 1117 0"/><path d="M12 18.5l4.4-4.9"/><path d="M3.6 15.6l1.9.6M20.4 15.6l-1.9.6M12 10v2"/></svg>`,
+  theme: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 000 18z" fill="currentColor" stroke="none"/></svg>`,
   info: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 8h.01"/></svg>`,
 };
 
@@ -310,26 +311,29 @@ function previousPage(trail = readTrail()) {
 }
 window.previousPage = previousPage;
 
+// The trail lives in the topbar and doubles as the page's title, so it is
+// always rendered: the last entry is this page's name at title weight, and
+// the entries before it -- if any -- sit above it as a small path back. A
+// single entry is just "you are here", which is exactly what a header on a
+// root page should say, so it renders the title line alone rather than
+// hiding. The server already wrote that title line into the element, so this
+// only ever *upgrades* the header; it never has to build it from nothing.
 function renderBreadcrumbs(nav, trail) {
-  // A single entry is just "you are here" -- no navigation on offer.
-  if (trail.length < 2) {
-    nav.hidden = true;
-    nav.innerHTML = "";
-    return;
-  }
-  nav.innerHTML = trail
-    .map((entry, i) => {
-      const last = i === trail.length - 1;
-      const label = escapeHtml(entry.label);
-      const crumb = last
-        ? `<span class="crumb current" aria-current="page">${label}</span>`
-        : `<a class="crumb" href="${escapeHtml(entry.path)}">${label}</a>`;
+  if (!trail.length) return;
+  const current = trail[trail.length - 1];
+  const ancestors = trail.slice(0, -1);
+  const path = ancestors
+    .map((entry) => {
+      const crumb = `<a class="crumb" href="${escapeHtml(entry.path)}">${escapeHtml(entry.label)}</a>`;
       // The separator points along the reading direction, which is leftwards
-      // in RTL -- hence chevronLeft, not chevronRight.
-      const sep = last ? "" : `<span class="crumb-sep" aria-hidden="true" data-icon="chevronLeft"></span>`;
-      return crumb + sep;
+      // in RTL -- hence chevronLeft, not chevronRight. Every ancestor carries
+      // one, including the last: it points down into the title beneath it.
+      return crumb + `<span class="crumb-sep" aria-hidden="true" data-icon="chevronLeft"></span>`;
     })
     .join("");
+  nav.innerHTML =
+    (path ? `<span class="crumb-path">${path}</span>` : "") +
+    `<span class="crumb current" aria-current="page">${escapeHtml(current.label)}</span>`;
   nav.hidden = false;
   renderIcons(nav);
 }
@@ -831,3 +835,68 @@ function createSheet({
   return { close };
 }
 window.createSheet = createSheet;
+
+
+// ==========================================================================
+// Theme — «شن و مریم‌گلی» (light) / «شب روشن» (dark)
+//
+// Three states, not two: "system" is the default and leaves the choice to
+// the device, so styles.css's prefers-color-scheme block decides; "light"
+// and "dark" pin it by writing [data-theme] on <html>, which the stylesheet
+// weights above the media query in both directions.
+//
+// The value is read a second time by the inline guard in the <head> of
+// layout.html / auth.html / error.html -- that copy runs before first paint,
+// this one owns writing it. Keep the storage key in sync across the four.
+// ==========================================================================
+const THEME_KEY = "chalesh-theme";
+const THEME_MODES = ["system", "light", "dark"];
+const THEME_LABELS = { system: "پیش‌فرض دستگاه", light: "روشن", dark: "تاریک" };
+
+function getTheme() {
+  try {
+    const stored = localStorage.getItem(THEME_KEY);
+    return THEME_MODES.includes(stored) ? stored : "system";
+  } catch (e) {
+    return "system";
+  }
+}
+
+function setTheme(mode) {
+  const next = THEME_MODES.includes(mode) ? mode : "system";
+  if (next === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = next;
+  try {
+    if (next === "system") localStorage.removeItem(THEME_KEY);
+    else localStorage.setItem(THEME_KEY, next);
+  } catch (e) {
+    // private mode: the theme still applies, it just won't survive the page
+  }
+  document.querySelectorAll("[data-theme-toggle]").forEach(syncThemeToggle);
+  return next;
+}
+
+function cycleTheme() {
+  return setTheme(THEME_MODES[(THEME_MODES.indexOf(getTheme()) + 1) % THEME_MODES.length]);
+}
+
+function syncThemeToggle(el) {
+  const out = el.querySelector("[data-theme-value]");
+  if (out) out.textContent = THEME_LABELS[getTheme()];
+}
+
+function initThemeToggles(root = document) {
+  root.querySelectorAll("[data-theme-toggle]").forEach(el => {
+    syncThemeToggle(el);
+    el.addEventListener("click", () => cycleTheme());
+    el.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); cycleTheme(); }
+    });
+  });
+}
+
+document.addEventListener("DOMContentLoaded", () => initThemeToggles());
+
+window.getTheme = getTheme;
+window.setTheme = setTheme;
+window.cycleTheme = cycleTheme;

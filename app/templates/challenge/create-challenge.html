@@ -14,8 +14,10 @@
 {% endblock %}
 
 {#- The wizard is a modal-ish flow with its own stepper and close button;
-    a breadcrumb trail into a half-filled form would be misleading. -#}
-{% block breadcrumb %}{% endblock %}
+    a breadcrumb trail into a half-filled form would be misleading. It still
+    names itself in the header slot the trail would have used -- a header
+    with only a close button in it reads as a dead end. -#}
+{% block breadcrumb %}<h1 class="topbar-title">{{ title }}</h1>{% endblock %}
 
 {% block bottom_nav %}{% endblock %}
 

@@ -5,7 +5,10 @@
 
   <!-- greeting -->
   <section class="hero">
-    <p class="hero-eyebrow">امروز</p>
+    {#- The topbar already says "امروز"; the eyebrow spends its line on the
+        thing the header can't tell you -- which day that actually is. -#}
+    <p class="hero-eyebrow" data-jalali="{{ local_today }}"
+       data-jalali-format="weekday-day-month">{{ local_today }}</p>
     <h1 class="hero-title">سلام <b>{{ user.name }}</b> 👋<br/>این‌ها منتظر ثبت شدنن.</h1>
   </section>
 

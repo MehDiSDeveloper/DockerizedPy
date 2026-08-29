@@ -6,6 +6,7 @@ __pycache__/
 .env.*
 !.env.example
 .vscode/
+.claude/
 *.egg-info/
 .ruff_cache/
 .pytest_cache/

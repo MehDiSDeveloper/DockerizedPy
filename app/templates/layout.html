@@ -4,8 +4,21 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>چالش | {{ title }}</title>
+    <title>{{ title }} | چالش</title>
     <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
+
+    {#- Theme, applied before first paint. The stylesheet ships the light
+        theme «شن و مریم‌گلی» on :root and the dark «شب روشن» under both
+        prefers-color-scheme and [data-theme="dark"]; this only has to carry
+        an *explicit* choice the visitor made on another page. It is inline
+        and blocking on purpose -- deferred to app.js it would repaint the
+        whole app one frame in, which is the flash it exists to avoid. -#}
+    <script>
+      try {
+        var t = localStorage.getItem("chalesh-theme");
+        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+      } catch (e) { /* private mode: fall back to the device preference */ }
+    </script>
 {% block head %}
 {% endblock %}
 </head>
@@ -15,34 +28,39 @@
 
     <div class="shell">
 
+        {#- One row, three slots: [back] [where you are] [actions]. The
+            brand mark that used to sit here was the same 38px circle on
+            every page and told the visitor nothing they did not already
+            know; the slot it left over now carries the nav trail, which
+            answers the only question a header owes them -- where am I, and
+            what is one step back. -#}
         <header class="topbar">
-            <div class="brand">
+            <div class="topbar-lead">
                 {% block topbar_leading %}{% endblock %}
-                <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#06231f" stroke-width="2.4"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M9 12l2 2 4-4" />
-                        <circle cx="12" cy="12" r="9" />
-                    </svg></div>
-                <div class="brand-name">چالش<span>.</span></div>
+
+                {#- Trail of the pages the visitor actually walked through,
+                    kept in sessionStorage and rendered by initNavTrail() in
+                    app.js. A page marked data-crumb-root is a bottom-nav
+                    destination and clears the trail; anything reached *from*
+                    one appends to it. The last crumb is this page and doubles
+                    as its title, so the element is server-rendered with that
+                    label already in it -- the header must never be empty
+                    before (or without) JS. Pages that opt out of the trail
+                    entirely -- the create wizard -- override this block with
+                    a plain .topbar-title instead. -#}
+                {% block breadcrumb %}
+                <nav class="crumbs" aria-label="مسیر صفحه"
+                    data-crumb-trail data-crumb-label="{{ crumb_label | default(title) }}" data-crumb-root>
+                    <span class="crumb current" aria-current="page">{{ crumb_label | default(title) }}</span>
+                </nav>
+                {% endblock %}
             </div>
+
             {% block topbar_action %}
             <button class="icon-btn has-dot" aria-label="اعلان‌ها" data-icon="bell"
                 data-coming-soon="بخش اعلان‌ها به‌زودی اضافه می‌شود"></button>
             {% endblock %}
         </header>
-
-        {#- Trail of the pages the visitor actually walked through, kept in
-            sessionStorage and rendered by initBreadcrumbs() in app.js. A page
-            marked data-crumb-root is a bottom-nav destination and clears the
-            trail; anything reached *from* one appends to it. It starts hidden
-            because a one-entry trail (a fresh landing) has nothing to offer,
-            and a trail bar that appears and then empties itself would flicker
-            on every root page. Pages with nowhere to go back to -- the create
-            wizard -- override this block with nothing. -#}
-        {% block breadcrumb %}
-        <nav class="crumbs" aria-label="مسیر صفحه" hidden
-            data-crumb-trail data-crumb-label="{{ crumb_label | default(title) }}" data-crumb-root></nav>
-        {% endblock %}
 
         {% block content %}
         {% endblock %}

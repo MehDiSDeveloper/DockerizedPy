@@ -59,6 +59,11 @@ logger = logging.getLogger(__name__)
 # collapsing the rest behind a "show older" note.
 HISTORY_LIMIT = 12
 
+# How many occurrences the compact history strip above the timeline plots.
+# It is a shape, not a log -- one square per occurrence, no labels -- so it
+# can carry ~3x what the readable timeline does in a fraction of the height.
+HISTORY_STRIP_LIMIT = 30
+
 # How many past periods (weeks/months) the recurring_quota history strip
 # shows, in addition to the current period.
 QUOTA_PERIODS_BACK = 5
@@ -437,7 +442,7 @@ async def build_history_timeline(
     enrollment: Enrollment,
     cadence: CadenceUnion,
     now_utc: datetime,
-) -> tuple[list[dict], dict, bool]:
+) -> dict:
     """Occurrence-shaped history: one entry per real occurrence, newest
     first -- deliberately NOT one per calendar day. A "every Tuesday"
     challenge has ~1 occurrence a week, so a day grid renders 6/7 empty
@@ -459,26 +464,44 @@ async def build_history_timeline(
             return row.occurrence_local_date
         return occurrence_local_date(cadence, key, enrollment.timezone, now_utc)
 
-    completed = sum(
-        1 for k in keys if k in by_key and by_key[k].state == "completed"
-    )
-    this_week_start = week_start(today)
-    week_keys = [k for k in keys if date_for(k) >= this_week_start]
-    week_completed = sum(
-        1 for k in week_keys if k in by_key and by_key[k].state == "completed"
-    )
-
-    items = []
-    for key in keys[:HISTORY_LIMIT]:
-        row = by_key.get(key)
-        state = derive_state(
+    # Every key gets its derived state once, up front: the timeline shows only
+    # the most recent HISTORY_LIMIT of them, but the donut and the strip above
+    # it describe the whole enrollment, and "missed" is derived -- never
+    # stored -- so it cannot be counted off the CheckIns rows alone.
+    states = {
+        key: derive_state(
             cadence,
             start_date=enrollment.start_date,
             tz=enrollment.timezone,
             key=key,
             now_utc=now_utc,
-            row_state=row.state if row else None,
+            row_state=by_key[key].state if key in by_key else None,
         )
+        for key in keys
+    }
+    tally = {"completed": 0, "skipped": 0, "missed": 0, "pending": 0}
+    for state in states.values():
+        if state in tally:
+            tally[state] += 1
+    completed = tally["completed"]
+
+    this_week_start = week_start(today)
+    week_keys = [k for k in keys if date_for(k) >= this_week_start]
+    week_completed = sum(1 for k in week_keys if states.get(k) == "completed")
+
+    # Oldest-first so the strip reads in the direction the page does: in RTL
+    # the first square sits on the right, and "now" ends up on the left,
+    # next to the timeline's newest row.
+    strip = [
+        {"state": states[k], "date": date_for(k)}
+        for k in reversed(keys[:HISTORY_STRIP_LIMIT])
+    ]
+
+    today_key = None
+    items = []
+    for key in keys[:HISTORY_LIMIT]:
+        row = by_key.get(key)
+        state = states[key]
         local_date = date_for(key)
         # The backfill window governs recording *and* correcting an occurrence
         # -- POST, PATCH and DELETE on /checkins all check the same predicate,
@@ -509,9 +532,18 @@ async def build_history_timeline(
                 "editable": row is not None and key_writable,
             }
         )
+        # The one occurrence the sticky CTA can act on. Keys come back
+        # newest-first, so today's is the first that qualifies; `once` has no
+        # calendar day of its own but dates itself to today (see
+        # occurrence_local_date), which is what makes this cover it too.
+        if today_key is None and items[-1]["writable"] and items[-1]["is_today"]:
+            today_key = key
 
     summary = {
         "completed": completed,
+        "skipped": tally["skipped"],
+        "missed": tally["missed"],
+        "pending": tally["pending"],
         "total": len(keys),
         "unit": "نوبت",
         "pct": round(completed / len(keys) * 100) if keys else 0,
@@ -519,7 +551,13 @@ async def build_history_timeline(
         "period_total": len(week_keys),
         "period_label": "این هفته",
     }
-    return items, summary, len(keys) > HISTORY_LIMIT
+    return {
+        "items": items,
+        "summary": summary,
+        "has_more": len(keys) > HISTORY_LIMIT,
+        "strip": strip,
+        "today_key": today_key,
+    }
 
 
 async def build_quota_period_rows(
@@ -527,7 +565,7 @@ async def build_quota_period_rows(
     enrollment: Enrollment,
     cadence: RecurringQuotaCadence,
     now_utc: datetime,
-) -> tuple[list[dict], dict]:
+) -> dict:
     """One row per quota period (week/month), most recent first. Quota
     occurrences have no per-day calendar slot of their own (CLAUDE.md: D6/D9
     cadence notes), so a day grid doesn't fit them -- a period is the
@@ -581,17 +619,26 @@ async def build_quota_period_rows(
     # the timeline's "نوبت" counts). Labelled accordingly.
     met = sum(1 for r in rows if r["done"] >= r["target"])
     current = next((r for r in rows if r["is_current"]), None)
+    # The period still running hasn't failed -- it just hasn't finished. Only
+    # a closed period that fell short counts as missed.
+    open_short = 1 if current is not None and current["done"] < current["target"] else 0
     is_week = cadence.period == "week"
     summary = {
         "completed": met,
+        # A period is met or it isn't -- there is no third state to colour, so
+        # the donut's remainder is simply "not met" and the legend says so.
+        "skipped": 0,
+        "missed": len(rows) - met - open_short,
+        "pending": open_short,
         "total": len(rows),
         "unit": "هفته" if is_week else "ماه",
         "pct": round(met / len(rows) * 100) if rows else 0,
         "period_done": current["done"] if current else 0,
         "period_total": cadence.count,
         "period_label": "این هفته" if is_week else "این ماه",
+        "missed_label": "تکمیل‌نشده",
     }
-    return rows, summary
+    return {"rows": rows, "summary": summary, "today_key": next_writable_key}
 
 
 async def build_my_stats(
@@ -732,19 +779,30 @@ async def challenge_detail(
     # slot of its own); every other cadence gets the occurrence timeline.
     timeline = []
     quota_rows = []
+    history_strip = []
     history_summary = None
     has_more_history = False
     my_stats = None
+    # The occurrence the sticky CTA offers to record. An enrolled visitor's
+    # primary action on this page is checking in, not leaving -- but only when
+    # something is actually open, so the CTA falls back to "leave" otherwise.
+    today_key = None
     if my_enrollment is not None:
         my_stats = await build_my_stats(db, my_enrollment)
         if isinstance(cadence, RecurringQuotaCadence):
-            quota_rows, history_summary = await build_quota_period_rows(
+            history = await build_quota_period_rows(
                 db, my_enrollment, cadence, now_utc
             )
+            quota_rows = history["rows"]
         else:
-            timeline, history_summary, has_more_history = await build_history_timeline(
+            history = await build_history_timeline(
                 db, my_enrollment, cadence, now_utc
             )
+            timeline = history["items"]
+            has_more_history = history["has_more"]
+            history_strip = history["strip"]
+        history_summary = history["summary"]
+        today_key = history["today_key"]
 
     return templates.TemplateResponse(
         "challenge/challenge-detail.html",
@@ -777,7 +835,9 @@ async def challenge_detail(
             "timeline": timeline,
             "has_more_history": has_more_history,
             "quota_rows": quota_rows,
+            "history_strip": history_strip,
             "history_summary": history_summary,
+            "today_key": today_key,
             "goal_unit": db_challenge.goal_unit,
             "current_user_id": current_user_id,
             "active_nav": "challenges",

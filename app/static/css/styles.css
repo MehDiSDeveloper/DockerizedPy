@@ -5,43 +5,111 @@
 @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap');
 
 :root{
-  /* --- color: shab-e-kashi (night tile) palette --- */
-  --bg-0:#0b0f1f;
-  --bg-1:#121834;
-  --bg-2:#171f42;
-  --glass:rgba(255,255,255,0.055);
-  --glass-strong:rgba(255,255,255,0.09);
-  --border:rgba(255,255,255,0.10);
-  --border-strong:rgba(255,255,255,0.18);
+  /* ==========================================================================
+     THEMES — every colour in this file lives in one of the three blocks below
+     and nowhere else. This block is the light theme «شن و مریم‌گلی»
+     (sand & sage) and is the base; the two blocks after it restate the same
+     token names for the dark theme «شب روشن» (soft night), once for a device
+     that asks for dark and once for an explicit [data-theme="dark"].
+     Nothing downstream may hardcode a colour — a rule that needs a tint uses
+     rgba(var(--accent-rgb),a) rather than a second copy of the hex — so
+     re-theming is editing values here, never sweeping 1200 lines.
+     ========================================================================== */
 
-  --fayrouzeh:#22c9bd;         /* persian turquoise — primary accent */
-  --fayrouzeh-dim:#1a9b92;
-  --mohr:#c14343;              /* seal-ink red — status / signature accent only */
-  --mohr-dim:#9c3535;
-  --gold:#d4af6a;              /* soft gold — used sparingly for streak/highlight */
+  /* --- ground: page, mid stop, raised --- */
+  --bg-0:#f8f4ee;
+  --bg-1:#f0e9e0;
+  --bg-2:#ffffff;
+
+  /* --- glass: the card primitive.
+     Light and dark run the pane in opposite directions — in light it is a
+     white sheet *over* a warm ground and needs a high alpha to read as a
+     pane at all; in dark it is a faint white wash over near-black. Same
+     token, inverted mechanics, which is exactly why it is a token. --- */
+  --glass:rgba(255,255,255,0.55);
+  --glass-strong:rgba(255,255,255,0.76);
+  --border:rgba(255,255,255,0.85);
+  --border-strong:rgba(44,40,34,0.16);
+  /* the 1px lit edge along the top of every glass pane */
+  --glass-sheen:rgba(255,255,255,0.9);
+
+  /* --- neutral fills that are NOT the glass pane: inset fields, ghost
+     buttons, progress tracks, muted badges. Kept apart from --glass so a
+     field inside a card can sit *below* the card in light and *above* it in
+     dark without either theme fighting the other. --- */
+  --fill-1:rgba(255,255,255,0.5);
+  --fill-2:rgba(255,255,255,0.7);
+  --track:rgba(44,40,34,0.10);
+  --fill-mute:rgba(44,40,34,0.09);
+
+  /* --- accents. The *-rgb triplets exist so a tinted fill can be written
+     rgba(var(--accent-rgb),0.12) instead of re-hardcoding the hue. --- */
+  --fayrouzeh:#46806f;         /* مریم‌گلی sage — primary accent */
+  --fayrouzeh-dim:#35655a;
+  --accent-rgb:70,128,111;
+  --mohr:#b26a55;              /* clay — status / signature accent only */
+  --mohr-dim:#8f5241;
+  --mohr-rgb:178,106,85;
+  --gold:#b8863f;              /* burnt sand — streak / highlight, sparingly */
+  --gold-rgb:184,134,63;
+
+  /* --- foreground on a *filled* accent surface. A pastel fill needs dark
+     ink and a deep fill needs light ink, so this flips with the theme and
+     every filled control reads it instead of guessing. --- */
+  --on-accent:#ffffff;
+  --on-gold:#2b1d06;
+  --on-finished:#ffffff;
+  --danger-text:#a8503c;
 
   /* --- challenge status: شروع نشده / در حال اجرا / تمام شده ---
      One hue per derived status (see challenge_status in
      app/routers/challenge.py), shared by the card's accent stripe, its pill,
      and the matching button in the status filter, so the same colour always
-     means the same thing. Turquoise is already "live/primary" everywhere in
-     this UI, so «در حال اجرا» keeps it; «شروع نشده» takes gold (waiting, not
+     means the same thing. Sage is already "live/primary" everywhere in this
+     UI, so «در حال اجرا» keeps it; «شروع نشده» takes gold (waiting, not
      wrong -- red would read as a problem); «تمام شده» goes grey and steps
      back, because a finished challenge is context, not an invitation. */
-  --st-active:#22c9bd;
-  --st-upcoming:#d4af6a;
-  --st-finished:#8b93ad;
+  --st-active:#46806f;
+  --st-upcoming:#b8863f;
+  --st-finished:#7a7167;
 
-  --text-1:#eef1fb;
-  --text-2:#aab2cc;
-  --text-3:#6f7794;
+  --text-1:#2c2822;
+  --text-2:#6b6255;
+  --text-3:#7a7164;
+
+  /* --- translucent chrome: topbar, bottom nav, sheets, scrim. Tinted with
+     the page ground rather than plain black/white, so content blurring
+     underneath keeps the theme's temperature. --- */
+  --chrome-bg:rgba(248,244,238,0.7);
+  --chrome-bg-strong:rgba(248,244,238,0.88);
+  --sheet-bg:rgba(252,250,246,0.94);
+  --scrim:rgba(44,40,34,0.32);
+
+  /* --- ambient wash (.app-bg): two radial glows plus a tile texture. A data
+     URI cannot read a var, so the whole url() is the token and each theme
+     ships its own stroke colour. --- */
+  --amb-accent:0.14;
+  --amb-mohr:0.10;
+  --tile-opacity:.05;
+  --tile-url:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84' viewBox='0 0 84 84'%3E%3Cg fill='none' stroke='%2346806f' stroke-width='1'%3E%3Cpath d='M42 0 L84 42 L42 84 L0 42 Z'/%3E%3Ccircle cx='42' cy='42' r='18'/%3E%3C/g%3E%3C/svg%3E");
+
+  /* --- glow: the halo an accent-filled control casts on the ground. Light
+     gets a tighter, weaker halo (a glow on a bright ground reads as smudge
+     long before it reads as light); dark can afford the bloom. -lift is the
+     hover/raised variant, not a second colour. --- */
+  --glow-accent:0 0 18px rgba(var(--accent-rgb),0.28);
+  --glow-accent-lift:0 8px 26px rgba(var(--accent-rgb),0.34);
+  --glow-mohr:0 0 16px rgba(var(--mohr-rgb),0.24);
+  --glow-gold:0 0 16px rgba(var(--gold-rgb),0.26);
+  /* text-shadow twin, for a number or word rendered *in* the accent colour */
+  --glow-text:0 0 14px rgba(var(--accent-rgb),0.22);
 
   --radius-lg:22px;
   --radius-md:16px;
   --radius-sm:10px;
 
-  --shadow-soft:0 10px 30px rgba(0,0,0,0.35);
-  --shadow-lift:0 16px 40px rgba(0,0,0,0.45);
+  --shadow-soft:0 8px 24px rgba(76,66,52,0.10);
+  --shadow-lift:0 16px 36px rgba(76,66,52,0.16);
 
   --ease:cubic-bezier(.2,.7,.2,1);
 
@@ -61,6 +129,139 @@
      sticky CTA, toast, sheet, FAB) reads this instead of repeating the
      literal width. */
   --shell-max:480px;
+
+  color-scheme:light;
+}
+
+/* --------------------------------------------------------------------------
+   Dark theme «شب روشن» (soft night) — the night-tile palette the app shipped
+   with, lifted off pure black and desaturated to pastel: the ground moves
+   #0b0f1f -> #161c33 and the three accents lose their neon so they can glow
+   without vibrating. Written twice on purpose — once for a device that asks
+   for dark (guarded so an explicit light choice still wins), once for the
+   [data-theme] the toggle writes. Only the selector differs; keep the two
+   value lists in sync when adding a token.
+   -------------------------------------------------------------------------- */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg-0:#161c33;
+    --bg-1:#1d2545;
+    --bg-2:#232c52;
+
+    --glass:rgba(255,255,255,0.07);
+    --glass-strong:rgba(255,255,255,0.11);
+    --border:rgba(255,255,255,0.12);
+    --border-strong:rgba(255,255,255,0.2);
+    --glass-sheen:rgba(255,255,255,0.14);
+
+    --fill-1:rgba(255,255,255,0.05);
+    --fill-2:rgba(255,255,255,0.075);
+    --track:rgba(255,255,255,0.09);
+    --fill-mute:rgba(255,255,255,0.14);
+
+    --fayrouzeh:#7fd6cc;
+    --fayrouzeh-dim:#5cb8ae;
+    --accent-rgb:127,214,204;
+    --mohr:#e79a9a;
+    --mohr-dim:#c97878;
+    --mohr-rgb:231,154,154;
+    --gold:#e8c68d;
+    --gold-rgb:232,198,141;
+
+    --on-accent:#0a2a26;
+    --on-gold:#2b1d06;
+    --on-finished:#0e1224;
+    --danger-text:#f2a9a9;
+
+    --st-active:#7fd6cc;
+    --st-upcoming:#e8c68d;
+    --st-finished:#98a2bd;
+
+    --text-1:#eff2fb;
+    --text-2:#9aa3c2;
+    --text-3:#7d86a6;
+
+    --chrome-bg:rgba(22,28,51,0.66);
+    --chrome-bg-strong:rgba(22,28,51,0.86);
+    --sheet-bg:rgba(35,44,82,0.94);
+    --scrim:rgba(8,11,24,0.6);
+
+    --amb-accent:0.20;
+    --amb-mohr:0.12;
+    --tile-opacity:.06;
+    --tile-url:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84' viewBox='0 0 84 84'%3E%3Cg fill='none' stroke='%237fd6cc' stroke-width='1'%3E%3Cpath d='M42 0 L84 42 L42 84 L0 42 Z'/%3E%3Ccircle cx='42' cy='42' r='18'/%3E%3C/g%3E%3C/svg%3E");
+
+    --glow-accent:0 0 26px rgba(var(--accent-rgb),0.40);
+    --glow-accent-lift:0 10px 30px rgba(var(--accent-rgb),0.42);
+    --glow-mohr:0 0 22px rgba(var(--mohr-rgb),0.34);
+    --glow-gold:0 0 22px rgba(var(--gold-rgb),0.34);
+    --glow-text:0 0 18px rgba(var(--accent-rgb),0.38);
+
+    --shadow-soft:0 10px 30px rgba(0,0,0,0.35);
+    --shadow-lift:0 16px 40px rgba(0,0,0,0.45);
+
+    color-scheme:dark;
+  }
+}
+
+:root[data-theme="dark"]{
+  --bg-0:#161c33;
+  --bg-1:#1d2545;
+  --bg-2:#232c52;
+
+  --glass:rgba(255,255,255,0.07);
+  --glass-strong:rgba(255,255,255,0.11);
+  --border:rgba(255,255,255,0.12);
+  --border-strong:rgba(255,255,255,0.2);
+  --glass-sheen:rgba(255,255,255,0.14);
+
+  --fill-1:rgba(255,255,255,0.05);
+  --fill-2:rgba(255,255,255,0.075);
+  --track:rgba(255,255,255,0.09);
+  --fill-mute:rgba(255,255,255,0.14);
+
+  --fayrouzeh:#7fd6cc;
+  --fayrouzeh-dim:#5cb8ae;
+  --accent-rgb:127,214,204;
+  --mohr:#e79a9a;
+  --mohr-dim:#c97878;
+  --mohr-rgb:231,154,154;
+  --gold:#e8c68d;
+  --gold-rgb:232,198,141;
+
+  --on-accent:#0a2a26;
+  --on-gold:#2b1d06;
+  --on-finished:#0e1224;
+  --danger-text:#f2a9a9;
+
+  --st-active:#7fd6cc;
+  --st-upcoming:#e8c68d;
+  --st-finished:#98a2bd;
+
+  --text-1:#eff2fb;
+  --text-2:#9aa3c2;
+  --text-3:#7d86a6;
+
+  --chrome-bg:rgba(22,28,51,0.66);
+  --chrome-bg-strong:rgba(22,28,51,0.86);
+  --sheet-bg:rgba(35,44,82,0.94);
+  --scrim:rgba(8,11,24,0.6);
+
+  --amb-accent:0.20;
+  --amb-mohr:0.12;
+  --tile-opacity:.06;
+  --tile-url:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84' viewBox='0 0 84 84'%3E%3Cg fill='none' stroke='%237fd6cc' stroke-width='1'%3E%3Cpath d='M42 0 L84 42 L42 84 L0 42 Z'/%3E%3Ccircle cx='42' cy='42' r='18'/%3E%3C/g%3E%3C/svg%3E");
+
+  --glow-accent:0 0 26px rgba(var(--accent-rgb),0.40);
+  --glow-accent-lift:0 10px 30px rgba(var(--accent-rgb),0.42);
+  --glow-mohr:0 0 22px rgba(var(--mohr-rgb),0.34);
+  --glow-gold:0 0 22px rgba(var(--gold-rgb),0.34);
+  --glow-text:0 0 18px rgba(var(--accent-rgb),0.38);
+
+  --shadow-soft:0 10px 30px rgba(0,0,0,0.35);
+  --shadow-lift:0 16px 40px rgba(0,0,0,0.45);
+
+  color-scheme:dark;
 }
 
 *{box-sizing:border-box;}
@@ -75,19 +276,22 @@ body{
   -webkit-font-smoothing:antialiased;
 }
 
-/* ambient background: faint radial glow + geometric tile texture */
+/* ambient background: two coloured glows + geometric tile texture. The glow
+   alphas and the tile's stroke are theme tokens -- on the light ground the
+   wash has to be *stronger* than on the dark one to be visible at all, which
+   is why --amb-* is a token rather than a fixed 0.16. */
 .app-bg{
   position:fixed; inset:0; z-index:-1; overflow:hidden;
   background:
-    radial-gradient(60% 40% at 80% -10%, rgba(34,201,189,0.16), transparent 60%),
-    radial-gradient(50% 35% at 10% 110%, rgba(193,67,67,0.10), transparent 60%),
+    radial-gradient(60% 40% at 80% -10%, rgba(var(--accent-rgb),var(--amb-accent)), transparent 60%),
+    radial-gradient(50% 35% at 10% 110%, rgba(var(--mohr-rgb),var(--amb-mohr)), transparent 60%),
     linear-gradient(180deg, var(--bg-0), var(--bg-1) 60%, var(--bg-0));
 }
 .app-bg::before{
   content:"";
   position:absolute; inset:0;
-  opacity:.05;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84' viewBox='0 0 84 84'%3E%3Cg fill='none' stroke='%2322c9bd' stroke-width='1'%3E%3Cpath d='M42 0 L84 42 L42 84 L0 42 Z'/%3E%3Ccircle cx='42' cy='42' r='18'/%3E%3C/g%3E%3C/svg%3E");
+  opacity:var(--tile-opacity);
+  background-image:var(--tile-url);
   background-size:84px 84px;
 }
 
@@ -107,34 +311,52 @@ ul{list-style:none; margin:0; padding:0;}
    nav already carries the device inset, so this adds the gap on top of it */
 .shell:has(.bottom-nav){padding-bottom:calc(var(--nav-h) + var(--page-end-gap));}
 
-/* --- glass card primitive --- */
+/* --- glass card primitive ---
+   The inset hairline is what makes the pane read as glass rather than as a
+   flat translucent rectangle: it is the light catching the top edge, so it
+   sits *inside* the border and is a theme token (a bright sheen on a light
+   ground would be invisible, on a dark one it is the whole effect). */
 .glass{
   background:var(--glass);
   border:1px solid var(--border);
   border-radius:var(--radius-lg);
-  backdrop-filter:blur(18px);
-  -webkit-backdrop-filter:blur(18px);
-  box-shadow:var(--shadow-soft);
+  backdrop-filter:blur(20px) saturate(140%);
+  -webkit-backdrop-filter:blur(20px) saturate(140%);
+  box-shadow:var(--shadow-soft), inset 0 1px 0 var(--glass-sheen);
 }
 
-/* --- top bar --- */
+/* --- top bar ---
+   [back] [where you are] [actions], and nothing else. It sticks to the top so
+   the back control and the page actions stay reachable down a long list
+   instead of scrolling away, and it is translucent for the same reason the
+   nav is: content passing under it should still read as content. The brand
+   mark it used to open with is gone -- an app the visitor is already inside
+   does not need to introduce itself once per page. The logo still exists on
+   the one screen where it earns its place: auth.html. */
 .topbar{
-  display:flex; align-items:center; justify-content:space-between;
-  padding:20px 20px 8px;
+  position:sticky; top:0; z-index:25;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:14px 20px 12px;
+  background:var(--chrome-bg);
+  backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+  border-bottom:1px solid var(--border);
 }
-.brand{display:flex; align-items:center; gap:10px;}
+/* min-width:0 is what lets the title inside actually shrink and ellipsize --
+   without it a flex item refuses to go below its min-content width and a long
+   challenge name pushes the actions off the edge. */
+.topbar-lead{display:flex; align-items:center; gap:10px; flex:1; min-width:0;}
 /* The topbar is space-between, so multiple trailing actions have to be one
    flex child or they get pushed to opposite ends of the header. */
-.topbar-actions{display:flex; align-items:center; gap:6px;}
+.topbar-actions{display:flex; align-items:center; gap:6px; flex-shrink:0;}
 .brand-mark{
   width:38px; height:38px; border-radius:50%;
   display:grid; place-items:center;
   background:radial-gradient(circle at 35% 30%, var(--fayrouzeh), var(--fayrouzeh-dim));
-  box-shadow:0 4px 14px rgba(34,201,189,0.35);
+  box-shadow:var(--glow-accent-lift);
 }
-.brand-mark svg{width:20px; height:20px;}
-.brand-name{font-weight:800; font-size:17px; letter-spacing:.2px;}
-.brand-name span{color:var(--fayrouzeh);}
+/* the mark's glyph is stroke="currentColor" in auth.html so it can flip with
+   the theme -- a presentation attribute cannot read a custom property */
+.brand-mark svg{width:20px; height:20px; color:var(--on-accent);}
 
 .icon-btn{
   position:relative;
@@ -157,7 +379,7 @@ ul{list-style:none; margin:0; padding:0;}
 .hero{padding:6px 20px 18px;}
 .hero-eyebrow{font-size:13px; color:var(--text-3); margin:0 0 4px;}
 .hero-title{font-size:22px; font-weight:800; margin:0; line-height:1.5;}
-.hero-title b{color:var(--fayrouzeh); font-weight:800;}
+.hero-title b{color:var(--fayrouzeh); font-weight:800; text-shadow:var(--glow-text);}
 
 /* --- stats row --- */
 .stats{
@@ -169,9 +391,9 @@ ul{list-style:none; margin:0; padding:0;}
 }
 .stat-num{font-size:20px; font-weight:800; display:block;}
 .stat-label{font-size:11.5px; color:var(--text-3); margin-top:3px; display:block;}
-.stat-card.accent .stat-num{color:var(--fayrouzeh);}
-.stat-card.mohr .stat-num{color:var(--mohr);}
-.stat-card.gold .stat-num{color:var(--gold);}
+.stat-card.accent .stat-num{color:var(--fayrouzeh); text-shadow:var(--glow-text);}
+.stat-card.mohr .stat-num{color:var(--mohr); text-shadow:var(--glow-mohr);}
+.stat-card.gold .stat-num{color:var(--gold); text-shadow:var(--glow-gold);}
 
 /* --- section header --- */
 .section-head{
@@ -184,7 +406,7 @@ ul{list-style:none; margin:0; padding:0;}
   padding:6px 14px; border-radius:999px; font-size:12.5px; color:var(--text-2);
   cursor:pointer; border:none; background:transparent; transition:all .18s var(--ease);
 }
-.tab.active{background:var(--fayrouzeh); color:#06231f; font-weight:700;}
+.tab.active{background:var(--fayrouzeh); color:var(--on-accent); font-weight:700; box-shadow:var(--glow-accent);}
 
 /* --- challenge card --- */
 .challenge-list{display:flex; flex-direction:column; gap:12px; padding:0 20px;}
@@ -200,7 +422,7 @@ ul{list-style:none; margin:0; padding:0;}
 .cc-top{display:flex; align-items:flex-start; justify-content:space-between; gap:10px;}
 .cc-tag{
   font-size:11px; font-weight:700; color:var(--fayrouzeh);
-  background:rgba(34,201,189,0.12); border:1px solid rgba(34,201,189,0.28);
+  background:rgba(var(--accent-rgb),0.12); border:1px solid rgba(var(--accent-rgb),0.28);
   padding:3px 10px; border-radius:999px;
 }
 .cc-title{font-size:15.5px; font-weight:700; margin:10px 0 4px; line-height:1.6;}
@@ -230,12 +452,13 @@ ul{list-style:none; margin:0; padding:0;}
 .cc-remaining.is-passed{color:var(--mohr); font-weight:600;}
 
 .cc-progress{
-  height:6px; border-radius:999px; background:rgba(255,255,255,0.08);
+  height:6px; border-radius:999px; background:var(--track);
   overflow:hidden; margin-top:12px;
 }
 .cc-progress > i{
   display:block; height:100%; border-radius:999px;
   background:linear-gradient(90deg, var(--fayrouzeh-dim), var(--fayrouzeh));
+  box-shadow:var(--glow-accent);
 }
 
 .cc-actions{display:flex; gap:8px; margin-top:14px; position:relative; z-index:2;}
@@ -247,8 +470,8 @@ ul{list-style:none; margin:0; padding:0;}
   transition:background .15s var(--ease), border-color .15s var(--ease);
 }
 .cc-btn svg{width:14px; height:14px;}
-.cc-btn.danger{color:#ff9d9d; border-color:rgba(255,120,120,0.25);}
-.cc-btn.danger:hover{background:rgba(193,67,67,0.14);}
+.cc-btn.danger{color:var(--danger-text); border-color:rgba(var(--mohr-rgb),0.38);}
+.cc-btn.danger:hover{background:rgba(var(--mohr-rgb),0.14);}
 .cc-btn.ghost:hover{background:var(--glass-strong);}
 
 /* --- مهر seal — signature element for completed challenges --- */
@@ -258,19 +481,19 @@ ul{list-style:none; margin:0; padding:0;}
   display:grid; place-items:center;
   transform:rotate(-14deg);
   border:2px solid var(--mohr);
-  box-shadow:0 0 0 3px rgba(193,67,67,0.12), inset 0 0 0 3px rgba(193,67,67,0.08);
+  box-shadow:0 0 0 3px rgba(var(--mohr-rgb),0.12), inset 0 0 0 3px rgba(var(--mohr-rgb),0.08), var(--glow-mohr);
   opacity:.92;
   pointer-events:none;
 }
 .seal::before{
   content:""; position:absolute; inset:5px; border-radius:50%;
-  border:1px dashed rgba(193,67,67,0.55);
+  border:1px dashed rgba(var(--mohr-rgb),0.55);
 }
 .seal span{
   font-size:9.5px; font-weight:800; color:var(--mohr); letter-spacing:.5px;
   text-align:center; line-height:1.25;
 }
-.challenge-card.completed{border-color:rgba(193,67,67,0.25);}
+.challenge-card.completed{border-color:rgba(var(--mohr-rgb),0.25);}
 .challenge-card.completed .cc-title{padding-inline-end:60px;}
 
 /* --- empty state --- */
@@ -290,8 +513,8 @@ ul{list-style:none; margin:0; padding:0;}
   width:56px; height:56px; border-radius:50%;
   display:grid; place-items:center; cursor:pointer;
   background:linear-gradient(145deg, var(--fayrouzeh), var(--fayrouzeh-dim));
-  box-shadow:0 10px 26px rgba(34,201,189,0.4);
-  border:none; color:#06231f;
+  box-shadow:var(--glow-accent-lift), var(--shadow-lift);
+  border:none; color:var(--on-accent);
   transition:transform .18s var(--ease), box-shadow .18s var(--ease);
   z-index:40;
 }
@@ -305,7 +528,7 @@ ul{list-style:none; margin:0; padding:0;}
   width:100%; max-width:var(--shell-max);
   display:flex; justify-content:space-around; align-items:center;
   padding:10px 12px calc(10px + env(safe-area-inset-bottom));
-  background:rgba(11,15,31,0.75);
+  background:var(--chrome-bg);
   border-top:1px solid var(--border);
   backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
   z-index:30;
@@ -317,9 +540,50 @@ ul{list-style:none; margin:0; padding:0;}
 }
 .nav-item svg{width:21px; height:21px;}
 .nav-item.active{color:var(--fayrouzeh);}
+/* the icon is an SVG stroke, so its halo is a drop-shadow filter rather
+   than the text-shadow the accent *words* use */
+.nav-item.active svg{filter:drop-shadow(0 0 7px rgba(var(--accent-rgb),0.55));}
 
 @media (min-width:481px){
   .shell{border-inline:1px solid var(--border); min-height:100dvh;}
+}
+
+/* --- >=900px: the same tab bar, moved to the top ---
+   Under this width the app is a phone and the four tabs stay pinned to the
+   bottom, inside thumb reach. On a pointer-driven screen that argument is
+   gone and a bar welded to the bottom of a tall window reads as leftover
+   chrome, so the nav flips to the top of the shell and the page header parks
+   just below it. Same markup, same active state -- only geometry changes.
+   --nav-h drops to 0 because nothing has to clear the bottom of the viewport
+   any more, and everything that offsets itself from the nav (shell padding,
+   the FAB, the toast, the sticky CTA, challenge-detail's own override) reads
+   that one token instead of repeating a number. */
+@media (min-width:900px){
+  :root{
+    --nav-h:0px;
+    /* the nav is *given* this height rather than growing to fit, so the
+       token and the rendered bar cannot drift apart -- the sticky topbar
+       parks at exactly this offset and would slide under a taller bar. */
+    --nav-top-h:52px;
+  }
+  .shell:has(.bottom-nav){padding-top:var(--nav-top-h);}
+  .bottom-nav{
+    top:0; bottom:auto;
+    height:var(--nav-top-h);
+    justify-content:center; gap:4px;
+    padding:0 12px;
+    border-top:none; border-bottom:1px solid var(--border);
+  }
+  .nav-item{
+    flex-direction:row; gap:7px; line-height:1;
+    font-size:12.5px; padding:8px 14px; border-radius:999px;
+    transition:color .15s var(--ease), background .15s var(--ease);
+  }
+  .nav-item svg{width:18px; height:18px;}
+  .nav-item:hover{color:var(--text-1); background:var(--glass);}
+  .nav-item.active{background:rgba(var(--accent-rgb),0.12);}
+  /* the sticky header parks under the nav instead of colliding with it */
+  .topbar{top:var(--nav-top-h);}
 }
 
 /* ==========================================================================
@@ -342,33 +606,42 @@ ul{list-style:none; margin:0; padding:0;}
    matching where {% block topbar_leading %} puts it on every other page. */
 .floating-back{position:fixed; inset-block-start:18px; inset-inline-start:18px; z-index:20;}
 
-/* --- breadcrumb trail ---
+/* --- breadcrumb trail (lives inside the topbar) ---
    Rendered by initNavTrail() in app.js from the pages actually visited, so it
-   can be any length up to TRAIL_MAX. It scrolls horizontally rather than
-   wrapping: a second line would shift the whole page down on the narrow
-   screens this app is built for. The current page is the *last* crumb, which
-   in RTL sits at the left end. */
-/* display:flex would beat the UA's [hidden]{display:none}; a one-entry trail
-   ships hidden and must take no space. */
+   can be any length up to TRAIL_MAX. It stacks into two lines rather than
+   running as one: the steps *behind* the visitor are a small dim path on top,
+   and the last crumb -- this page -- is the header's title underneath, at
+   title weight. One element therefore answers both "what is this page" and
+   "what is behind it", which is why the brand name it replaced is not missed.
+   A root page has no ancestors and renders the title line alone. Long titles
+   ellipsize and the path line scrolls rather than wrapping, because a third
+   line would push the content down on every page. */
+.crumbs{display:flex; flex-direction:column; gap:1px; min-width:0;}
+/* display:flex would beat the UA's [hidden]{display:none}. */
 .crumbs[hidden]{display:none;}
-.crumbs{
-  display:flex; align-items:center; gap:6px;
-  padding:2px 20px 10px; overflow-x:auto; white-space:nowrap;
-  scrollbar-width:none;
-  font-size:12px; color:var(--text-3);
+.crumb-path{
+  display:flex; align-items:center; gap:5px;
+  overflow-x:auto; white-space:nowrap; scrollbar-width:none;
+  font-size:11.5px; color:var(--text-3); line-height:1.5;
 }
-.crumbs::-webkit-scrollbar{display:none;}
+.crumb-path::-webkit-scrollbar{display:none;}
 .crumb{flex-shrink:0; color:var(--text-3); text-decoration:none; transition:color .15s var(--ease);}
 a.crumb:hover{color:var(--fayrouzeh);}
 a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; border-radius:4px;}
-.crumb.current{
-  color:var(--text-1); font-weight:700;
-  /* A challenge title can be 50 characters; it must not push the trail's
-     earlier (clickable) crumbs off-screen. */
-  max-width:18ch; overflow:hidden; text-overflow:ellipsis;
+/* The current crumb and the create wizard's static heading are the same
+   object -- the page's own name, in the header -- so they share one rule and
+   cannot drift apart. */
+.crumb.current,
+.topbar-title{
+  margin:0;
+  font-size:17px; font-weight:800; letter-spacing:.2px; line-height:1.5;
+  color:var(--text-1);
+  /* A challenge title can be 50 characters; it truncates rather than wrapping
+     the header onto a second line or shoving the actions off the edge. */
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 .crumb-sep{flex-shrink:0; display:grid; place-items:center; color:var(--text-3); opacity:.55;}
-.crumb-sep svg{width:12px; height:12px;}
+.crumb-sep svg{width:11px; height:11px;}
 
 /* Category/cadence icon riding inside a tag or a filter chip. */
 .cc-tag{display:inline-flex; align-items:center; gap:4px;}
@@ -392,7 +665,7 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 .auth-card{padding:22px 20px;}
 
 .auth-tabs{
-  display:flex; gap:6px; background:rgba(255,255,255,0.05);
+  display:flex; gap:6px; background:var(--fill-2);
   border:1px solid var(--border); border-radius:999px; padding:4px; margin-bottom:22px;
 }
 .auth-tab{
@@ -400,7 +673,7 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
   font-size:13px; font-weight:700; color:var(--text-2); cursor:pointer;
   border:none; background:transparent; transition:all .18s var(--ease);
 }
-.auth-tab.active{background:var(--fayrouzeh); color:#06231f;}
+.auth-tab.active{background:var(--fayrouzeh); color:var(--on-accent);}
 
 .field{margin-bottom:14px;}
 .field label{
@@ -408,7 +681,7 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 }
 .field-input{
   display:flex; align-items:center; gap:8px;
-  background:rgba(255,255,255,0.04); border:1px solid var(--border);
+  background:var(--fill-1); border:1px solid var(--border);
   border-radius:var(--radius-sm); padding:0 12px;
   transition:border-color .15s var(--ease);
 }
@@ -429,8 +702,8 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 .btn-primary{
   width:100%; padding:13px; border:none; border-radius:var(--radius-sm);
   background:linear-gradient(145deg, var(--fayrouzeh), var(--fayrouzeh-dim));
-  color:#06231f; font-family:inherit; font-size:14px; font-weight:800; cursor:pointer;
-  box-shadow:0 8px 22px rgba(34,201,189,0.3);
+  color:var(--on-accent); font-family:inherit; font-size:14px; font-weight:800; cursor:pointer;
+  box-shadow:var(--glow-accent-lift);
   display:flex; align-items:center; justify-content:center; gap:8px;
   margin-top:6px; transition:transform .15s var(--ease);
 }
@@ -451,7 +724,7 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
    ========================================================================== */
 .search-bar{
   display:flex; align-items:center; gap:8px; margin:0 20px 14px;
-  background:rgba(255,255,255,0.04); border:1px solid var(--border);
+  background:var(--fill-1); border:1px solid var(--border);
   border-radius:var(--radius-sm); padding:0 12px;
 }
 .search-bar svg{width:17px; height:17px; color:var(--text-3);}
@@ -476,7 +749,7 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
   background:var(--glass); border:1px solid var(--border); color:var(--text-2); cursor:pointer;
   white-space:nowrap; transition:all .18s var(--ease);
 }
-.chip.active{background:var(--fayrouzeh); border-color:var(--fayrouzeh); color:#06231f; font-weight:700;}
+.chip.active{background:var(--fayrouzeh); border-color:var(--fayrouzeh); color:var(--on-accent); font-weight:700; box-shadow:var(--glow-accent);}
 .chip:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px;}
 
 /* --- "my challenges" segmented filter (challenge list) ---
@@ -495,7 +768,7 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 }
 .seg-btn svg{width:14px; height:14px; flex-shrink:0;}
 .seg-btn:hover{color:var(--text-1);}
-.seg-btn.active{background:var(--fayrouzeh); color:#06231f; font-weight:700;}
+.seg-btn.active{background:var(--fayrouzeh); color:var(--on-accent); font-weight:700; box-shadow:var(--glow-accent);}
 .seg-btn:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px;}
 
 /* --- infinite scroll: sentinel + loading indicator --- */
@@ -519,7 +792,7 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 .toast{
   position:fixed; left:50%; bottom:calc(var(--nav-h) + var(--page-end-gap)); transform:translate(-50%, 12px);
   max-width:calc(var(--shell-max) - 40px); padding:10px 18px; border-radius:999px;
-  background:rgba(23,31,66,0.95); border:1px solid var(--border-strong);
+  background:var(--sheet-bg); border:1px solid var(--border-strong);
   color:var(--text-1); font-size:12.5px; font-weight:600; text-align:center;
   box-shadow:var(--shadow-lift); opacity:0; pointer-events:none; z-index:60;
   transition:opacity .2s var(--ease), transform .2s var(--ease);
@@ -532,7 +805,7 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 .explore-thumb{
   width:52px; height:52px; border-radius:14px; flex-shrink:0;
   display:grid; place-items:center;
-  background:linear-gradient(145deg, rgba(34,201,189,0.18), rgba(34,201,189,0.06));
+  background:linear-gradient(145deg, rgba(var(--accent-rgb),0.18), rgba(var(--accent-rgb),0.06));
   color:var(--fayrouzeh);
 }
 .explore-thumb svg{width:24px; height:24px;}
@@ -562,9 +835,9 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 .enroll-btn{
   flex-shrink:0; padding:8px 14px; border-radius:var(--radius-sm);
   font-size:12px; font-weight:700; cursor:pointer;
-  background:rgba(34,201,189,0.14); border:1px solid rgba(34,201,189,0.35); color:var(--fayrouzeh);
+  background:rgba(var(--accent-rgb),0.14); border:1px solid rgba(var(--accent-rgb),0.35); color:var(--fayrouzeh);
 }
-.enroll-btn.enrolled{background:rgba(255,255,255,0.06); border-color:var(--border); color:var(--text-2);}
+.enroll-btn.enrolled{background:var(--fill-2); border-color:var(--border); color:var(--text-2);}
 
 /* ==========================================================================
    Challenge detail
@@ -574,15 +847,15 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 }
 .detail-hero::before{
   content:""; position:absolute; inset:0;
-  background:radial-gradient(60% 80% at 50% -10%, rgba(34,201,189,0.18), transparent 70%);
+  background:radial-gradient(60% 80% at 50% -10%, rgba(var(--accent-rgb),0.18), transparent 70%);
 }
 .detail-icon{
   width:56px; height:56px; border-radius:16px; margin:0 auto 14px;
   display:grid; place-items:center; position:relative; z-index:1;
   background:linear-gradient(145deg, var(--fayrouzeh), var(--fayrouzeh-dim));
-  box-shadow:0 8px 22px rgba(34,201,189,0.35);
+  box-shadow:var(--glow-accent-lift);
 }
-.detail-icon svg{width:26px; height:26px; color:#06231f;}
+.detail-icon svg{width:26px; height:26px; color:var(--on-accent);}
 .detail-hero h1{position:relative; z-index:1; font-size:18px; font-weight:800; margin:0 0 8px;}
 .detail-hero .cc-tag{position:relative; z-index:1;}
 
@@ -616,17 +889,6 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 }
 .avatar-stack .av:first-child{margin-inline-start:0;}
 
-/* --- history summary strip --- */
-.history-summary{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px;}
-.history-metric{
-  background:rgba(255,255,255,0.04); border-radius:var(--radius-sm); padding:10px 6px; text-align:center;
-}
-.history-metric b{display:block; font-size:17px; font-weight:800; line-height:1.2;}
-.history-metric b .dim{color:var(--text-3); font-weight:600; font-size:13px;}
-.history-metric span{font-size:10.5px; color:var(--text-3); margin-top:3px; display:block;}
-.history-metric.gold b{color:var(--gold); display:flex; align-items:center; justify-content:center; gap:4px;}
-.history-metric.gold b svg{width:14px; height:14px;}
-
 /* --- history: occurrence timeline ---
    One row per occurrence the cadence actually asks for, newest first --
    NOT one per calendar day. A weekly challenge has ~1 occurrence a week,
@@ -641,32 +903,32 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
   border-bottom:1px solid var(--border); cursor:pointer; min-height:52px;
 }
 .tl-row:last-child{border-bottom:none;}
-.tl-row.today{background:rgba(34,201,189,0.06);}
-.tl-row:active{background:rgba(255,255,255,0.04);}
+.tl-row.today{background:rgba(var(--accent-rgb),0.06);}
+.tl-row:active{background:var(--fill-1);}
 
 .tl-badge{
   flex:none; width:28px; height:28px; border-radius:9px;
   display:flex; align-items:center; justify-content:center;
   font-size:14px; font-weight:700; line-height:1;
-  border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text-3);
+  border:1px solid var(--border); background:var(--fill-2); color:var(--text-3);
 }
 .tl-row.completed .tl-badge{background:var(--fayrouzeh); border-color:var(--fayrouzeh); color:var(--bg-0);}
 .tl-row.completed .tl-badge::before{content:"✓";}
-.tl-row.skipped .tl-badge{background:rgba(255,255,255,0.14); border-color:var(--border-strong); color:var(--text-2);}
+.tl-row.skipped .tl-badge{background:var(--fill-mute); border-color:var(--border-strong); color:var(--text-2);}
 .tl-row.skipped .tl-badge::before{content:"–";}
-.tl-row.missed .tl-badge{background:rgba(193,67,67,0.20); border-color:rgba(193,67,67,0.5); color:#ff9d9d;}
+.tl-row.missed .tl-badge{background:rgba(var(--mohr-rgb),0.20); border-color:rgba(var(--mohr-rgb),0.5); color:var(--danger-text);}
 .tl-row.missed .tl-badge::before{content:"✕";}
-.tl-row.pending .tl-badge{background:rgba(212,175,106,0.14); border-color:var(--gold); color:var(--gold);}
+.tl-row.pending .tl-badge{background:rgba(var(--gold-rgb),0.14); border-color:var(--gold); color:var(--gold);}
 .tl-row.pending .tl-badge::before{content:"•";}
 
 .tl-main{flex:1; min-width:0;}
 .tl-date{font-size:13px; font-weight:600; color:var(--text-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .tl-meta{font-size:11px; color:var(--text-3); margin-top:2px;}
 .tl-row.completed .tl-meta{color:var(--fayrouzeh);}
-.tl-row.missed .tl-meta{color:#ff9d9d;}
+.tl-row.missed .tl-meta{color:var(--danger-text);}
 
 .tl-action{
-  flex:none; border:1px solid rgba(34,201,189,0.4); background:rgba(34,201,189,0.12);
+  flex:none; border:1px solid rgba(var(--accent-rgb),0.4); background:rgba(var(--accent-rgb),0.12);
   color:var(--fayrouzeh); border-radius:999px; font-family:inherit; font-size:12px; font-weight:700;
   padding:7px 16px; cursor:pointer;
 }
@@ -683,13 +945,13 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
   background:var(--glass); border:1px solid var(--border); border-radius:var(--radius-md);
   padding:12px 13px;
 }
-.quota-row.current{background:rgba(34,201,189,0.06); border-color:rgba(34,201,189,0.25);}
+.quota-row.current{background:rgba(var(--accent-rgb),0.06); border-color:rgba(var(--accent-rgb),0.25);}
 .quota-row-head{display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:9px;}
 .quota-row-label{font-weight:600;}
 .quota-row.current .quota-row-label{color:var(--fayrouzeh);}
 .quota-row-count{color:var(--text-3); font-size:11.5px;}
 .quota-pips{display:flex; gap:4px;}
-.quota-pip{flex:1; height:8px; border-radius:4px; background:rgba(255,255,255,0.10);}
+.quota-pip{flex:1; height:8px; border-radius:4px; background:var(--track);}
 .quota-pip.done{background:var(--fayrouzeh);}
 
 .sticky-cta{
@@ -704,7 +966,7 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
   width:calc(100% - 2 * var(--page-end-gap));
   max-width:calc(var(--shell-max) - 2 * var(--page-end-gap));
   padding:14px 20px;
-  background:rgba(11,15,31,0.85);
+  background:var(--chrome-bg-strong);
   border:1px solid var(--border); border-radius:var(--radius-lg);
   box-shadow:var(--shadow-soft);
   backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); z-index:30;
@@ -712,7 +974,7 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 
 /* --- bottom sheet (check-in confirm/skip) --- */
 .sheet-backdrop{
-  position:fixed; inset:0; background:rgba(5,8,20,0.6);
+  position:fixed; inset:0; background:var(--scrim);
   z-index:70; animation:sheetFadeIn .18s var(--ease);
 }
 .sheet{
@@ -740,7 +1002,8 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 .sheet-actions button{flex:1;}
 .sheet-actions .primary{
   background:linear-gradient(145deg, var(--fayrouzeh), var(--fayrouzeh-dim));
-  border-color:transparent; color:#06231f;
+  border-color:transparent; color:var(--on-accent);
+  box-shadow:var(--glow-accent);
 }
 /* Separated from .sheet-actions by a rule so a destructive action is never
    sitting flush against "save" -- these sheets are one mis-tap wide. */
@@ -755,7 +1018,7 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
    Create challenge
    ========================================================================== */
 .textarea-field{
-  background:rgba(255,255,255,0.04); border:1px solid var(--border);
+  background:var(--fill-1); border:1px solid var(--border);
   border-radius:var(--radius-sm); padding:12px; transition:border-color .15s var(--ease);
 }
 .textarea-field:focus-within{border-color:var(--fayrouzeh);}
@@ -772,7 +1035,7 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
   font-size:11.5px; color:var(--text-2); transition:all .18s var(--ease);
 }
 .category-pill svg{width:18px; height:18px; display:block; margin:0 auto 6px;}
-.category-pill.active{background:rgba(34,201,189,0.12); border-color:var(--fayrouzeh); color:var(--fayrouzeh);}
+.category-pill.active{background:rgba(var(--accent-rgb),0.12); border-color:var(--fayrouzeh); color:var(--fayrouzeh); box-shadow:var(--glow-accent);}
 
 .stepper{display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; padding:0 20px;}
 .step{display:flex; flex-direction:column; align-items:center; gap:6px; flex:1; position:relative;}
@@ -781,8 +1044,8 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
   background:var(--glass); border:1px solid var(--border); font-size:11px; font-weight:700; color:var(--text-3);
   z-index:1;
 }
-.step.active .step-dot{background:var(--fayrouzeh); border-color:var(--fayrouzeh); color:#06231f;}
-.step.done .step-dot{background:var(--fayrouzeh-dim); border-color:var(--fayrouzeh-dim); color:#fff;}
+.step.active .step-dot{background:var(--fayrouzeh); border-color:var(--fayrouzeh); color:var(--on-accent);}
+.step.done .step-dot{background:var(--fayrouzeh-dim); border-color:var(--fayrouzeh-dim); color:var(--on-accent);}
 .step span{font-size:10.5px; color:var(--text-3);}
 .step.active span{color:var(--text-1);}
 .step:not(:last-child)::after{
@@ -798,8 +1061,8 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 .profile-avatar{
   width:84px; height:84px; border-radius:50%; margin:0 auto 12px; position:relative;
   background:linear-gradient(145deg, var(--fayrouzeh), var(--mohr-dim));
-  display:grid; place-items:center; font-size:26px; font-weight:800; color:#fff;
-  box-shadow:0 10px 26px rgba(34,201,189,0.25);
+  display:grid; place-items:center; font-size:26px; font-weight:800; color:var(--on-accent);
+  box-shadow:var(--glow-accent-lift);
 }
 .profile-avatar .edit-badge{
   position:absolute; bottom:0; left:0; width:26px; height:26px; border-radius:50%;
@@ -815,11 +1078,16 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 }
 .menu-item .mi-icon{
   width:36px; height:36px; border-radius:11px; flex-shrink:0;
-  display:grid; place-items:center; background:rgba(34,201,189,0.1); color:var(--fayrouzeh);
+  display:grid; place-items:center; background:rgba(var(--accent-rgb),0.1); color:var(--fayrouzeh);
 }
 .menu-item .mi-icon svg{width:17px; height:17px;}
-.menu-item.danger .mi-icon{background:rgba(193,67,67,0.12); color:#ff9d9d;}
+.menu-item.danger .mi-icon{background:rgba(var(--mohr-rgb),0.12); color:var(--danger-text);}
 .menu-item span.mi-label{flex:1; font-size:13.5px; font-weight:600;}
+/* current value of a row that *has* one (the theme control) -- it sits
+   between the label and the chevron, so :empty must collapse it or the
+   chevron shifts once JS fills it in */
+.menu-item .mi-value{font-size:12.5px; color:var(--text-3); flex-shrink:0;}
+.menu-item .mi-value:empty{display:none;}
 .menu-item .mi-chev{width:16px; height:16px; color:var(--text-3);}
 
 /* ==========================================================================
@@ -883,13 +1151,13 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 .jp-cell.is-today{border-color:var(--border-strong); font-weight:800;}
 .jp-cell.is-selected{
   background:linear-gradient(145deg, var(--fayrouzeh), var(--fayrouzeh-dim));
-  border-color:transparent; color:#06231f; font-weight:800;
+  border-color:transparent; color:var(--on-accent); font-weight:800;
 }
 .jp-cell:disabled{opacity:.28; cursor:not-allowed;}
 
 .jp-time{
   display:flex; align-items:center; gap:8px; margin-top:14px;
-  background:rgba(255,255,255,0.04); border:1px solid var(--border);
+  background:var(--fill-1); border:1px solid var(--border);
   border-radius:var(--radius-sm); padding:8px 12px;
 }
 .jp-time svg{width:16px; height:16px; color:var(--text-3); flex-shrink:0;}
@@ -915,16 +1183,16 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 }
 /* the accent tag names the cadence -- the one label that changes per
    challenge type, so it gets the filled treatment the category tag doesn't */
-.cc-tag.accent{background:rgba(34,201,189,0.22); border-color:rgba(34,201,189,0.5);}
+.cc-tag.accent{background:rgba(var(--accent-rgb),0.22); border-color:rgba(var(--accent-rgb),0.5);}
 .cc-tag.warn{
-  color:#e9b7b7; background:rgba(193,67,67,0.16); border-color:rgba(193,67,67,0.42);
+  color:var(--danger-text); background:rgba(var(--mohr-rgb),0.16); border-color:rgba(var(--mohr-rgb),0.42);
 }
 
 .section-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;}
 .section-head h2{margin:0;}
 .section-head .cc-tag{
   font-weight:600; direction:ltr; font-size:10px; color:var(--text-3);
-  background:rgba(255,255,255,0.05); border-color:var(--border);
+  background:var(--fill-2); border-color:var(--border);
   max-width:55%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 .sub-head{font-size:12px; font-weight:700; color:var(--text-2); margin:14px 0 8px;}
@@ -936,7 +1204,7 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 .plan-rule-icon{
   width:34px; height:34px; border-radius:11px; flex-shrink:0;
   display:grid; place-items:center;
-  background:rgba(34,201,189,0.14); border:1px solid rgba(34,201,189,0.28);
+  background:rgba(var(--accent-rgb),0.14); border:1px solid rgba(var(--accent-rgb),0.28);
 }
 .plan-rule-icon svg{width:17px; height:17px; color:var(--fayrouzeh);}
 .plan-rule-text{min-width:0;}
@@ -947,10 +1215,10 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 .wd{
   height:30px; border-radius:9px; display:grid; place-items:center;
   font-size:11.5px; font-weight:700; color:var(--text-3);
-  background:rgba(255,255,255,0.04); border:1px solid var(--border);
+  background:var(--fill-1); border:1px solid var(--border);
 }
 .wd.on{
-  color:#06231f; border-color:transparent;
+  color:var(--on-accent); border-color:transparent;
   background:linear-gradient(145deg, var(--fayrouzeh), var(--fayrouzeh-dim));
 }
 
@@ -975,17 +1243,17 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
   padding:10px 12px; border-radius:var(--radius-sm);
   background:var(--glass); border:1px solid var(--border);
 }
-.up-row.next{background:rgba(34,201,189,0.08); border-color:rgba(34,201,189,0.28);}
+.up-row.next{background:rgba(var(--accent-rgb),0.08); border-color:rgba(var(--accent-rgb),0.28);}
 .up-dot{
   width:7px; height:7px; border-radius:50%; flex-shrink:0;
   background:var(--text-3);
 }
-.up-row.next .up-dot{background:var(--fayrouzeh); box-shadow:0 0 0 3px rgba(34,201,189,0.18);}
+.up-row.next .up-dot{background:var(--fayrouzeh); box-shadow:0 0 0 3px rgba(var(--accent-rgb),0.18), var(--glow-accent);}
 .up-date{font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .up-time{font-size:11.5px; color:var(--text-2); font-variant-numeric:tabular-nums;}
 .up-flag{
   margin-inline-start:auto; font-size:10px; font-weight:700;
-  color:var(--fayrouzeh); background:rgba(34,201,189,0.14);
+  color:var(--fayrouzeh); background:rgba(var(--accent-rgb),0.14);
   border-radius:999px; padding:2px 8px;
 }
 
@@ -1005,12 +1273,15 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 .meta-item span{font-size:10.5px; color:var(--text-3);}
 
 /* --- personal status tiles --- */
-.mine-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:12px;}
+/* three tiles now, not four: the two completion counts moved into the ring
+   legend above, where they read as shares of the same whole. */
+.mine-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px;}
 .mine-tile{
   padding:11px 6px; text-align:center; border-radius:var(--radius-sm);
   background:var(--glass); border:1px solid var(--border);
 }
-.mine-tile b{display:block; font-size:16px; font-weight:800; line-height:1.2;}
+.mine-tile b{display:block; font-size:16px; font-weight:800; line-height:1.2; white-space:nowrap;}
+.mine-tile b .dim{display:inline; color:var(--text-3); font-weight:600; font-size:13px;}
 .mine-tile span{display:block; font-size:10px; color:var(--text-3); margin-top:3px;}
 .mine-tile.ok b{color:var(--fayrouzeh);}
 .mine-tile.gold b{
@@ -1062,9 +1333,9 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 
 /* The status buttons in the filter control wear the colour of the thing they
    select, so the legend and the filter are the same object. */
-.seg-btn.st-active.active{background:var(--st-active); color:#06231f;}
-.seg-btn.st-upcoming.active{background:var(--st-upcoming); color:#241a06;}
-.seg-btn.st-finished.active{background:var(--st-finished); color:#0e1224;}
+.seg-btn.st-active.active{background:var(--st-active); color:var(--on-accent); box-shadow:var(--glow-accent);}
+.seg-btn.st-upcoming.active{background:var(--st-upcoming); color:var(--on-gold); box-shadow:var(--glow-gold);}
+.seg-btn.st-finished.active{background:var(--st-finished); color:var(--on-finished); box-shadow:none;}
 
 /* Four segments of Farsi don't fit a 480px shell at the .seg-btn base size,
    and a filter that has to be scrolled to be discovered isn't a filter. */
@@ -1074,14 +1345,14 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 /* --- filter button: never let a filter be on invisibly --- */
 .filter-btn{position:relative;}
 .filter-btn.has-filters{
-  color:var(--fayrouzeh); border-color:rgba(34,201,189,0.45);
-  background:rgba(34,201,189,0.12);
+  color:var(--fayrouzeh); border-color:rgba(var(--accent-rgb),0.45);
+  background:rgba(var(--accent-rgb),0.12);
 }
 .filter-badge{
   position:absolute; inset-block-start:-6px; inset-inline-start:-6px;
   min-width:16px; height:16px; padding:0 4px; border-radius:999px;
   display:grid; place-items:center;
-  background:var(--fayrouzeh); color:#06231f;
+  background:var(--fayrouzeh); color:var(--on-accent);
   font-size:10px; font-weight:800; line-height:1;
   border:2px solid var(--bg-0);
 }
@@ -1095,7 +1366,7 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
   display:inline-flex; align-items:center; gap:6px;
   padding:5px 12px; border-radius:999px; cursor:pointer;
   font-family:inherit; font-size:11.5px; font-weight:600;
-  background:rgba(34,201,189,0.12); border:1px solid rgba(34,201,189,0.34);
+  background:rgba(var(--accent-rgb),0.12); border:1px solid rgba(var(--accent-rgb),0.34);
   color:var(--fayrouzeh);
 }
 .filter-tag svg{width:11px; height:11px;}
@@ -1111,3 +1382,139 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
   display:block; background:transparent; border:none; padding:0;
 }
 .sheet-chips{padding:0; gap:8px;}
+
+/* ==========================================================================
+   Challenge detail | panels, personal ring, occurrence strip
+   ========================================================================== */
+
+/* --- panel switcher ---
+   The detail page answers three separate questions and used to stack all
+   three answers into one nine-section scroll. Tabs let a participant land on
+   the one they came for and never meet the other two unless they ask.
+   Sticky, because "which panel am I in" has to survive scrolling a long
+   history. Same pill vocabulary as .tabs on the home page, but full-width
+   and icon-led -- these switch a whole panel, not a filter. */
+.detail-tabs{
+  /* the topbar is sticky too (z-index 25), so this has to stop *below* it
+     rather than slide underneath. Its height depends on how the challenge
+     title wraps, so the page script measures it into --topbar-h. */
+  position:sticky; top:var(--topbar-h, 0px); z-index:20;
+  display:flex; gap:6px; margin:0 20px 14px; padding:4px;
+  border-radius:999px;
+  background:var(--chrome-bg-strong); border:1px solid var(--border);
+  backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+}
+.dtab{
+  flex:1; position:relative;
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  padding:9px 6px; border:none; border-radius:999px; cursor:pointer;
+  background:transparent; color:var(--text-2);
+  font-family:inherit; font-size:12.5px; font-weight:600;
+  transition:background .18s var(--ease), color .18s var(--ease);
+}
+.dtab svg{width:14px; height:14px;}
+.dtab[aria-selected="true"]{
+  background:linear-gradient(145deg, var(--fayrouzeh), var(--fayrouzeh-dim));
+  color:var(--on-accent); font-weight:800; box-shadow:var(--glow-accent);
+}
+.dtab:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px;}
+/* something is open to record today -- the same signal the CTA carries, so a
+   participant who lands on another panel still sees there is work waiting */
+.dtab-dot{
+  width:7px; height:7px; border-radius:50%; background:var(--gold);
+  box-shadow:0 0 0 3px rgba(var(--gold-rgb),0.20);
+}
+.dtab[aria-selected="true"] .dtab-dot{background:var(--on-accent); box-shadow:none;}
+
+.tab-panel[hidden]{display:none;}
+
+/* --- "how am I doing": a ring, not four bare numbers ---
+   The share is the point, and a number cannot show a share. r=20 gives a
+   125.66 circumference, which is what the inline stroke-dasharray is a
+   fraction of; the rotation starts the arc at twelve o'clock. */
+.mine-card{
+  display:flex; align-items:center; gap:16px;
+  padding:14px; border-radius:var(--radius-md); margin-bottom:10px;
+}
+.ring-wrap{position:relative; width:92px; height:92px; flex:none;}
+.ring{width:100%; height:100%; transform:rotate(-90deg);}
+.ring circle{fill:none; stroke-width:5;}
+.ring-track{stroke:var(--track);}
+.ring-fill{stroke:var(--fayrouzeh); stroke-linecap:round;}
+.ring-center{
+  position:absolute; inset:0; display:grid; place-content:center;
+  text-align:center; line-height:1.25;
+}
+.ring-center b{display:block; font-size:19px; font-weight:800;}
+.ring-center span{font-size:10px; color:var(--text-3); font-variant-numeric:tabular-nums;}
+
+.ring-legend{flex:1; min-width:0; display:flex; flex-direction:column; gap:8px;}
+.ring-legend li{
+  display:flex; align-items:center; gap:8px;
+  font-size:11.5px; color:var(--text-2);
+}
+.ring-legend b{
+  margin-inline-start:auto; font-size:13px; font-weight:700;
+  color:var(--text-1); font-variant-numeric:tabular-nums;
+}
+/* one swatch vocabulary shared by the legend, the strip and its key, and
+   matching the .tl-badge colours a row further down the panel uses */
+.lg-dot{width:9px; height:9px; border-radius:3px; flex:none; display:inline-block;}
+.lg-dot.ok{background:var(--fayrouzeh);}
+.lg-dot.skip{background:var(--fill-mute); box-shadow:inset 0 0 0 1px var(--border-strong);}
+.lg-dot.miss{background:rgba(var(--mohr-rgb),0.62);}
+.lg-dot.wait{background:rgba(var(--gold-rgb),0.55);}
+
+.mine-empty{
+  padding:20px 14px; text-align:center; border-radius:var(--radius-md);
+  font-size:12.5px; color:var(--text-3); margin:0;
+}
+
+/* --- the run at a glance ---
+   One square per occurrence, oldest first. A fixed 15-column grid keeps the
+   cells square at any history length, and in RTL it fills from the right, so
+   the newest occurrence lands nearest the timeline underneath it. */
+.occ-strip{display:grid; grid-template-columns:repeat(15, 1fr); gap:4px;}
+.occ{aspect-ratio:1; border-radius:4px; background:var(--track);}
+.occ.completed{background:var(--fayrouzeh);}
+.occ.skipped{background:var(--fill-mute); box-shadow:inset 0 0 0 1px var(--border-strong);}
+.occ.missed{background:rgba(var(--mohr-rgb),0.62);}
+.occ.pending{background:rgba(var(--gold-rgb),0.55);}
+.occ-key{
+  display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:9px;
+  font-size:10.5px; color:var(--text-3);
+}
+.occ-key span{display:inline-flex; align-items:center; gap:5px;}
+
+/* the personal fact list is its own card here; the plan card's copy is
+   already inside one */
+.fact-list.boxed{padding:2px 14px; border-radius:var(--radius-md);}
+
+/* who is behind the collective bar, on the same card as the bar */
+.collective-head{
+  display:flex; align-items:center; gap:10px; margin-bottom:12px;
+  font-size:12px; color:var(--text-2);
+}
+
+/* --- the CTA: one primary action, with leaving beside it ---
+   The primary button is whatever the visitor's next move actually is. Only
+   when there is nothing left to record does the button itself become
+   "leave", and it goes quiet-clay rather than accent so it never reads as
+   the happy path. */
+.cta-row{display:flex; align-items:stretch; gap:10px;}
+.cta-row .btn-primary{flex:1; margin-top:0;}
+.btn-primary.is-leave{
+  background:rgba(var(--mohr-rgb),0.16); color:var(--danger-text);
+  border:1px solid rgba(var(--mohr-rgb),0.32); box-shadow:none;
+}
+.cta-side{
+  flex:none; width:48px; border-radius:var(--radius-sm); cursor:pointer;
+  display:grid; place-items:center;
+  background:rgba(var(--mohr-rgb),0.14); border:1px solid rgba(var(--mohr-rgb),0.30);
+  color:var(--danger-text);
+  transition:transform .15s var(--ease);
+}
+.cta-side svg{width:17px; height:17px;}
+.cta-side[hidden]{display:none;}
+.cta-side:active{transform:scale(.96);}
+.cta-side:focus-visible{outline:2px solid var(--mohr); outline-offset:2px;}

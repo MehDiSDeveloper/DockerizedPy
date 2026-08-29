@@ -10,9 +10,11 @@
     below are kept for the day a participant list makes someone else's
     profile linkable. -#}
 {% block breadcrumb %}
-<nav class="crumbs" aria-label="مسیر صفحه" hidden
-  data-crumb-trail data-crumb-label="{{ 'پروفایل من' if is_own_profile else user.name }}"
-  {% if is_own_profile %}data-crumb-root{% endif %}></nav>
+{% set profile_label = 'پروفایل من' if is_own_profile else user.name %}
+<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="{{ profile_label }}"
+  {% if is_own_profile %}data-crumb-root{% endif %}>
+  <span class="crumb current" aria-current="page">{{ profile_label }}</span>
+</nav>
 {% endblock %}
 
 {% block topbar_action %}
@@ -59,6 +61,18 @@
     <div class="menu-item glass" data-coming-soon="تنظیمات اعلان‌ها به‌زودی اضافه می‌شود" role="button" tabindex="0">
       <div class="mi-icon"><span data-icon="bell"></span></div>
       <span class="mi-label">تنظیمات اعلان‌ها</span>
+      <span class="mi-chev" data-icon="chevronLeft"></span>
+    </div>
+    {#- The only control for the two themes. It cycles دستگاه → روشن → تاریک
+        rather than toggling, because "follow the device" is a third state and
+        a two-way switch would strand anyone who wants it back. The current
+        value is written into [data-theme-value] by initThemeToggles() in
+        app.js, so it is blank until JS runs -- which is also when the control
+        starts working, so there is nothing to mislabel in between. -#}
+    <div class="menu-item glass" data-theme-toggle role="button" tabindex="0">
+      <div class="mi-icon"><span data-icon="theme"></span></div>
+      <span class="mi-label">پوستهٔ برنامه</span>
+      <span class="mi-value" data-theme-value></span>
       <span class="mi-chev" data-icon="chevronLeft"></span>
     </div>
     <div class="menu-item glass" data-coming-soon="بخش دربارهٔ چالش به‌زودی اضافه می‌شود" role="button" tabindex="0">
