@@ -1,5 +1,13 @@
 {% extends "layout.html" %}
 {% set crumb_label = "چالش‌ها" %}
+{#- «؟» replays this page's tour -- see today/index.html. -#}
+{% block topbar_action %}
+<div class="topbar-actions">
+  <button class="icon-btn" aria-label="راهنمای این صفحه" data-icon="help" data-tour-help></button>
+  {{ super() }}
+</div>
+{% endblock %}
+
 {% block content %}
 
 <section class="hero">
@@ -11,7 +19,7 @@
     challenge is worth looking at at all -- its status -- stays on the page;
     category and the "my challenges" scope live behind the button, which
     carries a count so a filter can never be left on invisibly. -#}
-<div class="search-bar">
+<div class="search-bar" data-tour="explore-search">
   <span data-icon="search"></span>
   <input type="text" id="clSearch" placeholder="جستجوی چالش..." value="{{ query }}" />
   <button type="button" class="filter-btn" id="clFilterBtn" aria-label="فیلترها">
@@ -52,7 +60,7 @@
   <div class="list-loading" id="clLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
 </section>
 
-<a href="/views/challenges/create" class="fab" aria-label="ساخت چالش جدید">
+<a href="/views/challenges/create" class="fab" aria-label="ساخت چالش جدید" data-tour="explore-create">
   <span data-icon="plus"></span>
 </a>
 {% endblock %}
@@ -61,6 +69,7 @@
 {% block scripts %}
 
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script src="{{ url_for('static', path='/js/tour.js') }}"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => {
     const search = document.getElementById("clSearch");

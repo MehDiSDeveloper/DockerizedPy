@@ -3,7 +3,7 @@
     occurrence stays writable until the end of the local day, but what the user
     is actually late for is the scheduled instant itself. -#}
 {% set countdown_at = item.opens_at_utc if item.cadence_kind == 'schedule' else item.closes_at_utc %}
-<div class="challenge-card glass" data-today-item data-cat="{{ item.category | category_slug }}"
+<div class="challenge-card glass" data-today-item data-tour="today-item" data-cat="{{ item.category | category_slug }}"
      data-challenge-id="{{ item.challenge_id }}"
      data-occurrence-key="{{ item.occurrence_key }}"
      data-title="{{ item.challenge_title }}"

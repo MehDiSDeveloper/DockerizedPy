@@ -97,12 +97,42 @@ def _column_spec(conn: Connection, table_name: str, column) -> str | None:
     return spec
 
 
+def backfill_enrollment_roles(conn: Connection) -> int:
+    """Give the creator's own enrolment ``role = 'owner'``.
+
+    ``Enrollments.role`` arrives with ``DEFAULT 'participant'``, which is the
+    right answer for every row except one per challenge: the creator's
+    auto-enrolment (D1), written before the column existed. New enrolments
+    set the role themselves, so this only ever has work to do on the boot
+    that adds the column -- but it is run every boot because it is idempotent
+    and cheap, and a guard on "did we just add it" is a guard that goes wrong
+    exactly once, silently.
+
+    Ownership itself is *not* moved here: ``Challenge.owner_id`` stays the
+    record, and ``app.permissions.challenge_role`` resolves the two. This
+    only stops the enrolment row from contradicting it.
+    """
+    result = conn.execute(
+        text(
+            "UPDATE \"Enrollments\" SET role = 'owner' "
+            "WHERE role <> 'owner' AND EXISTS ("
+            '  SELECT 1 FROM "Challenges" c'
+            '  WHERE c.id = "Enrollments".challenge_id'
+            '    AND c.owner_id = "Enrollments".user_id)'
+        )
+    )
+    return result.rowcount or 0
+
+
 async def _prepare_sqlite() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         applied = await conn.run_sync(sync_sqlite_schema)
+        promoted = await conn.run_sync(backfill_enrollment_roles)
     for statement in applied:
         print(f"  ++ {statement}")
+    if promoted:
+        print(f"  ++ {promoted} enrollment(s) marked as challenge owner")
     await engine.dispose()
 
 

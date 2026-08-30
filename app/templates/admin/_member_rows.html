@@ -1,0 +1,33 @@
+{#- One member per row -- the infinite-scroll fragment for the admin panel.
+
+    Included for the first server-rendered page by `admin/index.html` and
+    re-served bare by `GET /views/admin/fragment` for every page after it,
+    exactly like `challenge/_challenge_cards.html`. It must therefore stay
+    free of anything but the rows themselves: no wrapper, no empty state,
+    no counter -- the fragment endpoint's response *is* this file's output,
+    and `createInfiniteScroller()` counts its top-level children to advance
+    the offset.
+
+    The row carries everything the role sheet needs as data attributes
+    rather than the page shipping a parallel JSON array: rows arriving on
+    page two would never be in such an array, and keeping one in sync with
+    what has been appended is precisely the drift this avoids. -#}
+{% for member in members %}
+<div class="setting-row glass admin-member" role="button" tabindex="0"
+  data-member-id="{{ member.id }}" data-member-name="{{ member.name }}"
+  data-member-role="{{ member.role }}">
+  <div class="sr-head">
+    {#- An opaque neutral behind every avatar: several catalogue styles
+        ship a transparent ground (see CLAUDE.md on avatars). -#}
+    <span class="admin-av"><img src="{{ member.avatar | avatar_url }}" alt=""
+        loading="lazy" width="34" height="34"></span>
+    <div class="sr-text">
+      <span class="sr-label">{{ member.name }}</span>
+      <span class="sr-hint">{{ member.email or 'بدون ایمیل' }}</span>
+    </div>
+    <span class="role-pill {{ 'is-admin' if member.role == 'admin' else '' }}"
+      data-role-pill>{{ role_labels.get(member.role, member.role) }}</span>
+    <span class="sr-chev" data-icon="chevronLeft"></span>
+  </div>
+</div>
+{% endfor %}

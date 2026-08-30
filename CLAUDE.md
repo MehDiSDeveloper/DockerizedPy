@@ -17,6 +17,7 @@ ruff check .                           # lint (no config file — ruff defaults)
 alembic upgrade head                   # apply migrations
 alembic revision --autogenerate -m "…" # new migration
 python -m app.scripts.generate_mock_data   # seed 10 users / 30 challenges / 60 enrollments
+python -m app.scripts.set_user_role EMAIL admin  # make the first admin (--list to see roles)
 python -m pytest tests\ -q             # run the test suite (in-memory SQLite, no Postgres needed)
 ```
 
@@ -30,7 +31,7 @@ Debugging in Docker: `.vscode/launch.json` has "Docker: Attach to FastAPI" (atta
 
 ## Testing
 
-`tests/` covers the occurrence engine (`test_occurrences.py`), the Jalali converter against ICU (`test_jalali.py`), timezone/backfill-window edge cases (`test_timezone_boundaries.py`), check-in idempotency (`test_checkin_idempotency.py`), the challenge lock/visibility/auto-enrollment rules (`test_challenge_lifecycle.py`), which SSR pages require a session (`test_page_authorization.py`), who may see a given row once they have one (`test_object_authorization.py`), the avatar catalogue (`test_avatars.py`), and the home dashboard's counting and grid frame (`test_home_dashboard.py`). Run with:
+`tests/` covers the occurrence engine (`test_occurrences.py`), the Jalali converter against ICU (`test_jalali.py`), timezone/backfill-window edge cases (`test_timezone_boundaries.py`), check-in idempotency (`test_checkin_idempotency.py`), the challenge lock/visibility/auto-enrollment rules (`test_challenge_lifecycle.py`), which SSR pages require a session (`test_page_authorization.py`), who may see a given row once they have one (`test_object_authorization.py`), the avatar catalogue (`test_avatars.py`), the settings page and the profile/settings split (`test_settings_page.py`), the two role axes and the line between them (`test_user_roles.py`), the admin panel's gate, its roster search/role filter and its lazy-loading fragment (`test_admin_page.py`), the moderation roster's gate, reach and the line between moderating and editing (`test_admin_challenges.py`), the home dashboard's counting and grid frame (`test_home_dashboard.py`), and the onboarding tour's step/anchor contract (`test_tour_anchors.py`). Run with:
 
 ```powershell
 .venv\Scripts\python -m pytest tests\ -q
@@ -105,7 +106,147 @@ New challenge/enrollment endpoints must reuse that filter and the same session-d
 
 Pages fail *authentication* with a 303 to login and *authorization* with a 404/403 — the two are deliberately different, and `get_page_user` running first is what keeps a signed-out visitor from getting the forbidden answer.
 
-**`GET /users/` is the documented exception.** It returns every member and is held for a future admin panel; nothing in the app calls it. There is no role column on `Users`, so the only gate it can carry today is authentication — which narrows the roster harvest from "anyone" to "anyone who signs up". It needs a real admin check before that panel ships.
+**`GET /users/` is the admin panel's roster.** It returns every member and is the one read that ignores `profile_visibility_filter` on purpose, so it is gated on `Perm.USER_LIST` rather than on mere authentication, and answers `UserAdminRead` (a third read shape — see Roles below). It is paginated and filterable (`q`, `role`, `offset`, `limit`) through `fetch_member_page` / `apply_member_filters` in `routers/user.py` — the same "query logic in the API router, presentation in `views/`" split `fetch_challenge_page` follows, so the panel and the API can never disagree about what a search matches.
+
+### Roles — two axes, one `can()`
+
+Access has three layers now and they answer different questions. Reachability
+is still the two SQL visibility filters; **who you are** is roles; and the
+303/401 split above is authentication. `app/permissions.py` is the only place
+a role becomes an answer.
+
+**Two role columns, deliberately never merged:**
+
+- **`Users.role`** (`UserRole`: `member` | `admin`) — app-wide. Answers "may
+  you run the place". Default `member`, so every existing row and every
+  signup lands on the old behaviour.
+- **`Enrollments.role`** (`ChallengeRole`: `participant` | `owner`) — scoped
+  to one challenge. Answers "what are you *in here*". The creator's D1
+  auto-enrolment is written with `owner`; everyone else enrols as
+  `participant`.
+
+Merging them is the failure mode worth naming: with one column, an admin
+silently becomes the owner of every challenge. **No app-wide role grants any
+per-challenge permission today** — an admin gets no edit button on someone
+else's challenge, and `tests/test_user_roles.py` parametrizes that assertion
+over both global roles so a future grant cannot quietly cross the line.
+
+**`Challenge.owner_id` stays the record of ownership**, and
+`challenge_role(user_id, challenge, enrollment)` resolves the two sources:
+owner_id wins, the enrollment supplies the role for everyone else. That is
+not belt-and-braces — an owner may unenrol from their own challenge, deleting
+the only row that could carry `owner`, and without the resolution they would
+lose the challenge they still own. The enrollment is also checked to belong
+to the asker; a row handed in for someone else grants nothing.
+
+**Moderation is the third thing, and it is not ownership.** An operator has
+to be able to *see* every challenge and take a bad one off the floor, so the
+admin role grants three app-wide permissions — `CHALLENGE_LIST_ALL`,
+`CHALLENGE_MODERATE`, `CHALLENGE_DELETE_ANY` — and deliberately **not**
+`CHALLENGE_EDIT`, which stays per-challenge. Changing *what state a challenge
+is in* is moderation; changing what it says (title, rules, cadence, goal) is
+authorship, and an admin who could do it silently would be indistinguishable
+from the owner in the record. That is why moderation has names of its own
+rather than admin being added to `CHALLENGE_GRANTS` — the shortcut that would
+have made an admin the owner of everything.
+
+Two mechanics enforce it, both in `app/routers/challenge.py`. `reachable_for(user)`
+is the clause every challenge *mutation* selects through: the visibility
+filter for everyone, `true()` for a holder of `CHALLENGE_LIST_ALL` — so the
+404-vs-403 split survives for members while a moderator can reach a private
+row. And `MODERATABLE_FIELDS = {lifecycle_status, visibility}` is checked as
+a whole-body rule: a non-owner's PATCH passes only when *every* key in it is
+moderatable, so one request that renames and archives is refused entire
+rather than half-applied. Deletion is the one place moderation buys nothing
+extra — the 409 that protects other people's logged history applies to
+operator and owner alike, and archiving is the exit.
+
+**Callers ask for a permission, never a role**:
+`can(user, Perm.CHALLENGE_DELETE, challenge=c)`. Policy is the two grant maps
+in `permissions.py`, so a third role is a row in a map instead of a sweep for
+`role == "admin"`. `can()` runs *after* a row is in hand — it does not
+replace `challenge_visibility_filter` / `profile_visibility_filter`, which
+must stay composed into the query or the 404-vs-403 split above collapses.
+
+**Writing a role.** `Users.role` has exactly one door,
+`PATCH /users/{id}/role` (`UserRoleUpdate`, admin-only), kept off `UserUpdate`
+so the profile PATCH can never be a side channel; self-demotion is a 400,
+since the last admin dropping their own role locks the panel with no console
+to undo it from. The *first* admin cannot be made through the app at all —
+`python -m app.scripts.set_user_role <email> admin` (also `--list`) is the
+operator path, deliberately not a "first signup wins" rule.
+
+**The panel** is `/views/admin/` + `templates/admin/index.html`: the roster,
+each row showing the one field it administers, edited through a `createSheet`
+against the JSON API like every other edit in the app. It is a page of its
+own rather than admin-only branches inside member-facing screens — one route,
+one dependency, one wide query. `get_admin_page_user` answers a signed-in
+member **404** (a member has no business learning the panel exists);
+`get_admin_user` answers a JSON caller **403** (fixed path, nothing to
+enumerate).
+
+The roster is **searched, role-filtered and lazily paged** with the challenge
+list's own machinery, not a second one: a `.search-bar` (name *and* email —
+the two things a support request arrives as) and a three-option `.seg`, both
+kept on-screen rather than behind a filter sheet since there is no third cut
+to hide; `createInfiniteScroller()` over `GET /views/admin/fragment`, which
+`{% include %}`s `admin/_member_rows.html` for page one and re-serves it bare
+with `X-Has-More` for the rest; and the state mirrored into the query string,
+so a filtered roster is linkable and the server renders the first page
+already narrowed. Two details are load-bearing. The fragment takes
+**`get_admin_user`**, not the page dependency — a `fetch()` needs a real 401
+to redirect on, and the 303 `get_page_user` raises would be followed silently
+and the login page appended as member rows. And a row carries its own
+`data-member-name` / `data-member-role`, with the sheet opened by one
+delegated listener on the list: a page-level JSON array of members cannot
+describe rows that arrive on page two, which is exactly the drift the
+attributes avoid. A row whose role no longer matches the active filter is
+repainted, never dropped — the scroller's `offset` counts rows the *server*
+returned, so removing one would skip a member on the next page.
+
+**The moderation roster** is the panel's other half: `/views/admin/challenges`
++ `templates/admin/challenges.html`, with `admin/_challenge_rows.html` as its
+fragment. It is the public challenge list's own screen on purpose — the same
+`.search-bar`, the same status `.seg` in the same `--st-*` colours, the same
+`createInfiniteScroller()`, the same `createSheet` against the JSON API — and
+only two things make it a moderation screen: it is served with
+`fetch_challenge_page(..., scope_all=True)`, which is the one caller allowed
+to skip `listing_visibility_filter` (the challenge-side twin of `GET /users/`
+ignoring `profile_visibility_filter`), and each row can be acted on. `scope_all`
+is a parameter on the shared query rather than a second query builder, so the
+panel and the public list can never disagree about what a search matches.
+
+A row shows two different things about the same challenge and both earn their
+place: the **status pill** is the *derived* status a member sees on the public
+list, and the hint spells out the two *stored* fields moderation writes —
+lifecycle and visibility — because the derived badge alone cannot tell a draft
+from a challenge that has not started, or an archived one from one that ended.
+The sheet PATCHes only the fields that changed (a moderator's body is refused
+if it carries anything else), and every successful action ends in
+`scroller.reset()` rather than a hand-patched row: the pill is derived, and
+re-deriving it in JS is exactly the drift the one-rule-in-one-place design
+avoids. Delete is the sheet's `danger` button and refuses client-side with the
+reason when others have joined, matching the server's 409 instead of
+discovering it.
+
+It is a page of its own rather than a second tab on `/views/admin/`: two
+searched, filtered, lazily-paged lists on one screen would fight over one URL
+and neither would stay linkable. A `.setting-row` under «چالش‌ها» on the panel
+index is the only way in.
+
+There are two entry points, both rendered only when `viewer_is_admin` and
+both pointing at a route that gates itself: a `.setting-row` under «مدیریت»
+on `/views/settings/`, and a `.menu-item` at the top of the profile's menu
+list (shield icon, «مدیر» pill). The profile one reads `viewer`, never the
+profile's own user — on someone else's profile, the day one becomes
+reachable, the menu still belongs to the person looking. Neither is a fifth
+bottom-nav tab, which would cost every member a slot for a handful of
+accounts.
+
+**Migration** is models-only, per the Configuration section: both columns
+carry a default so `sync_sqlite_schema` can add them to a populated table,
+and `bootstrap_db.backfill_enrollment_roles` marks each creator's own
+enrolment `owner` — idempotent, run every boot.
 
 ### Derived challenge status — the badge and the filter are one rule
 
@@ -143,6 +284,7 @@ The cascades on `Challenge.enrollments` / `.stats` / `.checkins` are **load-bear
 
 ### Models (`app/models/`)
 
+- `User.role` is the app-wide role (`member`/`admin`, default `member`) — see Roles above; `Enrollment.role` is the per-challenge one. The two are separate columns on purpose.
 - `User.avatar` holds an **id from a fixed catalogue** (`app/avatars.py`), never a path or a URL — see "Avatars" below. `NULL` is permanent and legitimate.
 - `AuditBase` is an abstract `Base` subclass adding `created_at` / `updated_at` / `last_modifier_user_id`. Routers set `updated_at` and `last_modifier_user_id` by hand on every mutation — there is no ORM event hook doing it.
 - `Challenge` is a flat table — the old single-table-inheritance split into `OneTimeChallenge`/`RecurringChallenge` is gone, and with it the `with_polymorphic`/`MissingGreenlet` hazard that used to be documented here. Recurrence now lives in two columns: `cadence_kind` (`once` | `schedule` | `recurring_days` | `recurring_quota`) and `cadence` (JSON, shaped by the `CadenceUnion` discriminated union — see "Cadence, occurrences, and check-ins" below). `visibility` (`private`/`unlisted`/`public`) and `lifecycle_status` (`draft`/`active`/`archived`) are plain `String` columns, not native Postgres enums (only `category` stays a native PG enum — see the enum bullet below). `goal_amount`/`goal_unit` describe an optional collective target; a check-in's `amount` is required iff `goal_unit is not None`. `legacy_cadence` is a verbatim JSON snapshot of the pre-migration recurrence columns for rows the new cadence model can't losslessly re-express — it's preserved user data, never read by application code, and must not be treated as scaffolding to clean up.
@@ -151,6 +293,66 @@ The cascades on `Challenge.enrollments` / `.stats` / `.checkins` are **load-bear
 - `ChallengeStats` (table `ChallengeStats`, PK = `challenge_id`) holds **monotonic counters only**: `participant_count`, `total_completions`, `total_amount`, `last_checkin_at`. Nothing here goes stale and there is no refresh job — Discover's 7-day velocity sort is computed live from `CheckIns` via `ix_checkins_challenge_created` instead of a cached `checkins_7d` column.
 - **Table names are capitalized** (`Users`, `Challenges`, `Enrollments`, `CheckIns`, `ChallengeStats`) and must be quoted in raw SQL on Postgres. Match this when adding FKs or hand-written migrations.
 - **`ChallengeCategory` is the one enum that keeps Farsi values; every enum introduced by the cadence migration uses English codes instead (D7).** `ChallengeCategory.FITNESS == "سلامت جسمانی"` still travels all the way to the browser — JS payloads and template `data-cat` attributes contain the literal Farsi text, and renaming that enum's *value* is a data migration plus a template/JS change, not a rename. `Visibility`, `LifecycleStatus`, `CadenceKind`, and `EnrollmentStatus`, by contrast, are plain English codes (`"public"`, `"active"`, `"recurring_days"`, ...); there is no shared Farsi display-map module for them yet, so each template/script that shows one to a user inlines its own Farsi label (e.g. `challenge-detail.html`'s `visibility != 'public'` check, or `create-challenge.html`'s `cadenceKindLabels`) — follow that existing per-template pattern rather than introducing a new one.
+
+### The onboarding tour
+
+`app/static/js/tour.js` + the "Tour" section of `styles.css` are **three small
+per-page tours, not one run across pages**: امروز (3 steps), خانه (2) and
+چالش‌ها (2), listed together in `TOUR_STEPS` and grouped by each step's `path`.
+**The tour never navigates** — no redirects, no forward-only cursor, no
+handover button; a page's last step says «تمام» and the other pages wait for
+the member to walk over there themselves. Bumping `TOUR_VERSION` replays
+everything for everyone, which is the intended way to ship a changed run.
+
+**State is a set of seen step ids, not a position.** Every step carries a
+stable `id` and the entry is
+`localStorage["chalesh-tour:<user id>"]` → `{v, seen: [...]}`. The key is
+per-member, and the id comes from `data-user-id` on `layout.html`'s `<body>` —
+a phone that already walked one member through the app has to introduce it to
+the next member who signs in on it, and a shared key silently denies a whole
+account its onboarding. That attribute is the contract, so
+`tests/test_tour_anchors.py` pins it alongside the anchors.
+
+Four rules hold it together, and that test pins the anchors and the «؟»:
+
+- **Targets are named, not selected.** A step points at a `data-tour="<id>"`
+  attribute in the template, never at a class chain. Nothing links the two at
+  import time, so the test asserts the contract in *both* directions — every
+  step names an anchor that exists, and every anchor belongs to a step —
+  because the failure mode is silent: a step with a missing target drops out
+  and the counter quietly promises one fewer step than it showed.
+- **A missing target is deferred, not skipped.** A step whose anchor is absent
+  is never marked seen, so it runs by itself the first time the page does
+  render it — even when the rest of that page's tour was seen long ago. The
+  concrete case: `data-tour="today-item"` only exists when the member has
+  something due today, so a member with an empty امروز sees a 2-step tour, and
+  their first day with a card gets the «کارت هر نوبت» step alone. Each page's
+  counter therefore counts only the steps that actually rendered.
+- **Auto-start is per page and independent.** Arriving on a toured page runs
+  that page's *unseen, available* steps. Closing a run early (the ✕ or Esc)
+  marks everything it offered seen; steps that never rendered stay pending.
+- **Replay is the «؟» button, one per toured page** — an `.icon-btn` with the
+  `help` icon, `[data-tour-help]`, in `{% block topbar_action %}` beside the
+  notification bell (wrapped in `.topbar-actions`, since the topbar is
+  `space-between` and two loose children land at opposite ends). It runs *all*
+  of that page's available steps, ignoring `seen`. It renders only on toured
+  pages; settings has no tour, no `[data-tour-restart]` row and no `tour.js`.
+- **The spotlight is a hole in the veil, not a raised element.** The veil is
+  clipped with `clip-path: path(evenodd, …)` so its blur stops at the target's
+  edge, and the target itself is never re-parented, re-stacked or cloned —
+  lifting it with `z-index` dies on the first ancestor owning a stacking
+  context, which here is most of them. Where `path()` is unsupported the
+  `@supports` fallback drops the blur and only dims, because a blurred target
+  is worse than no frosting. Both the blur and the tint are kept light on
+  purpose — the page behind stays legible as *context*, since a control shown
+  without its surroundings is a control nobody can find again — so the ring
+  does the pointing instead: `tourBreathe` swells and fades its hairline and
+  halo together, which draws the eye back without the ring ever moving.
+  `--tour-veil` is the one theme token (all three blocks); everything else is
+  `rgba(var(--accent-rgb),…)`, `--bg-1` and the existing radii. The callout is
+  opaque like `.sheet-panel`, for the same reason plus one more: its arrow
+  overlaps that background by half its width, and a translucent pane shows the
+  seam.
 
 ### Avatars
 
@@ -225,7 +427,11 @@ Because sessions are async, **any relationship touched after the query must be e
 
 Two mechanics make that possible. Tinted fills read `rgba(var(--accent-rgb),0.12)` rather than a second copy of the hex, so `--accent-rgb`/`--mohr-rgb`/`--gold-rgb` ship alongside every accent. And **the neutral fills are semantic, not levels**: `--glass` is the card pane (a faint white wash in dark, a high-alpha white *sheet* in light — the same token running in opposite directions), while `--fill-1`/`--fill-2`/`--track`/`--fill-mute` are the inset surfaces that must sit *below* a card in light and *above* it in dark. `--on-accent`/`--on-gold`/`--on-finished` are the ink on a filled surface and flip with the theme; a filled control must read one of them instead of assuming dark text. Glass gets its lit top edge from `--glass-sheen` and accent controls their halo from `--glow-*` — both are tokens because a bloom that reads as light on the night ground reads as smudge on the sand one. The `.app-bg` tile texture is a data URI, and a data URI cannot resolve a var, so the whole `url()` is the `--tile-url` token and each theme ships its own stroke.
 
-**The theme is chosen in three states, not two.** `getTheme()`/`setTheme()`/`cycleTheme()` in `app.js` persist `system` | `light` | `dark` under `localStorage["chalesh-theme"]`; `system` deletes `[data-theme]` and hands the choice back to the media query. The only control is the `[data-theme-toggle]` row on the profile page, wired by `initThemeToggles()`. The stored value is read a *second* time by a small inline script in the `<head>` of `layout.html`, `auth.html` and `error.html` — that copy is blocking and pre-paint on purpose, because deferring it to `app.js` repaints the whole app one frame in, which is the flash it exists to prevent. Four files share that key; changing it means changing all four.
+**The theme is chosen in three states, not two.** `getTheme()`/`setTheme()`/`cycleTheme()` in `app.js` persist `system` | `light` | `dark` under `localStorage["chalesh-theme"]`; `system` deletes `[data-theme]` and hands the choice back to the media query. The control lives on the settings page (`/views/settings/`) as a `[data-theme-choice]` segmented group of three `[data-theme-option]` buttons, wired by `initThemeControls()`, which also still supports the compact cycling `[data-theme-toggle]` row shape (no page ships one today). Controls are painted from storage on load and carry no server-rendered selection — the server cannot know a `localStorage` value. The stored value is read a *second* time by a small inline script in the `<head>` of `layout.html`, `auth.html` and `error.html` — that copy is blocking and pre-paint on purpose, because deferring it to `app.js` repaints the whole app one frame in, which is the flash it exists to prevent. Four files share that key; changing it means changing all four.
+
+**Every app-level preference lives on `/views/settings/`, and nowhere else.** `routers/views/settings.py` + `templates/settings/index.html` are the whole page; it takes no `db` today because nothing on it is server state, but it is still gated by `get_page_user` — "my settings" is a personal surface, and the first per-account preference must not require gating it retroactively. The profile keeps identity (avatar, «اطلاعات حساب») and its own actions (history, logout) plus one row pointing here; a preference added back to the profile is the regression `tests/test_settings_page.py` pins.
+
+The page is `<section class="setting-group">` per question, `.setting-row` per setting, and a row owes the reader three things: a label, a one-line `.sr-hint` saying what changing it *does*, and its current value visible without opening anything — which is why the theme row drops `.sr-value`, since the segmented control already spells the answer out. A few mutually exclusive options reuse the challenge list's `.seg` control; anything longer opens a `createSheet`, same as every other edit in the app. Unbuilt settings stay listed with `[data-coming-soon]` rather than appearing later: the shape of the screen is part of what it tells you.
 
 Underscore-prefixed templates (`challenge/_challenge_cards.html`, `home/_enrollment_cards.html`) are **infinite-scroll fragments**, `{% include %}`-ed for the first server-rendered page and re-served by `/fragment` endpoints for subsequent pages. The contract:
 

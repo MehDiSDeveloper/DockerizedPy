@@ -1,0 +1,51 @@
+{#- One challenge per row -- the infinite-scroll fragment for the moderation
+    roster.
+
+    Included for the first server-rendered page by `admin/challenges.html`
+    and re-served bare by `GET /views/admin/challenges/fragment` for every
+    page after it, exactly like `challenge/_challenge_cards.html` and
+    `admin/_member_rows.html`. It must therefore stay free of anything but
+    the rows: no wrapper, no empty state, no counter --
+    `createInfiniteScroller()` counts this file's top-level children to
+    advance the offset.
+
+    The row shows two different things about the same challenge and both
+    earn their place: the **status pill** is what a member sees on the public
+    list (derived, via `challenge_status`, so this screen can never disagree
+    with that one), while the hint spells out the two *stored* fields
+    moderation actually writes -- lifecycle and visibility. A screen that
+    only showed the derived badge could not tell a draft from a challenge
+    that has not started, or an archived one from one that has ended.
+
+    Everything the action sheet needs rides on the row as data attributes
+    rather than a page-level JSON array: rows arriving on page two would
+    never be in such an array (see `admin/_member_rows.html`). -#}
+{% for c in challenges %}
+{% set status = c | challenge_status %}
+{#- Non-owner participants: the creator's own auto-enrolment (D1) doesn't
+    count, and this is the exact number the server's delete guard uses. -#}
+{% set others = c.enrollments | rejectattr('user_id', 'equalto', c.owner_id) | list | length %}
+<div class="setting-row glass admin-challenge" role="button" tabindex="0"
+  data-challenge-id="{{ c.id }}" data-challenge-title="{{ c.title }}"
+  data-challenge-lifecycle="{{ c.lifecycle_status }}"
+  data-challenge-visibility="{{ c.visibility }}"
+  data-challenge-others="{{ others }}">
+  <div class="sr-head">
+    {#- The category channel's hue, read from `data-cat` like every other
+        surface that names a category (CLAUDE.md). -#}
+    <span class="admin-cat" data-cat="{{ c.category | category_slug }}"
+      title="{{ c.category.value }}" aria-hidden="true">
+      <span data-icon="{{ c.category | category_icon }}"></span>
+    </span>
+    <div class="sr-text">
+      <span class="sr-label">{{ c.title }}</span>
+      <span class="sr-hint">{{ c.owner.name }} · {{ others }} عضو ·
+        {{ lifecycle_labels.get(c.lifecycle_status, c.lifecycle_status) }} ·
+        {{ visibility_labels.get(c.visibility, c.visibility) }}</span>
+    </div>
+    <span class="status-pill st-{{ status }}"><span
+        data-icon="{{ status_meta[status].icon }}"></span>{{ status_meta[status].label }}</span>
+    <span class="sr-chev" data-icon="chevronLeft"></span>
+  </div>
+</div>
+{% endfor %}

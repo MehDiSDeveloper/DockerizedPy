@@ -10,6 +10,7 @@ from app.config import BASE_DIR
 from app.database import get_db
 from app.models.enrollment import Enrollment, EnrollmentStatus
 from app.models.user import User
+from app.permissions import is_admin
 from app.routers.user import profile_visibility_filter
 
 router = APIRouter(prefix="/views/users", tags=["user-views"])
@@ -95,5 +96,13 @@ async def user_detail(
             "default_avatar_url": avatar_url(None),
             "current_user_id": current_user_id,
             "active_nav": "profile",
+            # The admin row is the one thing in the menu below that depends
+            # on who is asking, and it is a *rendering* decision only: the
+            # route it points at gates itself (get_admin_page_user), so a
+            # member who guesses the URL gets the same 404 either way. Read
+            # off `viewer`, never off `db_user` -- on someone else's profile
+            # (the day one becomes reachable) those differ, and the menu
+            # belongs to the person looking, not the person looked at.
+            "viewer_is_admin": is_admin(viewer),
         },
     )

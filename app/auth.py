@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models.user import User
+from app.permissions import is_admin
 
 _PBKDF2_ITERATIONS = 260_000
 _SESSION_COOKIE_NAME = "session"
@@ -151,4 +152,31 @@ async def get_page_user(
     user = result.scalar_one_or_none()
     if user is None:
         raise LoginRequired
+    return user
+
+
+async def get_admin_user(user: User = Depends(get_current_user)) -> User:
+    """The signed-in admin behind a JSON admin endpoint, or a 403.
+
+    403 rather than 404 here: the caller is authenticated and the route is a
+    fixed path, not a guessable row id, so refusing plainly leaks nothing --
+    the 404 rule in CLAUDE.md exists for sequential ids an enumerator would
+    otherwise map, which a static ``/users/`` is not.
+    """
+    if not is_admin(user):
+        raise HTTPException(status_code=403, detail="Admin only")
+    return user
+
+
+async def get_admin_page_user(user: User = Depends(get_page_user)) -> User:
+    """The signed-in admin behind an SSR admin page, or a 404.
+
+    A page is the opposite call from ``get_admin_user``: a member who lands
+    on the panel's URL has no business learning that a panel exists, and 404
+    is the same answer an unknown path gives. Authentication still fails
+    first, as a 303 to login -- ``get_page_user`` runs before this -- so a
+    signed-out visitor is offered a login rather than a dead end.
+    """
+    if not is_admin(user):
+        raise HTTPException(status_code=404, detail="Not found")
     return user

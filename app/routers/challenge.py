@@ -2,10 +2,10 @@ from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import Select, and_, func, not_, or_, select
+from sqlalchemy import Select, and_, func, not_, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user_id, get_optional_user_id
+from app.auth import get_current_user, get_current_user_id, get_optional_user_id
 from app.database import get_db
 from app.models.challenge import (
     Challenge,
@@ -14,9 +14,11 @@ from app.models.challenge import (
     Visibility,
 )
 from app.models.checkin import CheckIn
-from app.models.enrollment import Enrollment
+from app.models.enrollment import ChallengeRole, Enrollment
 from app.models.stats import ChallengeStats
+from app.models.user import User
 from app.occurrences import local_today
+from app.permissions import Perm, can
 from app.schemas.challenge import ChallengeCreate, ChallengeRead, ChallengeUpdate
 from app.schemas.checkin import ChallengeStatsRead
 
@@ -70,6 +72,27 @@ def listing_visibility_filter(user_id: int | None):
         Challenge.owner_id == user_id,
         Challenge.id.in_(enrolled_challenge_ids),
     )
+
+
+# The fields moderation is allowed to touch. An admin changes *what state a
+# challenge is in* -- take it off the floor, hide it -- and nothing about what
+# it says: title, rules, cadence and goal are authorship, and an edit to them
+# from a non-owner would be invisible in the record. See app/permissions.py.
+MODERATABLE_FIELDS = frozenset({"lifecycle_status", "visibility"})
+
+
+def reachable_for(user: User | None):
+    """Which challenges a mutation by ``user`` may even *find*.
+
+    Everyone is narrowed to what they could already read, so PATCH/DELETE can
+    never confirm a private challenge that GET hides -- the 404-vs-403 split
+    in CLAUDE.md. A moderator holds `CHALLENGE_LIST_ALL`, which is precisely
+    "may see every challenge", so for them the clause is a no-op and an
+    unreachable row stops being a thing that exists.
+    """
+    if can(user, Perm.CHALLENGE_LIST_ALL):
+        return true()
+    return challenge_visibility_filter(user.id if user else None)
 
 
 async def count_non_owner_enrollments(
@@ -250,10 +273,21 @@ async def fetch_challenge_page(
     sort: str = "recent",
     mine: str | None = None,
     status: str | None = None,
+    scope_all: bool = False,
     options=(),
 ) -> tuple[list[Challenge], bool]:
-    """Fetch one page of visible challenges plus whether more pages remain."""
-    stmt = select(Challenge).where(listing_visibility_filter(current_user_id))
+    """Fetch one page of visible challenges plus whether more pages remain.
+
+    `scope_all` drops the visibility narrowing entirely and is the moderation
+    roster -- the challenge-side twin of `GET /users/` ignoring
+    `profile_visibility_filter`. It is a parameter rather than a second query
+    builder so the admin panel and the public list can never disagree about
+    what a search or a status filter matches; the caller must have checked
+    `Perm.CHALLENGE_LIST_ALL` first.
+    """
+    stmt = select(Challenge)
+    if not scope_all:
+        stmt = stmt.where(listing_visibility_filter(current_user_id))
     stmt = apply_challenge_filters(stmt, category, q)
     mine_clause = mine_filter(current_user_id, mine)
     if mine_clause is not None:
@@ -289,13 +323,16 @@ async def create_challenge(
     db.add(db_challenge)
     await db.flush()
 
-    # D1: the creator is auto-enrolled.
+    # D1: the creator is auto-enrolled -- and that enrolment is the one that
+    # carries `owner`, so the row states the role instead of every caller
+    # re-deriving it from `owner_id`.
     tz = resolve_timezone(challenge.timezone)
     enrollment = Enrollment(
         challenge_id=db_challenge.id,
         user_id=current_user_id,
         timezone=tz,
         start_date=local_today(tz, datetime.now(UTC)),
+        role=ChallengeRole.OWNER.value,
     )
     db.add(enrollment)
     db.add(ChallengeStats(challenge_id=db_challenge.id, participant_count=1))
@@ -377,9 +414,10 @@ async def get_challenge_stats(
 async def update_challenge(
     challenge_id: int,
     challenge: ChallengeUpdate,
-    current_user_id: int = Depends(get_current_user_id),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    current_user_id = current_user.id
     # Composed with the visibility filter, not a bare id lookup: a challenge
     # the caller cannot even *read* must answer 404 here too, or PATCH becomes
     # an oracle for private challenges that GET already hides. Visible but not
@@ -387,18 +425,27 @@ async def update_challenge(
     result = await db.execute(
         select(Challenge).where(
             Challenge.id == challenge_id,
-            challenge_visibility_filter(current_user_id),
+            reachable_for(current_user),
         )
     )
     db_challenge = result.scalar_one_or_none()
     if not db_challenge:
         raise HTTPException(status_code=404, detail="Challenge not found")
-    if db_challenge.owner_id != current_user_id:
+
+    updates = challenge.model_dump(exclude_unset=True)
+
+    # Editing is per-challenge, so being an app-wide admin grants nothing
+    # here -- see app/permissions.py on why the two role axes stay apart. A
+    # moderator gets past this only for the two state fields, and only when
+    # the request touches nothing else: one body that renames *and* archives
+    # is refused whole rather than half-applied.
+    if not can(current_user, Perm.CHALLENGE_EDIT, challenge=db_challenge) and not (
+        can(current_user, Perm.CHALLENGE_MODERATE)
+        and updates.keys() <= MODERATABLE_FIELDS
+    ):
         raise HTTPException(
             status_code=403, detail="Not allowed to edit this challenge"
         )
-
-    updates = challenge.model_dump(exclude_unset=True)
 
     locked_fields = {"cadence", "goal_amount", "goal_unit"}
     changing_locked = bool(locked_fields & updates.keys())
@@ -442,20 +489,25 @@ async def update_challenge(
 @router.delete("/{challenge_id}", status_code=204)
 async def delete_challenge(
     challenge_id: int,
-    current_user_id: int = Depends(get_current_user_id),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     # Same 404/403 split as update_challenge above.
     result = await db.execute(
         select(Challenge).where(
             Challenge.id == challenge_id,
-            challenge_visibility_filter(current_user_id),
+            reachable_for(current_user),
         )
     )
     db_challenge = result.scalar_one_or_none()
     if not db_challenge:
         raise HTTPException(status_code=404, detail="Challenge not found")
-    if db_challenge.owner_id != current_user_id:
+    # The owner deletes their own; a moderator removes anyone's. The 409
+    # below then applies to both alike -- see its comment.
+    if not (
+        can(current_user, Perm.CHALLENGE_DELETE, challenge=db_challenge)
+        or can(current_user, Perm.CHALLENGE_DELETE_ANY)
+    ):
         raise HTTPException(
             status_code=403, detail="Not allowed to delete this challenge"
         )
@@ -465,7 +517,10 @@ async def delete_challenge(
     # the challenge. Once someone else has joined, that cascade would destroy
     # *their* logged history, so the same threshold that locks cadence/goal
     # (count_non_owner_enrollments) blocks deletion outright. Archiving via
-    # PATCH lifecycle_status is the way out of a challenge that has run.
+    # PATCH lifecycle_status is the way out of a challenge that has run -- and
+    # that holds for a moderator too: an operator with a reason to remove a
+    # busy challenge still has archiving, which takes it off every screen
+    # without erasing what its participants logged.
     non_owner_count = await count_non_owner_enrollments(
         db, challenge_id, db_challenge.owner_id
     )

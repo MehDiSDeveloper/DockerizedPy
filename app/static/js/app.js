@@ -10,6 +10,7 @@ const icons = {
   user: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.6-4 5-6 8-6s6.4 2 8 6"/></svg>`,
   bell: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1112 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20a2 2 0 004 0"/></svg>`,
   search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>`,
+  help: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.2 9.2a2.9 2.9 0 015.6.9c0 1.9-2.8 2.4-2.8 4"/><path d="M12 17.2h.01"/></svg>`,
   check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`,
   x: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>`,
   trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>`,
@@ -52,6 +53,8 @@ const icons = {
   cadenceDays: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.5l3.2 3.2L17 8.9"/><path d="M3.8 11.7V9.7a4 4 0 014-4h12.4"/><path d="M7 21.5l-3.2-3.2L7 15.1"/><path d="M20.2 12.3v2a4 4 0 01-4 4H3.8"/></svg>`,
   cadenceQuota: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 18.5a8.5 8.5 0 1117 0"/><path d="M12 18.5l4.4-4.9"/><path d="M3.6 15.6l1.9.6M20.4 15.6l-1.9.6M12 10v2"/></svg>`,
   theme: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 000 18z" fill="currentColor" stroke="none"/></svg>`,
+  settings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 14.5a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-1.8-.3 1.6 1.6 0 00-1 1.5v.2a2 2 0 11-4 0v-.1a1.6 1.6 0 00-1-1.5 1.6 1.6 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.6 1.6 0 00.3-1.8 1.6 1.6 0 00-1.5-1H3a2 2 0 110-4h.1a1.6 1.6 0 001.5-1 1.6 1.6 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.6 1.6 0 001.8.3h.1a1.6 1.6 0 001-1.5V3a2 2 0 114 0v.1a1.6 1.6 0 001 1.5 1.6 1.6 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.6 1.6 0 00-.3 1.8v.1a1.6 1.6 0 001.5 1h.2a2 2 0 110 4h-.1a1.6 1.6 0 00-1.5 1z"/></svg>`,
+  shield: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5.5c0 4.4-2.9 8.2-7 9.5-4.1-1.3-7-5.1-7-9.5V6z"/><path d="M9.2 12.2l2 2 3.6-3.8"/></svg>`,
   info: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 8h.01"/></svg>`,
 };
 
@@ -920,6 +923,7 @@ window.createSheet = createSheet;
 const THEME_KEY = "chalesh-theme";
 const THEME_MODES = ["system", "light", "dark"];
 const THEME_LABELS = { system: "پیش‌فرض دستگاه", light: "روشن", dark: "تاریک" };
+const THEME_CONTROLS = "[data-theme-toggle], [data-theme-choice]";
 
 function getTheme() {
   try {
@@ -940,7 +944,7 @@ function setTheme(mode) {
   } catch (e) {
     // private mode: the theme still applies, it just won't survive the page
   }
-  document.querySelectorAll("[data-theme-toggle]").forEach(syncThemeToggle);
+  document.querySelectorAll(THEME_CONTROLS).forEach(syncThemeControl);
   return next;
 }
 
@@ -948,14 +952,34 @@ function cycleTheme() {
   return setTheme(THEME_MODES[(THEME_MODES.indexOf(getTheme()) + 1) % THEME_MODES.length]);
 }
 
-function syncThemeToggle(el) {
+// A control is repainted, never read: the stored mode is the single source of
+// truth, and no server can know it, so every control starts blank in the
+// markup and gets its state from here on load.
+function syncThemeControl(el) {
+  const mode = getTheme();
   const out = el.querySelector("[data-theme-value]");
-  if (out) out.textContent = THEME_LABELS[getTheme()];
+  if (out) out.textContent = THEME_LABELS[mode];
+  el.querySelectorAll("[data-theme-option]").forEach(btn => {
+    const on = btn.dataset.themeOption === mode;
+    btn.classList.toggle("active", on);
+    btn.setAttribute("aria-checked", on ? "true" : "false");
+  });
 }
 
-function initThemeToggles(root = document) {
-  root.querySelectorAll("[data-theme-toggle]").forEach(el => {
-    syncThemeToggle(el);
+// Two shapes over the same three states. `[data-theme-choice]` shows all
+// three at once and is what the settings page uses -- a preference screen
+// should answer "what are my options" without being poked. `[data-theme-toggle]`
+// is the compact one-line form that cycles; nothing ships it today, but it is
+// the shape a menu row needs and costs one branch to keep working.
+function initThemeControls(root = document) {
+  root.querySelectorAll(THEME_CONTROLS).forEach(el => {
+    syncThemeControl(el);
+
+    el.querySelectorAll("[data-theme-option]").forEach(btn => {
+      btn.addEventListener("click", () => setTheme(btn.dataset.themeOption));
+    });
+
+    if (!el.matches("[data-theme-toggle]")) return;
     el.addEventListener("click", () => cycleTheme());
     el.addEventListener("keydown", e => {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); cycleTheme(); }
@@ -963,7 +987,7 @@ function initThemeToggles(root = document) {
   });
 }
 
-document.addEventListener("DOMContentLoaded", () => initThemeToggles());
+document.addEventListener("DOMContentLoaded", () => initThemeControls());
 
 window.getTheme = getTheme;
 window.setTheme = setTheme;

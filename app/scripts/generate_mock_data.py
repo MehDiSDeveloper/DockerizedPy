@@ -25,7 +25,7 @@ from app.models.challenge import (
     Visibility,
 )
 from app.models.checkin import CheckIn
-from app.models.enrollment import Enrollment, EnrollmentStatus
+from app.models.enrollment import ChallengeRole, Enrollment, EnrollmentStatus
 from app.models.stats import ChallengeStats
 from app.models.user import User
 from app.occurrences import compute_streaks, is_occurrence_day, local_today, period_key
@@ -158,6 +158,11 @@ async def create_enrollments(
             status=status,
             timezone=DEFAULT_TIMEZONE,
             start_date=start_date,
+            role=(
+                ChallengeRole.OWNER.value
+                if user_id == challenge.owner_id
+                else ChallengeRole.PARTICIPANT.value
+            ),
         )
         session.add(enrollment)
         enrollments.append((enrollment, challenge, cadence))

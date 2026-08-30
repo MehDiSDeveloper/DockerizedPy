@@ -18,7 +18,7 @@ from app.database import get_db
 from app.icons import register_icon_filters
 from app.models.challenge import Challenge, ChallengeCategory
 from app.models.checkin import CheckIn
-from app.models.enrollment import Enrollment
+from app.models.enrollment import ChallengeRole, Enrollment
 from app.models.stats import ChallengeStats
 from app.models.user import User
 from app.occurrences import (
@@ -33,6 +33,7 @@ from app.occurrences import (
     upcoming_occurrences,
     week_start,
 )
+from app.permissions import challenge_role
 from app.routers.challenge import (
     DEFAULT_PAGE_SIZE,
     DEFAULT_TIMEZONE,
@@ -173,6 +174,7 @@ async def create_challenge(
             user_id=current_user_id,
             timezone=tz,
             start_date=local_today(tz, datetime.now(UTC)),
+            role=ChallengeRole.OWNER.value,
         )
         db.add(enrollment)
         db.add(ChallengeStats(challenge_id=db_challenge.id, participant_count=1))
@@ -721,7 +723,15 @@ async def challenge_detail(
     # than guessing at them: cadence/goal are locked and hard delete is
     # refused once anyone else has joined (see update_challenge /
     # delete_challenge), so the sheet only offers what would actually succeed.
-    is_owner = current_user_id is not None and db_challenge.owner_id == current_user_id
+    # Asked through `challenge_role` rather than compared to `owner_id` here,
+    # so the page and the API answer "is this mine" from one definition -- the
+    # button this decides to render must match the guard on the route it calls.
+    is_owner = (
+        challenge_role(
+            current_user_id, challenge=db_challenge, enrollment=my_enrollment
+        )
+        == ChallengeRole.OWNER.value
+    )
     has_other_participants = False
     if is_owner:
         has_other_participants = any(

@@ -35,7 +35,7 @@ from app.models.challenge import (
     Visibility,
 )
 from app.models.checkin import CheckIn
-from app.models.enrollment import Enrollment, EnrollmentStatus
+from app.models.enrollment import ChallengeRole, Enrollment, EnrollmentStatus
 from app.models.stats import ChallengeStats
 from app.models.user import User
 from app.occurrences import (
@@ -1018,6 +1018,11 @@ async def build(session: AsyncSession, now: datetime) -> list[tuple[dict, Challe
                 timezone=tz,
                 start_date=local_today(tz, now) - timedelta(days=days_ago),
                 created_at=now - timedelta(days=max(days_ago, 0)),
+                role=(
+                    ChallengeRole.OWNER.value
+                    if user.id == challenge.owner_id
+                    else ChallengeRole.PARTICIPANT.value
+                ),
             )
             session.add(enrollment)
             await session.flush()

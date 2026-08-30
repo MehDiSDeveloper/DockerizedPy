@@ -1,6 +1,17 @@
 {% extends "layout.html" %}
 {% set crumb_label = "امروز" %}
 
+{#- «؟» -- this page's own tour, on demand. The tour is per-page now, so the
+    button that replays it belongs to the screen it explains rather than to a
+    settings row three taps away. .topbar-actions is what keeps it beside the
+    bell instead of at the far end of a space-between header. -#}
+{% block topbar_action %}
+<div class="topbar-actions">
+  <button class="icon-btn" aria-label="راهنمای این صفحه" data-icon="help" data-tour-help></button>
+  {{ super() }}
+</div>
+{% endblock %}
+
 {% block content %}
 
   <!-- greeting -->
@@ -14,7 +25,7 @@
 
   <!-- stats -->
   <section class="stats">
-    <div class="stat-card glass accent">
+    <div class="stat-card glass accent" data-tour="today-count">
       <span class="stat-num" id="todayCount">{{ total_count }}</span>
       <span class="stat-label">مانده تا امروز</span>
     </div>
@@ -43,6 +54,7 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script src="{{ url_for('static', path='/js/tour.js') }}"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => {
     const listEl = document.getElementById("todayList");

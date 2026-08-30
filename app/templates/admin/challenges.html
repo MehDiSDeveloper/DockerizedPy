@@ -1,0 +1,237 @@
+{% extends "layout.html" %}
+
+{#- The moderation roster: every challenge in the install, with actions.
+
+    Deliberately the public challenge list's own screen -- the same search
+    bar, the same status segment, the same infinite scroller, the same
+    createSheet-against-the-JSON-API edit. Two things make it a moderation
+    screen and nothing else does: it is served with `scope_all=True`, so a
+    private challenge no member could reach is listed here, and a row can be
+    acted on.
+
+    What it does *not* do is edit: title, rules, cadence and goal belong to
+    the owner and the server refuses them from anyone else (see
+    app/permissions.py). This page offers exactly the two fields moderation
+    means -- lifecycle and visibility -- plus removal. -#}
+
+{% block topbar_leading %}
+<a href="/views/admin/" class="back-btn" data-back data-back-optional
+  aria-label="بازگشت"><span data-icon="chevronRight"></span></a>
+{% endblock %}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="مدیریت چالش‌ها">
+  <span class="crumb current" aria-current="page">مدیریت چالش‌ها</span>
+</nav>
+{% endblock %}
+
+{% block topbar_action %}{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+  <section class="setting-group admin-members">
+    <h2>همه چالش‌ها</h2>
+
+    <div class="search-bar">
+      <span data-icon="search"></span>
+      <input type="text" id="acSearch" placeholder="جستجوی عنوان چالش..." value="{{ query }}"
+        aria-label="جستجوی چالش‌ها" />
+    </div>
+
+    {#- The same four buttons the public list carries, in the same colours:
+        one control means one thing across the app. -#}
+    <div class="seg-row">
+      <div class="seg" id="acStatusSeg" role="tablist" aria-label="فیلتر وضعیت چالش">
+        {% for opt in status_options %}
+        <button class="seg-btn{{ ' st-' ~ opt.value if opt.icon }}{{ ' active' if active_status == opt.value }}"
+          data-status="{{ opt.value }}" role="tab"
+          aria-selected="{{ 'true' if active_status == opt.value else 'false' }}">{% if opt.icon %}<span
+            data-icon="{{ opt.icon }}"></span>{% endif %}{{ opt.label }}</button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="admin-list" id="acList" data-page-size="{{ page_size }}"
+      data-initial-count="{{ challenges|length }}" data-has-more="{{ 'true' if has_more else 'false' }}">
+      {% include "admin/_challenge_rows.html" %}
+    </div>
+    <div class="empty" id="acEmpty" {{ 'hidden' if challenges }}>
+      <span data-icon="empty"></span>
+      <p id="acEmptyText">{{ "چالشی با این مشخصات پیدا نشد." if (query or active_status != "all") else "هنوز چالشی ساخته نشده." }}</p>
+    </div>
+    <div class="scroll-sentinel" id="acSentinel" aria-hidden="true"></div>
+    <div class="list-loading" id="acLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const search = document.getElementById("acSearch");
+    const statusSeg = document.getElementById("acStatusSeg");
+    const listEl = document.getElementById("acList");
+    const emptyEl = document.getElementById("acEmpty");
+    const emptyText = document.getElementById("acEmptyText");
+    const lifecycleLabels = {{ lifecycle_labels | tojson }};
+    const visibilityLabels = {{ visibility_labels | tojson }};
+
+    const state = {
+      q: search.value.trim(),
+      status: {{ (active_status or "all") | tojson }},
+    };
+
+    function updateEmptyMessage() {
+      emptyText.textContent = (state.q || state.status !== "all")
+        ? "چالشی با این مشخصات پیدا نشد."
+        : "هنوز چالشی ساخته نشده.";
+    }
+
+    function queryParams() {
+      const params = new URLSearchParams();
+      if (state.q) params.set("q", state.q);
+      if (state.status !== "all") params.set("status", state.status);
+      return params;
+    }
+
+    const scroller = createInfiniteScroller({
+      container: listEl,
+      sentinel: document.getElementById("acSentinel"),
+      loadingEl: document.getElementById("acLoading"),
+      emptyEl: emptyEl,
+      pageSize: Number(listEl.dataset.pageSize) || 20,
+      initialOffset: Number(listEl.dataset.initialCount) || 0,
+      initialHasMore: listEl.dataset.hasMore === "true",
+      buildUrl: (offset, limit) => {
+        const params = queryParams();
+        params.set("offset", offset);
+        params.set("limit", limit);
+        return `/views/admin/challenges/fragment?${params.toString()}`;
+      },
+      onEmpty: () => {
+        updateEmptyMessage();
+        emptyEl.hidden = false;
+      },
+    });
+
+    // Every filter change funnels through here, so the control, the URL and
+    // the list can't drift apart.
+    function apply() {
+      emptyEl.hidden = true;
+      syncStatusSeg();
+      const qs = queryParams().toString();
+      history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+      scroller.reset();
+    }
+
+    const statusBtns = Array.from(statusSeg.querySelectorAll(".seg-btn"));
+    function syncStatusSeg() {
+      statusBtns.forEach((b) => {
+        const on = b.dataset.status === state.status;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-selected", on ? "true" : "false");
+      });
+    }
+    statusBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.dataset.status === state.status) return;
+        state.status = btn.dataset.status;
+        apply();
+      });
+    });
+
+    search.addEventListener("input", debounce(() => {
+      state.q = search.value.trim();
+      apply();
+    }, 300));
+
+    function chipsFrom(labels) {
+      return Object.entries(labels).map(([value, label]) => ({ value, label }));
+    }
+
+    // One delegated listener on the list, so rows the scroller appends are
+    // covered without rebinding -- and each row carries its own current
+    // state, so page two is described as accurately as page one.
+    listEl.addEventListener("click", (e) => {
+      const row = e.target.closest(".admin-challenge");
+      if (!row) return;
+      const id = Number(row.dataset.challengeId);
+      const others = Number(row.dataset.challengeOthers) || 0;
+
+      createSheet({
+        title: row.dataset.challengeTitle,
+        confirmLabel: "ذخیره",
+        // The secondary button opens the challenge itself: moderating
+        // something you haven't read is how the wrong one gets archived.
+        skipLabel: "مشاهده چالش",
+        onSkip: () => {
+          window.location.href = `/views/challenges/${id}`;
+          return false;
+        },
+        fields: [
+          {
+            name: "lifecycle_status",
+            label: "وضعیت",
+            type: "chips",
+            options: chipsFrom(lifecycleLabels),
+            value: row.dataset.challengeLifecycle,
+          },
+          {
+            name: "visibility",
+            label: "دسترسی",
+            type: "chips",
+            options: chipsFrom(visibilityLabels),
+            value: row.dataset.challengeVisibility,
+          },
+        ],
+        onConfirm: async (values) => {
+          // Only what changed is sent: the server accepts a moderator's PATCH
+          // only when every field in the body is one that moderation may
+          // write, so an untouched field must not ride along.
+          const body = {};
+          if (values.lifecycle_status !== row.dataset.challengeLifecycle) {
+            body.lifecycle_status = values.lifecycle_status;
+          }
+          if (values.visibility !== row.dataset.challengeVisibility) {
+            body.visibility = values.visibility;
+          }
+          if (!Object.keys(body).length) return true;
+
+          const { ok, data } = await apiFetch(`/challenges/${id}`, { method: "PATCH", body });
+          if (!ok) {
+            showToast("خطا: " + ((data && data.detail) || "ذخیره نشد"));
+            return false;
+          }
+          showToast("ذخیره شد");
+          // Re-fetched from the server rather than repainted here: the row's
+          // pill is the *derived* status, and re-deriving it in JS is exactly
+          // the drift the one-rule-in-one-place design avoids (CLAUDE.md).
+          scroller.reset();
+          return true;
+        },
+        danger: {
+          label: "حذف چالش",
+          onClick: async () => {
+            // The same threshold the server enforces, stated here so the
+            // refusal arrives with its reason instead of as a bare error.
+            if (others > 0) {
+              showToast("چالشی که دیگران در آن عضو شده‌اند حذف نمی‌شود؛ آرشیوش کن");
+              return false;
+            }
+            if (!confirm("این چالش برای همیشه حذف شود؟")) return false;
+            const { ok, data } = await apiFetch(`/challenges/${id}`, { method: "DELETE" });
+            if (!ok) {
+              showToast("خطا: " + ((data && data.detail) || "حذف نشد"));
+              return false;
+            }
+            showToast("حذف شد");
+            scroller.reset();
+            return true;
+          },
+        },
+      });
+    });
+  });
+</script>
+{% endblock %}

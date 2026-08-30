@@ -19,7 +19,7 @@
 
 {% block topbar_action %}
 {% if is_own_profile %}
-<button class="icon-btn" aria-label="ویرایش" data-icon="edit" data-coming-soon="ویرایش پروفایل به‌زودی اضافه می‌شود"></button>
+<button class="icon-btn" aria-label="ویرایش اطلاعات حساب" data-icon="edit" data-info-edit></button>
 {% endif %}
 {% endblock %}
 
@@ -41,7 +41,7 @@
       <img src="{{ user.avatar | avatar_url }}" alt="آواتار {{ user.name }}" width="84" height="84">
     </div>
     {% endif %}
-    <h1>{{user.name}}</h1>
+    <h1 id="profileName">{{user.name}}</h1>
     <p>عضو از <span data-jalali="{{ user.created_at.isoformat() }}"
       data-jalali-format="day-month-year">{{ user.created_at.strftime('%Y-%m-%d') }}</span></p>
   </div>
@@ -58,39 +58,72 @@
   </section>
 
   {% if is_own_profile %}
-  <section class="menu-list">
-    <div class="menu-item glass" data-coming-soon="اطلاعات حساب به‌زودی اضافه می‌شود" role="button" tabindex="0">
-      <div class="mi-icon"><span data-icon="user"></span></div>
-      <span class="mi-label">اطلاعات حساب</span>
-      <span class="mi-chev" data-icon="chevronLeft"></span>
+  {#- «اطلاعات حساب» -- the member's own contact and where-they-are details.
+      Own-profile-only by construction: this page is already gated by
+      `profile_visibility_filter`, and none of these fields are in
+      `UserPublicRead`, so there is no second surface to gate.
+
+      Everything but the name is optional and stays optional, so an unset
+      field renders as «ثبت نشده» rather than disappearing -- a row that is
+      not there cannot be discovered as something you *may* fill in. Editing
+      is the same `createSheet` + `PATCH /users/{id}` the avatar picker uses;
+      there is no `/views/` twin, same as every other mutation in the app. -#}
+  <section class="profile-info">
+    <div class="section-head">
+      <h2>اطلاعات حساب</h2>
+      <button type="button" class="icon-btn" aria-label="ویرایش اطلاعات حساب" data-icon="edit"
+        data-info-edit></button>
     </div>
+    <dl class="fact-list boxed glass">
+      {% for row in [
+        ('name', 'نام', user.name),
+        ('email', 'ایمیل', user.email),
+        ('phone', 'شماره موبایل', user.phone),
+        ('country', 'کشور', user.country),
+        ('city', 'شهر', user.city),
+        ('address', 'نشانی دقیق', user.address)
+      ] %}
+      <div class="fact">
+        <dt>{{ row[1] }}</dt>
+        <dd data-info="{{ row[0] }}" {% if not row[2] %}class="is-empty"{% endif %}>{{ row[2] or 'ثبت نشده' }}</dd>
+      </div>
+      {% endfor %}
+    </dl>
+    <p class="info-note">این اطلاعات فقط برای خودت نمایش داده می‌شود. جز نام، پر کردن بقیه اختیاری است.</p>
+  </section>
+
+  {#- The profile's own actions, and nothing else. Every *preference* --
+      the theme, notifications, «دربارهٔ چالش» -- moved to /views/settings/,
+      so this list stays three short answers to "what can I do from here"
+      instead of a drawer where anything app-wide accumulates. -#}
+  <section class="menu-list">
+    {#- The panel's second entry point, and the reason there is one at all:
+        the profile is where someone goes to act *as themselves*, and being
+        an admin is part of who they are. It sits first because it is the
+        one row here that most members will never see, and it wears the
+        accent so it reads as a capability rather than another menu line.
+
+        Rendered only for an admin, exactly like the settings row it
+        duplicates -- the route answers a member 404 regardless, so the gate
+        and the affordance agree without either trusting the other. -#}
+    {% if viewer_is_admin %}
+    <a class="menu-item glass" href="/views/admin/">
+      <div class="mi-icon"><span data-icon="shield"></span></div>
+      <span class="mi-label">پنل مدیریت</span>
+      <span class="role-pill is-admin">مدیر</span>
+      <span class="mi-chev" data-icon="chevronLeft"></span>
+    </a>
+    {% endif %}
     <a class="menu-item glass" href="/views/home/">
       <div class="mi-icon"><span data-icon="chart"></span></div>
       <span class="mi-label">تاریخچهٔ چالش‌ها</span>
       <span class="mi-chev" data-icon="chevronLeft"></span>
     </a>
-    <div class="menu-item glass" data-coming-soon="تنظیمات اعلان‌ها به‌زودی اضافه می‌شود" role="button" tabindex="0">
-      <div class="mi-icon"><span data-icon="bell"></span></div>
-      <span class="mi-label">تنظیمات اعلان‌ها</span>
+    <a class="menu-item glass" href="/views/settings/">
+      <div class="mi-icon"><span data-icon="settings"></span></div>
+      <span class="mi-label">تنظیمات</span>
       <span class="mi-chev" data-icon="chevronLeft"></span>
-    </div>
-    {#- The only control for the two themes. It cycles دستگاه → روشن → تاریک
-        rather than toggling, because "follow the device" is a third state and
-        a two-way switch would strand anyone who wants it back. The current
-        value is written into [data-theme-value] by initThemeToggles() in
-        app.js, so it is blank until JS runs -- which is also when the control
-        starts working, so there is nothing to mislabel in between. -#}
-    <div class="menu-item glass" data-theme-toggle role="button" tabindex="0">
-      <div class="mi-icon"><span data-icon="theme"></span></div>
-      <span class="mi-label">پوستهٔ برنامه</span>
-      <span class="mi-value" data-theme-value></span>
-      <span class="mi-chev" data-icon="chevronLeft"></span>
-    </div>
-    <div class="menu-item glass" data-coming-soon="بخش دربارهٔ چالش به‌زودی اضافه می‌شود" role="button" tabindex="0">
-      <div class="mi-icon"><span data-icon="info"></span></div>
-      <span class="mi-label">دربارهٔ چالش</span>
-      <span class="mi-chev" data-icon="chevronLeft"></span>
-    </div>
+    </a>
     <div class="menu-item glass danger" id="logoutBtn" role="button" tabindex="0">
       <div class="mi-icon"><span data-icon="logout"></span></div>
       <span class="mi-label">خروج از حساب</span>
@@ -155,6 +188,81 @@
       });
     });
   }
+</script>
+<script>
+  // Edit «اطلاعات حساب». Same shape as the avatar picker above: a
+  // `createSheet` over `PATCH /users/{id}`, no `/views/` twin.
+  //
+  // The sheet always submits all six fields, so a cleared box arrives as ""
+  // and the schema (`_blank_is_absent` in schemas/user.py) stores it as NULL
+  // -- which is what keeps "not given" a single state rather than two.
+  // Nothing here is derived from anything else on the page, so the response
+  // repaints the rows in place instead of reloading.
+  const infoLabels = {
+    name: "نام", email: "ایمیل", phone: "شماره موبایل",
+    country: "کشور", city: "شهر", address: "نشانی دقیق",
+  };
+  const infoValues = {{ {
+    'name': user.name, 'email': user.email or '', 'phone': user.phone or '',
+    'country': user.country or '', 'city': user.city or '', 'address': user.address or ''
+  } | tojson }};
+
+  function paintInfo(user) {
+    for (const key of Object.keys(infoLabels)) {
+      const value = user[key] || "";
+      infoValues[key] = value;
+      const cell = document.querySelector(`[data-info="${key}"]`);
+      if (!cell) continue;
+      cell.textContent = value || "ثبت نشده";
+      cell.classList.toggle("is-empty", !value);
+    }
+    document.getElementById("profileName").textContent = user.name;
+  }
+
+  document.querySelectorAll("[data-info-edit]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      createSheet({
+        title: "اطلاعات حساب",
+        confirmLabel: "ذخیره",
+        fields: [
+          { name: "name", label: infoLabels.name, required: true, maxlength: 50,
+            value: infoValues.name },
+          { name: "email", label: infoLabels.email, type: "email", maxlength: 100,
+            value: infoValues.email, placeholder: "اختیاری" },
+          { name: "phone", label: infoLabels.phone, type: "tel", maxlength: 20,
+            value: infoValues.phone, placeholder: "۰۹۱۲۰۰۰۰۰۰۰ (اختیاری)" },
+          { name: "country", label: infoLabels.country, maxlength: 60,
+            value: infoValues.country, placeholder: "اختیاری" },
+          { name: "city", label: infoLabels.city, maxlength: 60,
+            value: infoValues.city, placeholder: "اختیاری" },
+          { name: "address", label: infoLabels.address, type: "textarea", rows: 2,
+            maxlength: 255, value: infoValues.address, placeholder: "اختیاری" },
+        ],
+        onConfirm: async (values) => {
+          const res = await fetch("/users/{{ user.id }}", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(values),
+          });
+          if (res.status === 409) {
+            showToast("این ایمیل قبلاً ثبت شده است");
+            return false;
+          }
+          if (res.status === 422) {
+            showToast("شمارهٔ موبایل یا ایمیل معتبر نیست");
+            return false;
+          }
+          if (!res.ok) {
+            showToast("ذخیرهٔ اطلاعات انجام نشد");
+            return false;
+          }
+          paintInfo(await res.json());
+          showToast("اطلاعات حساب به‌روز شد");
+          return true;
+        },
+      });
+    });
+  });
 </script>
 {% endif %}
 <script>

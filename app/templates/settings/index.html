@@ -1,0 +1,166 @@
+{% extends "layout.html" %}
+
+{#- The app's settings screen: everything the member can *change about the
+    app itself*, as opposed to the profile, which is who they are.
+
+    Structure, and the rule for adding to it -- one `<section class="setting-group">`
+    per question the reader is asking, each with a `<h2>` naming it, and one
+    `.setting-row` per setting inside. A row owes the reader three things:
+
+      1. a label saying what it controls,
+      2. a one-line `.sr-hint` saying what changing it does -- a setting
+         nobody can predict the effect of is a setting nobody touches,
+      3. its *current* value, visible without opening anything.
+
+    A setting whose value is one of a few mutually exclusive options gets the
+    `.seg` segmented control the challenge list already uses (all options and
+    the current one visible at once); anything longer opens a `createSheet`,
+    same as every other edit in the app. Nothing here posts a form -- app
+    preferences are client-side today, account state goes through
+    `PATCH /users/{id}` like the profile's own sheets do.
+
+    Not-yet-built settings stay listed with `[data-coming-soon]`, which
+    toasts: the shape of the screen is part of what it tells you, and a row
+    that appears later is harder to find than one that was always there. -#}
+
+{% block topbar_leading %}
+<a href="/views/users/{{ current_user_id }}" class="back-btn" data-back data-back-optional
+  aria-label="بازگشت"><span data-icon="chevronRight"></span></a>
+{% endblock %}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="تنظیمات">
+  <span class="crumb current" aria-current="page">تنظیمات</span>
+</nav>
+{% endblock %}
+
+{#- No notification bell here: this page is where its settings live, so a
+    shortcut to the (unbuilt) inbox on top of them is one control too many. -#}
+{% block topbar_action %}{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+
+  {#- «نمایش» -- how the app looks on this device. Device-scoped, not
+      account-scoped: the theme is a localStorage value, so the note says so
+      rather than letting someone expect it to follow them to their phone. -#}
+  <section class="setting-group">
+    <h2>نمایش</h2>
+    <div class="setting-row glass" data-theme-choice>
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">پوستهٔ برنامه</span>
+          <span class="sr-hint">رنگ‌بندی روشن یا تاریک برنامه روی همین دستگاه.</span>
+        </div>
+        {#- No `.sr-value` here: the segmented control below already spells the
+            current choice out, and the same figure twice on one row is the
+            pair that eventually disagrees. The compact menu-row form is where
+            `[data-theme-value]` earns its place. -#}
+      </div>
+      {#- Three mutually exclusive states, so all three are on screen: the
+          profile's old row *cycled* دستگاه → روشن → تاریک, which is fine as
+          one line in a menu but hides two of the three answers. `role=radio`
+          rather than `tab`, because nothing switches panels.
+
+          The buttons carry no `active` class from the server -- the choice
+          lives in localStorage, which only the client can read -- so
+          initThemeControls() in app.js paints the current one on load. -#}
+      <div class="seg" role="radiogroup" aria-label="پوستهٔ برنامه">
+        <button type="button" class="seg-btn" data-theme-option="system" role="radio"
+          aria-checked="false">پیش‌فرض دستگاه</button>
+        <button type="button" class="seg-btn" data-theme-option="light" role="radio"
+          aria-checked="false">روشن</button>
+        <button type="button" class="seg-btn" data-theme-option="dark" role="radio"
+          aria-checked="false">تاریک</button>
+      </div>
+    </div>
+  </section>
+
+  {#- «اعلان‌ها» -- when the app is allowed to interrupt. -#}
+  <section class="setting-group">
+    <h2>اعلان‌ها</h2>
+    <div class="setting-row glass" data-coming-soon="تنظیمات اعلان‌ها به‌زودی اضافه می‌شود"
+      role="button" tabindex="0">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">یادآوری چالش‌ها</span>
+          <span class="sr-hint">یادآوری نوبت‌های امروز و پایان مهلت‌ها.</span>
+        </div>
+        <span class="sr-value muted">به‌زودی</span>
+        <span class="sr-chev" data-icon="chevronLeft"></span>
+      </div>
+    </div>
+  </section>
+
+  {#- «حساب کاربری» -- settings *about the account*, as opposed to its
+      contents. Editing name/email/… stays on the profile, next to the values
+      it changes; what belongs here is everything that has no other home. -#}
+  <section class="setting-group">
+    <h2>حساب کاربری</h2>
+    <a class="setting-row glass" href="/views/users/{{ current_user_id }}">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">اطلاعات حساب</span>
+          <span class="sr-hint">نام، ایمیل، شماره موبایل و نشانی.</span>
+        </div>
+        <span class="sr-chev" data-icon="chevronLeft"></span>
+      </div>
+    </a>
+    <div class="setting-row glass" data-coming-soon="تغییر رمز عبور به‌زودی اضافه می‌شود"
+      role="button" tabindex="0">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">تغییر رمز عبور</span>
+          <span class="sr-hint">رمز ورود به حساب را عوض کن.</span>
+        </div>
+        <span class="sr-value muted">به‌زودی</span>
+        <span class="sr-chev" data-icon="chevronLeft"></span>
+      </div>
+    </div>
+  </section>
+
+  {#- «مدیریت» -- rendered only for an admin, and the only entry point to
+      the panel. It lives here rather than in the bottom nav because the nav
+      is the four things every member does; a fifth destination for a handful
+      of accounts would cost everyone else a tab. A member never sees this
+      row, and the route answers them 404 even if they guess it, so the two
+      agree without either trusting the other. -#}
+  {% if viewer_is_admin %}
+  <section class="setting-group">
+    <h2>مدیریت</h2>
+    <a class="setting-row glass" href="/views/admin/">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">پنل مدیریت</span>
+          <span class="sr-hint">فهرست اعضا و تغییر نقش آن‌ها.</span>
+        </div>
+        <span class="sr-chev" data-icon="chevronLeft"></span>
+      </div>
+    </a>
+  </section>
+  {% endif %}
+
+  {#- «دربارهٔ برنامه» -- not a preference, but the thing people look for in
+      a settings screen when they want the version or the terms, so it is
+      here rather than back on the profile. -#}
+  <section class="setting-group">
+    <h2>دربارهٔ برنامه</h2>
+    <div class="setting-row glass" data-coming-soon="بخش دربارهٔ چالش به‌زودی اضافه می‌شود"
+      role="button" tabindex="0">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">دربارهٔ چالش</span>
+          <span class="sr-hint">معرفی برنامه، قوانین و راه‌های ارتباط.</span>
+        </div>
+        <span class="sr-chev" data-icon="chevronLeft"></span>
+      </div>
+    </div>
+    <p class="settings-note">نسخهٔ آزمایشی — «چالش»</p>
+  </section>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+{% endblock %}

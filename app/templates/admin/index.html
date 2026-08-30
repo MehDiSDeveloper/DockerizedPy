@@ -1,0 +1,261 @@
+{% extends "layout.html" %}
+
+{#- The member-administration panel.
+
+    Its own page, reached only from rows that are themselves rendered only
+    for an admin -- one on the settings screen, one on the profile -- see
+    routers/views/admin.py for why this is not a set of extra buttons
+    sprinkled through the member-facing screens.
+
+    Everything here is *about other people*, which is the one thing the rest
+    of the app deliberately never shows (profile_visibility_filter is
+    own-only). So the page states plainly what it is, and shows only what it
+    administers: identity, and the role. It does not link to anyone's
+    profile, because that route is still own-only and would 404 -- an admin
+    who needs to change a role does it here, in place.
+
+    The roster is searched, filtered by role and paged in exactly the way
+    the challenge list is: a `.search-bar` and a `.seg` that stay visible
+    (there are only two cuts, so nothing needs to hide behind a filter
+    sheet), a `createInfiniteScroller()` over `/views/admin/fragment`, and
+    the state mirrored into the URL so a filtered roster is linkable and
+    survives a reload. -#}
+
+{% block topbar_leading %}
+<a href="/views/settings/" class="back-btn" data-back data-back-optional
+  aria-label="بازگشت"><span data-icon="chevronRight"></span></a>
+{% endblock %}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="پنل مدیریت">
+  <span class="crumb current" aria-current="page">پنل مدیریت</span>
+</nav>
+{% endblock %}
+
+{% block topbar_action %}{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+
+  {#- Three counts, not a dashboard: they answer "how big is this thing"
+      before the roster below answers "who is in it". Live counts off the
+      tables, like every other figure in the app -- nothing cached, and
+      deliberately not narrowed by the search below. -#}
+  <section class="setting-group">
+    <h2>یک نگاه</h2>
+    <div class="admin-stats">
+      <div class="admin-stat glass">
+        <span class="as-value">{{ totals.members }}</span>
+        <span class="as-label">عضو</span>
+      </div>
+      <div class="admin-stat glass">
+        <span class="as-value">{{ totals.challenges }}</span>
+        <span class="as-label">چالش</span>
+      </div>
+      <div class="admin-stat glass">
+        <span class="as-value">{{ totals.enrollments }}</span>
+        <span class="as-label">عضویت</span>
+      </div>
+    </div>
+  </section>
+
+  {#- The panel's other half. A row rather than a tab on this page: two
+      searched, filtered, lazily-paged lists on one screen would fight over
+      one URL and neither would stay linkable. -#}
+  <section class="setting-group">
+    <h2>چالش‌ها</h2>
+    <a href="/views/admin/challenges" class="setting-row glass">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">مدیریت چالش‌ها</span>
+          <span class="sr-hint">همه چالش‌ها، حتی خصوصی‌ها؛ آرشیو، تغییر دسترسی و حذف.</span>
+        </div>
+        <span class="sr-chev" data-icon="chevronLeft"></span>
+      </div>
+    </a>
+  </section>
+
+  <section class="setting-group admin-members">
+    <h2>اعضا</h2>
+
+    {#- Search spans name and email, because those are the two things an
+        admin has in hand when someone asks for help. No filter button: role
+        is the only other cut and it is short enough to stay on screen, so
+        nothing here can be left on invisibly. -#}
+    <div class="search-bar">
+      <span data-icon="search"></span>
+      <input type="text" id="amSearch" placeholder="جستجوی نام یا ایمیل..." value="{{ query }}"
+        aria-label="جستجوی اعضا" />
+    </div>
+
+    <div class="seg-row">
+      <div class="seg" id="amRoleSeg" role="tablist" aria-label="فیلتر نقش">
+        {% for opt in role_options %}
+        <button class="seg-btn{{ ' active' if active_role == opt.value }}" data-role="{{ opt.value }}"
+          role="tab" aria-selected="{{ 'true' if active_role == opt.value else 'false' }}">{{ opt.label }}</button>
+        {% endfor %}
+      </div>
+    </div>
+
+    {#- One row per member, tappable, opening the role sheet. The role is
+        visible on the row itself rather than only inside the sheet -- the
+        same rule the settings rows follow: the current value is part of
+        what the list tells you. -#}
+    <div class="admin-list" id="amList" data-page-size="{{ page_size }}"
+      data-initial-count="{{ members|length }}" data-has-more="{{ 'true' if has_more else 'false' }}">
+      {% include "admin/_member_rows.html" %}
+    </div>
+    <div class="empty" id="amEmpty" {{ 'hidden' if members }}>
+      <span data-icon="empty"></span>
+      <p id="amEmptyText">{{ "عضوی با این مشخصات پیدا نشد." if (query or active_role != "all") else "هنوز عضوی ثبت نشده." }}</p>
+    </div>
+    <div class="scroll-sentinel" id="amSentinel" aria-hidden="true"></div>
+    <div class="list-loading" id="amLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
+  </section>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const search = document.getElementById("amSearch");
+    const roleSeg = document.getElementById("amRoleSeg");
+    const listEl = document.getElementById("amList");
+    const emptyEl = document.getElementById("amEmpty");
+    const roleLabels = {{ role_labels | tojson }};
+    const meId = Number(document.body.dataset.userId || 0);
+
+    const state = {
+      q: search.value.trim(),
+      role: {{ (active_role or "all") | tojson }},
+    };
+
+    // An install always has at least the admin reading this, so an empty
+    // roster only ever means "nothing matched" -- but say which filter is
+    // responsible rather than leaving the reader to guess.
+    const emptyText = document.getElementById("amEmptyText");
+    function updateEmptyMessage() {
+      emptyText.textContent = (state.q || state.role !== "all")
+        ? "عضوی با این مشخصات پیدا نشد."
+        : "هنوز عضوی ثبت نشده.";
+    }
+
+    function queryParams() {
+      const params = new URLSearchParams();
+      if (state.q) params.set("q", state.q);
+      if (state.role !== "all") params.set("role", state.role);
+      return params;
+    }
+
+    const scroller = createInfiniteScroller({
+      container: listEl,
+      sentinel: document.getElementById("amSentinel"),
+      loadingEl: document.getElementById("amLoading"),
+      emptyEl: emptyEl,
+      pageSize: Number(listEl.dataset.pageSize) || 20,
+      initialOffset: Number(listEl.dataset.initialCount) || 0,
+      initialHasMore: listEl.dataset.hasMore === "true",
+      buildUrl: (offset, limit) => {
+        const params = queryParams();
+        params.set("offset", offset);
+        params.set("limit", limit);
+        return `/views/admin/fragment?${params.toString()}`;
+      },
+      onEmpty: () => {
+        updateEmptyMessage();
+        emptyEl.hidden = false;
+      },
+    });
+
+    // Every filter change funnels through here, so the segmented control,
+    // the URL and the list can't drift apart.
+    function apply() {
+      emptyEl.hidden = true;
+      syncRoleSeg();
+      const qs = queryParams().toString();
+      history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+      scroller.reset();
+    }
+
+    const roleBtns = Array.from(roleSeg.querySelectorAll(".seg-btn"));
+    function syncRoleSeg() {
+      roleBtns.forEach((b) => {
+        const on = b.dataset.role === state.role;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-selected", on ? "true" : "false");
+      });
+    }
+    roleBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.dataset.role === state.role) return;
+        state.role = btn.dataset.role;
+        apply();
+      });
+    });
+
+    search.addEventListener("input", debounce(() => {
+      state.q = search.value.trim();
+      apply();
+    }, 300));
+
+    // Editing a role goes through the JSON API in a createSheet, like every
+    // other edit in the app -- there is no /views/ twin for it (see CLAUDE.md
+    // on why only `create` has one). The server refuses self-demotion; the
+    // sheet does not offer it either, so the refusal is a backstop rather
+    // than the first thing an admin discovers.
+    //
+    // The listener is delegated on the list, so rows appended by the
+    // scroller are covered without rebinding, and each row carries its own
+    // current role -- there is no page-level array of members that a later
+    // page could fall out of sync with.
+    listEl.addEventListener("click", (e) => {
+      const row = e.target.closest(".admin-member");
+      if (!row) return;
+      const id = Number(row.dataset.memberId);
+
+      if (id === meId) {
+        showToast("نقش خودت را نمی‌توانی عوض کنی");
+        return;
+      }
+
+      createSheet({
+        title: row.dataset.memberName,
+        confirmLabel: "ذخیره",
+        fields: [
+          {
+            name: "role",
+            label: "نقش",
+            type: "select",
+            options: Object.entries(roleLabels).map(([value, label]) => ({ value, label })),
+            value: row.dataset.memberRole,
+          },
+        ],
+        onConfirm: async (values) => {
+          if (values.role === row.dataset.memberRole) return true;
+          const { ok, data } = await apiFetch(`/users/${id}/role`, {
+            method: "PATCH",
+            body: { role: values.role },
+          });
+          if (!ok) {
+            showToast("خطا: " + ((data && data.detail) || "ذخیره نشد"));
+            return false;
+          }
+          // The row shows the role, so it is repainted in place -- one field
+          // changed and nothing else on the page derives from it. The row is
+          // *not* dropped when it falls out of the current role filter: the
+          // scroller's offset counts rows the server returned, so removing
+          // one here would skip a member on the next page.
+          row.dataset.memberRole = data.role;
+          const pill = row.querySelector("[data-role-pill]");
+          pill.textContent = roleLabels[data.role] || data.role;
+          pill.classList.toggle("is-admin", data.role === "admin");
+          showToast("ذخیره شد");
+          return true;
+        },
+      });
+    });
+  });
+</script>
+{% endblock %}

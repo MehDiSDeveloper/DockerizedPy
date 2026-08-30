@@ -30,6 +30,7 @@ PROTECTED_PAGES = [
     "/views/today/",
     "/views/home/",
     "/views/challenges/create",
+    "/views/settings/",
     "/views/users/1",
 ]
 

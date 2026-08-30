@@ -10,9 +10,11 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.auth import LoginRequired, clear_session_cookie
 from app.config import BASE_DIR
 from app.routers import auth, challenge, checkin, enrollment, today, user
+from app.routers.views import admin as admin_views
 from app.routers.views import auth as auth_views
 from app.routers.views import challenge as challenge_views
 from app.routers.views import home as home_views
+from app.routers.views import settings as settings_views
 from app.routers.views import today as today_views
 from app.routers.views import user as user_views
 
@@ -100,9 +102,11 @@ app.include_router(enrollment.router)
 app.include_router(checkin.router)
 app.include_router(today.router)
 
+app.include_router(admin_views.router)
 app.include_router(auth_views.router)
 app.include_router(challenge_views.router)
 app.include_router(home_views.router)
+app.include_router(settings_views.router)
 app.include_router(today_views.router)
 app.include_router(user_views.router)
 app.mount("/static", RevalidatedStaticFiles(directory=BASE_DIR / "static"), name="static")

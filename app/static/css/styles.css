@@ -96,6 +96,12 @@
   --chrome-bg-strong:rgba(248,244,238,0.88);
   --sheet-bg:rgba(252,250,246,0.94);
   --scrim:rgba(44,40,34,0.32);
+  /* the tour's frosted pane over everything *but* the step it is explaining.
+     It is not --scrim: a scrim only has to darken, while this one is blurred
+     and so has to keep the ground's temperature -- on the sand theme a black
+     wash under a blur turns the page grey and the spotlight looks cut out of
+     a different app. Alpha is low because the blur is doing the hiding. */
+  --tour-veil:rgba(240,233,224,0.26);
 
   /* --- ambient wash (.app-bg): two radial glows plus a tile texture. A data
      URI cannot read a var, so the whole url() is the token and each theme
@@ -228,6 +234,7 @@
     --chrome-bg-strong:rgba(15,18,32,0.88);
     --sheet-bg:rgba(29,34,56,0.95);
     --scrim:rgba(3,5,12,0.68);
+    --tour-veil:rgba(9,12,24,0.31);
 
     --amb-accent:0.20;
     --amb-mohr:0.13;
@@ -307,6 +314,7 @@
   --chrome-bg-strong:rgba(15,18,32,0.88);
   --sheet-bg:rgba(29,34,56,0.95);
   --scrim:rgba(3,5,12,0.68);
+  --tour-veil:rgba(9,12,24,0.31);
 
   --amb-accent:0.20;
   --amb-mohr:0.13;
@@ -414,7 +422,7 @@ ul{list-style:none; margin:0; padding:0;}
 .back-btn{--press-scale:.92;}
 .chip, .tab, .dtab, .seg-btn, .auth-tab, .category-pill, .jp-cell, .ap-item,
 .cc-btn, .nav-item{--press-scale:.94;}
-.challenge-card, .menu-item, .dash-link, .tl-row{--press-scale:.985;}
+.challenge-card, .menu-item, .setting-row, .dash-link, .tl-row{--press-scale:.985;}
 .btn-primary{--press-scale:.975;}
 
 /* A pointer that can hover gets the same "lit" cue on approach, at half
@@ -1255,6 +1263,16 @@ button.profile-avatar .edit-badge{background:var(--fayrouzeh); color:var(--on-ac
 .profile-head h1{font-size:17px; font-weight:800; margin:0 0 4px;}
 .profile-head p{font-size:12.5px; color:var(--text-3); margin:0;}
 
+/* --- profile: «اطلاعات حساب» --- */
+/* Reuses the plan card's label/value rows (.fact-list.boxed) rather than a
+   second look for the same shape. An unset optional field keeps its row and
+   goes quiet, so it still reads as something you may fill in. */
+.profile-info{padding:0 20px 18px;}
+.profile-info .section-head{padding:4px 2px 10px;}
+.profile-info .fact dd{max-width:62%; text-align:end; line-height:1.7;}
+.profile-info .fact dd.is-empty{color:var(--text-3); font-weight:500;}
+.profile-info .info-note{font-size:11.5px; color:var(--text-3); line-height:1.7; margin:8px 2px 0;}
+
 .menu-list{display:flex; flex-direction:column; gap:10px; padding:0 20px;}
 .menu-item{
   display:flex; align-items:center; gap:12px; padding:14px 16px; cursor:pointer;
@@ -1272,6 +1290,101 @@ button.profile-avatar .edit-badge{background:var(--fayrouzeh); color:var(--on-ac
 .menu-item .mi-value{font-size:12.5px; color:var(--text-3); flex-shrink:0;}
 .menu-item .mi-value:empty{display:none;}
 .menu-item .mi-chev{width:16px; height:16px; color:var(--text-3);}
+
+/* ==========================================================================
+   Settings  (/views/settings/)
+   ==========================================================================
+   Grouped rows, not a flat menu: a preference screen is scanned for a
+   heading first, so the group title does the finding and the row only has to
+   be readable once found. Colour is deliberately absent -- nothing here is a
+   status or a category, and the two channels those own must not leak into a
+   surface that means neither. The one accent on the page is the segmented
+   control's selected option, which is the *answer* to the row. */
+.settings-page{padding:0 20px 8px; display:flex; flex-direction:column; gap:22px;}
+.setting-group{display:flex; flex-direction:column; gap:10px;}
+.setting-group > h2{
+  font-size:12.5px; font-weight:700; color:var(--text-3); margin:0 2px;
+  letter-spacing:.2px;
+}
+.setting-row{
+  display:block; padding:14px 16px; text-decoration:none; color:inherit;
+}
+a.setting-row, .setting-row[role="button"]{cursor:pointer;}
+.sr-head{display:flex; align-items:center; gap:10px;}
+.sr-text{display:flex; flex-direction:column; gap:3px; min-width:0; flex:1;}
+.sr-label{font-size:13.5px; font-weight:600;}
+/* what changing this does, in one line -- a setting whose effect can't be
+   predicted is a setting nobody dares touch */
+.sr-hint{font-size:11.5px; color:var(--text-3); line-height:1.7;}
+.sr-value{font-size:12.5px; color:var(--text-2); flex-shrink:0;}
+.sr-value.muted{color:var(--text-3);}
+.sr-value:empty{display:none;}
+.sr-chev{width:16px; height:16px; color:var(--text-3); flex-shrink:0;}
+/* the options sit under the row's own text, so the label reads as the
+   question and the control as its answer */
+.setting-row .seg{margin-top:12px;}
+.settings-note{font-size:11.5px; color:var(--text-3); margin:2px 2px 0; text-align:center;}
+
+/* --- Admin panel (app/templates/admin/index.html) ---
+   Built out of the settings screen's own primitives (.settings-page,
+   .setting-group, .setting-row) rather than a layout of its own: it is the
+   same shape of question -- a list of rows, each with a label, a hint and
+   its current value on the row -- and an admin-only screen is the last place
+   that should be maintained as a separate design.
+
+   The role pill is neutral by default and accent only for `admin`. It is
+   *not* a status or a category, so it takes neither channel's hues (see the
+   colour rules above); the accent here means "this one is the exception",
+   which is the one thing the list is scanned for. */
+.admin-stats{display:grid; grid-template-columns:repeat(3,1fr); gap:10px;}
+.admin-stat{padding:14px 10px; display:flex; flex-direction:column; align-items:center; gap:4px;}
+.as-value{font-size:19px; font-weight:800;}
+.as-label{font-size:11.5px; color:var(--text-3);}
+.admin-list{display:flex; flex-direction:column; gap:10px;}
+/* An opaque ground under the picture: several catalogue avatars are
+   transparent, so anything translucent here would let the card show through
+   and give those members a halo the others never get. */
+.admin-av{
+  width:34px; height:34px; border-radius:50%; overflow:hidden; flex-shrink:0;
+  background:var(--bg-1); display:grid; place-items:center;
+}
+.admin-av img{width:100%; height:100%; display:block; object-fit:cover;}
+.role-pill{
+  font-size:11px; font-weight:700; padding:4px 9px; border-radius:999px;
+  background:var(--fill-1); color:var(--text-2); flex-shrink:0;
+}
+.role-pill.is-admin{background:rgba(var(--accent-rgb),.14); color:var(--fayrouzeh);}
+
+/* The roster's search box and role segment are the challenge list's own
+   controls, reused verbatim so the app has one way to filter a list rather
+   than two. Both were built for a full-bleed page and carry the 20px page
+   gutter themselves; inside `.settings-page` that gutter is already there,
+   and `.setting-group`'s own gap already spaces them -- so the inset and the
+   trailing space are cancelled here, on this one screen, instead of the
+   shared rules being loosened for it. */
+.admin-members .search-bar{margin:0;}
+.admin-members .seg-row{padding:0;}
+/* An empty state inside a group, not a whole page: the stats above it stay
+   put, so it does not need the full-page block's height. */
+.admin-members .empty{padding:32px 24px;}
+
+/* The moderation roster's rows (admin/_challenge_rows.html). A challenge row
+   is a member row with one extra mark: the category tile, which is the only
+   place the taxonomy channel appears on this screen -- it reads --cat from
+   its own data-cat, with the accent fallback every other [data-cat] surface
+   has, so a row missing the attribute still renders. */
+.admin-cat{
+  width:34px; height:34px; border-radius:12px; flex-shrink:0;
+  display:grid; place-items:center;
+  background:color-mix(in srgb, var(--cat, var(--fayrouzeh)) 16%, transparent);
+  color:var(--cat, var(--fayrouzeh));
+}
+.admin-cat svg{width:17px; height:17px;}
+/* .status-pill paints itself from --st, which on the public list comes from
+   the card. Here the pill stands alone, so it carries its own. */
+.status-pill.st-active{--st:var(--st-active);}
+.status-pill.st-upcoming{--st:var(--st-upcoming);}
+.status-pill.st-finished{--st:var(--st-finished);}
 
 /* ==========================================================================
    Jalali date / datetime picker  (app/static/js/jalali-picker.js)
@@ -1873,4 +1986,165 @@ button.profile-avatar .edit-badge{background:var(--fayrouzeh); color:var(--on-ac
   background:linear-gradient(90deg,
     rgba(var(--cat-rgb, var(--accent-rgb)),0.62), var(--cat, var(--fayrouzeh)));
   box-shadow:none;
+}
+
+/* ==========================================================================
+   Tour — the guided introduction, driven by tour.js
+   --------------------------------------------------------------------------
+   Three layers, in this order: a frosted veil over the whole viewport with a
+   rounded hole punched in it, a ring drawn around that hole, and the callout
+   that explains what is inside it.
+
+   The hole is a `clip-path: path(evenodd, …)` rather than a raised target or
+   a giant `box-shadow` spread. It matters which: raising the target with
+   z-index dies on the first ancestor that owns a stacking context, and a
+   spread shadow can dim the page but cannot *unblur* a window in it, which is
+   the effect this tour is built around. Where `path()` is unsupported there
+   is no hole to be had, so the @supports fallback drops the blur entirely
+   and only dims — a blurred target the tour is pointing at would be worse
+   than no frosting at all.
+   ========================================================================== */
+
+.tour{position:fixed; inset:0; z-index:80;}
+
+.tour-veil{
+  position:fixed; inset:0;
+  background:var(--tour-veil);
+  /* Deliberately light on both counts: the page behind has to stay legible as
+     *context* -- the member is being told where a control lives, and a control
+     with no surroundings is a control they cannot find again. The ring below
+     does the pointing, so the veil only has to push the rest back a step. */
+  backdrop-filter:blur(4.5px) saturate(1.03);
+  -webkit-backdrop-filter:blur(4.5px) saturate(1.03);
+  /* the veil is the scroll lock: it swallows the gesture rather than the page
+     locking `overflow`, which would fight scrollIntoView between steps */
+  touch-action:none; overscroll-behavior:contain;
+  animation:tourFade .24s var(--ease);
+}
+@supports not (clip-path: path("M0,0Z")){
+  .tour-veil{
+    backdrop-filter:none; -webkit-backdrop-filter:none;
+    background:var(--scrim);
+  }
+}
+
+/* The hole's edge, in the primary accent -- «live/primary» is exactly what
+   this ring means, and the status and category channels may not be borrowed
+   for it. It *breathes*: both the hairline and its halo swell and fade
+   together on a slow ease-in-out, which is what makes the eye come back to it
+   without the ring ever moving. Not an expanding ping -- a shockwave leaving
+   the target reads as "something happened here", while a pulse staying on it
+   reads as "look here", and the second is what a tour is for.
+
+   Both keyframes list the same two shadows in the same order, so the browser
+   interpolates them instead of swapping; the base state is the midpoint, so a
+   reduced-motion viewer (which drops the animation below) still gets a ring
+   at full strength rather than whichever end the keyframes happened to start
+   from. */
+.tour-ring{
+  position:fixed; pointer-events:none;
+  box-shadow:0 0 0 2px rgba(var(--accent-rgb),0.75), 0 0 21px 3px rgba(var(--accent-rgb),0.30);
+  animation:tourBreathe 2.8s ease-in-out infinite;
+}
+@keyframes tourBreathe{
+  /* the trough is a floor, not an off state: with the veil this light the
+     ring is the only thing marking the target, so it never fades out */
+  0%,100%{box-shadow:0 0 0 1.75px rgba(var(--accent-rgb),0.62), 0 0 14px 0 rgba(var(--accent-rgb),0.20);}
+  50%    {box-shadow:0 0 0 2.5px rgba(var(--accent-rgb),1.00), 0 0 30px 6px rgba(var(--accent-rgb),0.45);}
+}
+
+/* --- the callout ---
+   Positioned by tour.js in viewport coordinates, so it takes `left`/`top`
+   rather than a logical inset: the maths already accounts for RTL by working
+   from the target's centre outwards. */
+.tour-pop{
+  position:fixed; left:0; top:0;
+  width:min(330px, calc(100vw - 24px));
+  --tour-arrow:9px;    /* half the rotated square's side; ARROW in tour.js clamps to it */
+  padding:14px 16px 15px;
+  border-radius:var(--radius-md);
+  /* Opaque, like .sheet-panel and for the same reason twice over: the callout
+     sits on a surface that is already frosted, so a second translucent pane
+     only muddies it -- and the arrow below overlaps this background by half
+     its width, which shows as a seam the moment either one is see-through. */
+  background:var(--bg-1); border:1px solid var(--border-strong);
+  box-shadow:var(--shadow-lift);
+  /* Hidden until the first measurement lands, or the callout is visibly
+     dragged from the corner to its place on every step. */
+  opacity:0; transition:opacity .18s var(--ease);
+}
+.tour.is-ready .tour-pop{opacity:1; animation:tourPopIn .22s var(--ease);}
+
+.tour-arrow{
+  position:absolute; width:calc(var(--tour-arrow) * 2); height:calc(var(--tour-arrow) * 2);
+  margin-left:calc(var(--tour-arrow) * -1);
+  background:var(--bg-1); border:1px solid var(--border-strong);
+  transform:rotate(45deg); border-radius:3px;
+}
+/* Only the two edges facing away from the callout are drawn; the other two
+   would print a seam across the panel they are supposed to be part of. */
+/* Physical sides, not logical: the square is rotated in physical space, so
+   which two of its edges end up facing the target has nothing to do with the
+   writing direction. */
+.tour-pop[data-arrow="top"] .tour-arrow{
+  top:calc(var(--tour-arrow) * -1 + 1px);
+  border-right:none; border-bottom:none;
+}
+.tour-pop[data-arrow="bottom"] .tour-arrow{
+  bottom:calc(var(--tour-arrow) * -1 + 1px);
+  border-left:none; border-top:none;
+}
+.tour-pop[data-arrow="none"] .tour-arrow{display:none;}
+
+.tour-pop-head{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+.tour-count{
+  font-size:10.5px; font-weight:700; color:var(--fayrouzeh);
+  letter-spacing:.02em; font-variant-numeric:tabular-nums;
+}
+.tour-x{width:28px; height:28px;}
+.tour-x svg{width:15px; height:15px;}
+
+.tour-pop h3{font-size:14.5px; font-weight:800; margin:6px 0 5px;}
+.tour-pop p{font-size:12.5px; line-height:1.85; color:var(--text-2); margin:0;}
+
+.tour-foot{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  margin-top:14px;
+}
+/* Progress as dots, not a bar: seven steps is a countable number, and a
+   number the reader can count is a promise the tour is short. */
+.tour-dots{display:flex; align-items:center; gap:5px;}
+.tour-dots i{
+  width:5px; height:5px; border-radius:50%; background:var(--track);
+  transition:width .2s var(--ease), background-color .2s var(--ease);
+}
+.tour-dots i.on{width:16px; border-radius:3px; background:var(--fayrouzeh);}
+
+.tour-btns{display:flex; gap:8px;}
+.tour-btn{
+  padding:8px 15px; border-radius:var(--radius-sm); cursor:pointer;
+  font-size:12px; font-weight:700;
+  background:var(--fill-2); border:1px solid var(--border);
+  color:var(--text-2);
+}
+.tour-btn[disabled]{opacity:.4; cursor:default;}
+.tour-btn:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px;}
+/* the shell is focused on every step so a screen reader reads the new copy;
+   it is not a control, so it must not look like one */
+.tour-pop:focus{outline:none;}
+.tour-btn.primary{
+  background:linear-gradient(145deg, var(--fayrouzeh), var(--fayrouzeh-dim));
+  border-color:transparent; color:var(--on-accent);
+  box-shadow:var(--glow-accent);
+}
+
+@keyframes tourFade{from{opacity:0;} to{opacity:1;}}
+@keyframes tourPopIn{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
+
+/* Same split as the press feedback above: the spotlight is information and
+   stays, the breathing and the sliding are decoration and go. */
+@media (prefers-reduced-motion:reduce){
+  .tour-veil, .tour-pop{animation:none;}
+  .tour-ring{animation:none;}
+  .tour-dots i{transition:none;}
 }

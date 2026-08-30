@@ -1,6 +1,14 @@
 {% extends "layout.html" %}
 {% set crumb_label = "خانه" %}
 
+{#- «؟» replays this page's tour -- see today/index.html. -#}
+{% block topbar_action %}
+<div class="topbar-actions">
+  <button class="icon-btn" aria-label="راهنمای این صفحه" data-icon="help" data-tour-help></button>
+  {{ super() }}
+</div>
+{% endblock %}
+
 {% block content %}
 
   {#- The greeting keeps the eyebrow for the date -- «امروز» does the same,
@@ -17,7 +25,7 @@
       cannot show. Here it is scoped to today -- done vs. everything today
       asked for -- so the first thing the page answers is "am I clear yet".
       ==================================================================== -#}
-  <section class="detail-section">
+  <section class="detail-section" data-tour="home-pulse">
     <div class="section-head">
       <h2>نبض امروز</h2>
       <span class="cc-tag"><span data-icon="clock"></span>{{ dash.today.done }} از {{ dash.today.total }}</span>
@@ -87,7 +95,7 @@
       noise. Deliberately unlabelled per cell -- the title is the readable
       version, this is the pattern.
       ==================================================================== -#}
-  <section class="detail-section">
+  <section class="detail-section" data-tour="home-grid">
     <div class="section-head">
       <h2>روند فعالیت</h2>
       <span class="cc-tag"><span data-icon="chart"></span>{{ dash.grid.weeks }} هفتهٔ اخیر</span>
@@ -191,6 +199,7 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script src="{{ url_for('static', path='/js/tour.js') }}"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => {
     const tabs = document.querySelectorAll(".tab");
