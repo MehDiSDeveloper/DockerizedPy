@@ -163,33 +163,8 @@ class GroupMembership(AuditBase):
     user_id = Column(Integer, ForeignKey("Users.id"), nullable=False)
     role = Column(String(16), nullable=False, default=GroupRole.MEMBER.value)
 
-    # **Being in the group and being let into its standing challenges are two
-    # different answers, given at two different moments.** Somebody who
-    # arrives by a link or an approved request is a member immediately -- they
-    # can read the group, and an administrator may put them into a challenge
-    # by name -- but they are not swept into the «همه اعضا» challenges until
-    # an administrator says so a second time. That is what this column holds,
-    # and it is a column rather than a second membership state for the reason
-    # the join request is a table of its own: a membership row must keep
-    # meaning membership, full stop, so nothing that asks "is this person in
-    # this group" has to remember a second condition. Only
-    # `apply_standing_audience` reads it.
-    #
-    # ``server_default`` is **1** while the ORM default is ``False``, and the
-    # asymmetry is deliberate: the column is added to a populated table by
-    # `sync_sqlite_schema`, and every membership that predates it was already
-    # picking up the group's standing challenges -- flipping them all to
-    # "waiting for approval" would be a silent retroactive demotion. New rows
-    # are written by code that states the answer.
-    is_trusted = Column(
-        Boolean, nullable=False, default=False, server_default=text("1")
-    )
-    trusted_at = Column(DateTime(timezone=True), nullable=True)
-    trusted_by_user_id = Column(Integer, ForeignKey("Users.id"), nullable=True)
-
     group = relationship("Group", back_populates="memberships")
     user = relationship("User", foreign_keys=[user_id])
-    trusted_by = relationship("User", foreign_keys=[trusted_by_user_id])
 
 
 class GroupInvite(AuditBase):

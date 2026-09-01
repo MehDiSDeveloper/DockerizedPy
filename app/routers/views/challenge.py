@@ -11,7 +11,12 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.auth import get_current_user_id, get_optional_user_id, get_page_user
+from app.auth import (
+    get_current_user,
+    get_current_user_id,
+    get_optional_user_id,
+    get_page_user,
+)
 from app.avatars import register_avatar_filters
 from app.config import BASE_DIR
 from app.database import get_db
@@ -50,10 +55,8 @@ from app.routers.challenge import (
     STATUS_ALL,
     challenge_status,
     challenge_visibility_filter,
+    create_challenge_record,
     fetch_challenge_page,
-    resolve_group_for_create,
-    resolve_timezone,
-    seed_group_participants,
 )
 from app.routers.checkin import occurrence_local_date, parse_cadence
 from app.routers.enrollment import (
@@ -265,49 +268,17 @@ async def create_challenge_form(
 async def create_challenge(
     challenge: ChallengeCreate,
     request: Request,
-    current_user_id: int = Depends(get_current_user_id),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        # The same two helpers the JSON API calls, rather than a second copy
-        # of the rules: CLAUDE.md already flags this duplicated create path
-        # as the place an edit gets applied to one half only, and a missing
-        # permission check is the worst possible thing to leave behind here.
-        current_user = (
-            await db.execute(select(User).where(User.id == current_user_id))
-        ).scalar_one()
-        group = await resolve_group_for_create(db, challenge.group_id, current_user)
-
-        data = challenge.model_dump(exclude={"cadence", "timezone", "member_ids"})
-        db_challenge = Challenge(**data)
-        db_challenge.cadence_kind = challenge.cadence.kind
-        db_challenge.cadence = challenge.cadence.model_dump(mode="json")
-        db_challenge.owner_id = current_user_id
-        db_challenge.last_modifier_user_id = current_user_id
-        db.add(db_challenge)
-        await db.flush()
-
-        # D1: the creator is auto-enrolled. Kept in sync with the JSON API's
-        # create_challenge -- see CLAUDE.md on duplicated create logic.
-        tz = resolve_timezone(challenge.timezone)
-        enrollment = Enrollment(
-            challenge_id=db_challenge.id,
-            user_id=current_user_id,
-            timezone=tz,
-            start_date=local_today(tz, datetime.now(UTC)),
-            role=ChallengeRole.OWNER.value,
-        )
-        db.add(enrollment)
-        db.add(ChallengeStats(challenge_id=db_challenge.id, participant_count=1))
-        await db.flush()
-
-        await seed_group_participants(
-            db,
-            challenge=db_challenge,
-            group=group,
-            member_ids=challenge.member_ids,
-            actor_user_id=current_user_id,
-            timezone=tz,
+        # The same shared writer the JSON API calls, rather than a second
+        # copy of the rules: CLAUDE.md already flags this duplicated create
+        # path as the place an edit gets applied to one half only, and a
+        # missing permission check is the worst possible thing to leave
+        # behind here.
+        db_challenge = await create_challenge_record(
+            db, payload=challenge, current_user=current_user
         )
 
         # Read the id before commit expires the instance -- the caller is a
@@ -321,7 +292,9 @@ async def create_challenge(
         raise
     except SQLAlchemyError:
         await db.rollback()
-        logger.exception("Failed to create challenge for user_id=%s", current_user_id)
+        logger.exception(
+            "Failed to create challenge for user_id=%s", current_user.id
+        )
         return JSONResponse(
             {"detail": "ساخت چالش با خطا مواجه شد. لطفاً دوباره تلاش کن."},
             status_code=500,

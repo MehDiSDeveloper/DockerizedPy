@@ -189,6 +189,35 @@ async def test_the_creator_is_never_anonymous(client: AsyncClient, db: AsyncSess
     assert enrollment.is_anonymous is False
 
 
+async def test_the_creator_is_never_anonymous_via_the_ssr_wizard(
+    client: AsyncClient, db: AsyncSession
+):
+    """The two create routes share one writer (`create_challenge_record`) --
+    before that, the SSR half wrote the creator's enrolment without
+    `is_anonymous=False`, so an `anonymous` challenge made through the wizard
+    could hide its own author."""
+    owner = await make_user(db, "SSR Creator")
+    sign_in(client, owner)
+    res = await client.post(
+        "/views/challenges/create",
+        json={
+            "title": "Fully hidden via SSR",
+            "category": ChallengeCategory.OTHER.value,
+            "identity_mode": IdentityMode.ANONYMOUS.value,
+            "cadence": {"kind": "once"},
+        },
+    )
+    assert res.status_code == 201
+    challenge_id = res.json()["id"]
+    enrollment = (
+        await db.execute(
+            select(Enrollment).where(Enrollment.challenge_id == challenge_id)
+        )
+    ).scalar_one()
+    assert enrollment.role == ChallengeRole.OWNER.value
+    assert enrollment.is_anonymous is False
+
+
 # --- the lock ---------------------------------------------------------------
 
 

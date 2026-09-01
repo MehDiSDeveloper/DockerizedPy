@@ -17,7 +17,6 @@ class EnrollmentRead(BaseModel):
     longest_streak: int
     last_checkin_local_date: date | None = None
     is_anonymous: bool
-    legacy_completed_count: int
     created_at: datetime
     updated_at: datetime | None = None
 

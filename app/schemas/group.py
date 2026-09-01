@@ -98,11 +98,6 @@ class GroupMemberRead(BaseModel):
     avatar: str | None = None
     role: GroupRole
     joined_at: datetime
-    #: Approved for the group's «همه اعضا» challenges -- the second answer an
-    #: administrator gives about a new arrival. It is on the roster shape
-    #: because a roster is where an administrator notices somebody is still
-    #: waiting; it says nothing about the member's account.
-    is_trusted: bool = True
 
 
 class GroupRoleUpdate(BaseModel):
@@ -142,12 +137,6 @@ class MemberAdd(BaseModel):
     """
 
     identifier: str = Field(min_length=3, max_length=120)
-    #: Approve them for the group's «همه اعضا» challenges at the same
-    #: time. Defaults to ``False`` -- the two decisions stay two
-    #: decisions -- but it rides on the same request, because "add the
-    #: new hire and give them the company's challenges" is one action
-    #: to whoever is doing it.
-    trusted: bool = False
 
 
 class GroupTransfer(BaseModel):

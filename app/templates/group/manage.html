@@ -1,12 +1,14 @@
 {% extends "layout.html" %}
 
-{#- Managing the group: the way in for new members, the queues waiting on
+{#- Managing the group: the way in for new members, the queue waiting on
     an answer, the links that let people in, and the group's own settings.
 
-    The membership requests themselves live one screen further in
-    (`/requests`) -- an unbounded, filtered, paged list has no business on a
-    settings screen that is scanned rather than read -- and what stays here
-    is the row that says how many are waiting.
+    The pending request queue is rendered directly here -- it has no paging
+    of its own and no terminal states to filter between, so the separate
+    screen that used to hold it (`/requests`, with a `?status=` filter) is
+    gone; only `MAX_PENDING_ON_MANAGE` rows show, with a note if the queue
+    runs longer. Decided requests stay in the database (`decided_by_user_id`
+    still records who let somebody in) but are no longer surfaced in the UI.
 
     A page of its own rather than an admin-only section of the group page,
     for the reason the moderation roster is one: this is where somebody goes
@@ -95,59 +97,21 @@
     {% endif %}
   </section>
 
-  {#- «تایید دسترسی». The second queue, and deliberately its own section
-      rather than a mark inside the first: these are people who are *already*
-      members -- they can read the group and be put into a challenge by name
-      -- and what is waiting is only whether the group's standing challenges
-      reach them. Empty is the normal state, which is why it says so. -#}
-  <section class="setting-group">
-    <h2>تایید دسترسی به چالش‌ها{{ explain("member-trust") }}</h2>
-    <div id="grTrust">
-      {% for m in awaiting %}
-      <div class="setting-row glass trust-row" data-member-id="{{ m.user_id }}"
-        data-member-name="{{ m.name }}">
-        <div class="sr-head">
-          <img class="mr-avatar" src="{{ m.avatar | avatar_url }}" alt="" width="36" height="36">
-          <div class="sr-text">
-            <span class="sr-label">{{ m.name }}</span>
-            <span class="sr-hint">عضو از <span data-jalali="{{ m.joined_at.isoformat() }}"
-                data-jalali-format="day-month">{{ m.joined_at.strftime('%Y-%m-%d') }}</span>
-              — هنوز در چالش‌های عمومی گروه نیست.</span>
-          </div>
-          <div class="rr-actions">
-            <button type="button" class="cc-btn primary sm" data-trust>تایید</button>
-          </div>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-    <div class="empty" id="grNoTrust" {{ 'hidden' if awaiting }}>
-      <span data-icon="check"></span>
-      <p>همهٔ اعضا تایید شده‌اند.</p>
-    </div>
-  </section>
-
-  {#- «درخواست‌های عضویت» is a row, not a section. The queue is unbounded
-      and filtered -- open, approved, rejected -- and a paged list has no
-      business inside a settings screen that is scanned rather than read
-      (the same call that made the moderation roster its own page). What
-      belongs here is the one number this screen owes the reader: how many
-      people are waiting on an answer. -#}
+  {#- The open queue, rendered directly -- no paging and no terminal states
+      to filter between, so the screen that used to hold this list is gone.
+      Empty is the normal state, which is why it says so. -#}
   <section class="setting-group">
     <h2>درخواست‌های عضویت{{ explain("join-request") }}</h2>
-    <a class="setting-row glass" href="/views/groups/{{ group.id }}/requests">
-      <div class="sr-head">
-        <div class="mi-icon"><span data-icon="userPlus"></span></div>
-        <div class="sr-text">
-          <span class="sr-label">درخواست‌های باز و تاریخچه</span>
-          <span class="sr-hint">پاسخ‌دادن به درخواست‌های باز، و دیدن آنچه پیش‌تر تایید یا
-            رد شده.</span>
-        </div>
-        <span class="sr-value">{% if pending_count %}{{ pending_count }} در انتظار{% else %}بدون
-          درخواست باز{% endif %}</span>
-        <span class="sr-chev" data-icon="chevronLeft"></span>
-      </div>
-    </a>
+    <div id="grRequests">
+      {% include "group/_request_rows.html" %}
+    </div>
+    <div class="empty" id="grNoRequests" {{ 'hidden' if requests }}>
+      <span data-icon="check"></span>
+      <p>درخواست بازی وجود ندارد.</p>
+    </div>
+    {% if more_requests %}
+    <p class="sr-hint">فقط ۵۰ درخواست نخست نشان داده شده است.</p>
+    {% endif %}
   </section>
 
   {#- «لینک‌های دعوت». Each row states the two things a link is: how much of
@@ -258,21 +222,12 @@
             placeholder: "۰۹۱۲۳۴۵۶۷۸۹",
             hint: "همان شماره‌ای که با آن وارد برنامه می‌شود. اگر حسابش با ایمیل ساخته شده، ایمیلش را بنویس.",
           },
-          {
-            name: "trusted", label: "چالش‌های گروه", type: "chips", value: "no",
-            options: [
-              { value: "no", label: "فعلاً نه", icon: "clock" },
-              { value: "yes", label: "همین حالا تایید کن", icon: "check" },
-            ],
-            hint: "تایید یعنی چالش‌هایی که برای «همهٔ اعضا» گذاشته‌ای به او هم می‌رسد.",
-          },
         ],
         onConfirm: async (values) => {
           const { ok, status, data } = await apiFetch(`/groups/${GROUP_ID}/members`, {
             method: "POST",
             body: {
               identifier: values.identifier.trim(),
-              trusted: values.trusted === "yes",
             },
           });
           if (!ok) {
@@ -287,13 +242,36 @@
             );
             return false;
           }
-          // The roster count, the approval queue and the badge all move at
-          // once -- reload rather than patch three of them by hand, the same
-          // call the group settings sheet makes.
+          // The roster count and the standing challenges the new member
+          // picks up both move at once -- reload rather than patch them by
+          // hand, the same call the group settings sheet makes.
           window.location.reload();
           return true;
         },
       });
+    });
+
+    // ---- answering membership requests ------------------------------------
+    // One delegated listener on the list, not a handler per row: the roster
+    // rows carry their own data-request-* attributes for the same reason.
+    const requestsEl = document.getElementById("grRequests");
+    const noRequests = document.getElementById("grNoRequests");
+    requestsEl.addEventListener("click", async (e) => {
+      const approve = e.target.closest("[data-approve]");
+      const reject = e.target.closest("[data-reject]");
+      if (!approve && !reject) return;
+      const row = e.target.closest(".request-row");
+      const verb = approve ? "approve" : "reject";
+      const { ok, data } = await apiFetch(
+        `/groups/${GROUP_ID}/requests/${row.dataset.requestId}/${verb}`, { method: "POST" }
+      );
+      if (!ok) {
+        showToast("خطا: " + ((data && data.detail) || "انجام نشد"));
+        return;
+      }
+      row.remove();
+      noRequests.hidden = requestsEl.children.length > 0;
+      showToast(approve ? `${row.dataset.requestName} به گروه اضافه شد` : "درخواست رد شد");
     });
 
     // ---- the public link -------------------------------------------------
@@ -340,24 +318,6 @@
         if (code) await copyLink(code);
       });
     }
-
-    // ---- approving members for the group's challenges --------------------
-    const trustEl = document.getElementById("grTrust");
-    const noTrust = document.getElementById("grNoTrust");
-    trustEl.addEventListener("click", async (e) => {
-      if (!e.target.closest("[data-trust]")) return;
-      const row = e.target.closest(".trust-row");
-      const { ok, data } = await apiFetch(
-        `/groups/${GROUP_ID}/members/${row.dataset.memberId}/trust`, { method: "POST" }
-      );
-      if (!ok) {
-        showToast("خطا: " + ((data && data.detail) || "انجام نشد"));
-        return;
-      }
-      row.remove();
-      noTrust.hidden = trustEl.children.length > 0;
-      showToast(`${row.dataset.memberName} به چالش‌های گروه راه یافت`);
-    });
 
     // ---- invite links ----------------------------------------------------
     const invitesEl = document.getElementById("grInvites");

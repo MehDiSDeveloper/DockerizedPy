@@ -19,9 +19,10 @@
     preferences are client-side today, account state goes through
     `PATCH /users/{id}` like the profile's own sheets do.
 
-    Not-yet-built settings stay listed with `[data-coming-soon]`, which
-    toasts: the shape of the screen is part of what it tells you, and a row
-    that appears later is harder to find than one that was always there. -#}
+    Not-yet-built settings are commented out rather than listed with
+    `[data-coming-soon]` -- a control that only toasts on tap is worse than
+    no control at all. Uncomment a row (and re-add its section if that was
+    the only row in it) once the setting behind it actually exists. -#}
 
 {% block topbar_leading %}
 <a href="/views/users/{{ current_user_id }}" class="back-btn" data-back data-back-optional
@@ -131,6 +132,7 @@
         <span class="sr-chev" data-icon="chevronLeft"></span>
       </div>
     </a>
+    {#- Hidden until built -- a control that only toasts is worse than no control.
     <div class="setting-row glass" data-coming-soon="تغییر رمز عبور به‌زودی اضافه می‌شود"
       role="button" tabindex="0">
       <div class="sr-head">
@@ -142,6 +144,7 @@
         <span class="sr-chev" data-icon="chevronLeft"></span>
       </div>
     </div>
+    -#}
   </section>
 
   {#- «مدیریت» -- rendered only for an admin, and the only entry point to
@@ -170,6 +173,7 @@
       here rather than back on the profile. -#}
   <section class="setting-group">
     <h2>دربارهٔ برنامه</h2>
+    {#- Hidden until built -- a control that only toasts is worse than no control.
     <div class="setting-row glass" data-coming-soon="بخش دربارهٔ چالش به‌زودی اضافه می‌شود"
       role="button" tabindex="0">
       <div class="sr-head">
@@ -180,6 +184,7 @@
         <span class="sr-chev" data-icon="chevronLeft"></span>
       </div>
     </div>
+    -#}
     <p class="settings-note">نسخهٔ آزمایشی — «چالش»</p>
   </section>
 

@@ -157,12 +157,6 @@ NOTIFICATION_META: dict[str, dict[str, str]] = {
         "icon": "userPlus",
         "hint": "وقتی مدیر گروهی تو را مستقیم به آن اضافه می‌کند.",
     },
-    NotificationKind.GROUP_MEMBER_TRUSTED.value: {
-        "title": "دسترسی به چالش‌های گروه",
-        "text": "از حالا در چالش‌های عمومی گروه «{group}» هم شرکت داده می‌شوی.",
-        "icon": "check",
-        "hint": "وقتی مدیر گروه دسترسی‌ات به چالش‌های عمومی گروه را تایید می‌کند.",
-    },
     NotificationKind.GROUP_ROLE_CHANGED.value: {
         "title": "نقشت در گروه",
         "text": "نقش تو در گروه «{group}» تغییر کرد.",

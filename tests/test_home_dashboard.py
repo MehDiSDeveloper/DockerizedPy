@@ -192,3 +192,29 @@ async def test_grid_darkens_the_day_a_check_in_was_recorded_for(
     assert by_day[yesterday] == 1
     assert by_day[today_tehran()] == 0
     assert dash["today"]["done"] == 0  # yesterday's row is not today's ring
+
+
+@pytest.mark.asyncio
+async def test_a_finished_challenge_lands_in_the_done_bucket(
+    client: AsyncClient, db: AsyncSession
+):
+    """The "done" bucket comes from the challenge's own derived status, never
+    ``Enrollments.status`` -- no route ever writes anything but `active` onto
+    that column, so a member enrolled in a challenge whose `due_date` has
+    already passed must still see it as finished."""
+    member = await make_user(db, "Finisher")
+    authenticate(client, member.id)
+    challenge, _ = await _daily_challenge(db, member)
+    challenge.due_date = datetime.now(UTC) - timedelta(days=1)
+    await db.commit()
+
+    response = await client.get("/views/home/")
+    assert response.status_code == 200, response.text
+    assert '<i class="tab-count" id="statActive">0</i>' in response.text
+    assert '<i class="tab-count" id="statDone">1</i>' in response.text
+
+    active_page = await client.get("/views/home/fragment", params={"status": "active"})
+    assert challenge.title not in active_page.text
+
+    done_page = await client.get("/views/home/fragment", params={"status": "completed"})
+    assert challenge.title in done_page.text

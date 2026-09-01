@@ -279,17 +279,14 @@ async def test_the_group_roster_carries_only_name_picture_and_role(client, db):
     rows = (await client.get(f"/groups/{group.id}/members")).json()
     assert rows
     for row in rows:
-        # `is_trusted` joins them: it is a fact about this membership -- has
-        # the group approved them for its own challenges -- and says nothing
-        # about the account behind it. The line this test guards is the one
-        # between a roster and a file on somebody, and it has not moved.
+        # The line this test guards is the one between a roster and a file
+        # on somebody, and it has not moved.
         assert set(row) == {
             "user_id",
             "name",
             "avatar",
             "role",
             "joined_at",
-            "is_trusted",
         }
 
 

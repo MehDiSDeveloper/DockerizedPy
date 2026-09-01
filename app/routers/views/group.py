@@ -70,11 +70,7 @@ from app.routers.challenge import (
 )
 from app.routers.group import (
     DEFAULT_GROUP_PAGE_SIZE,
-    DEFAULT_REQUEST_PAGE_SIZE,
     MAX_GROUP_PAGE_SIZE,
-    MAX_REQUEST_PAGE_SIZE,
-    REQUEST_STATES,
-    count_awaiting_trust,
     count_pending_requests,
     fetch_group_member_page,
     fetch_group_page,
@@ -250,15 +246,9 @@ async def group_detail(
     members, _ = await fetch_group_member_page(
         db, group_id=group_id, offset=0, limit=MEMBERS_PREVIEW
     )
-    # The badge on the manage button is «چند چیز منتظر توست», and there are
-    # two queues behind that door now -- requests to answer and members to
-    # approve -- so it is their sum. Two badges on one icon would be two
-    # numbers nobody can tell apart at 17px.
+    # The badge on the manage button is how many requests are waiting.
     pending = (
         await count_pending_requests(db, group_id) if context["can_manage"] else 0
-    )
-    awaiting = (
-        await count_awaiting_trust(db, group_id) if context["can_manage"] else 0
     )
     # What leaving would actually cost the reader, counted server-side so the
     # confirmation can name it instead of asking them to agree to a number
@@ -284,7 +274,7 @@ async def group_detail(
             "status_options": STATUS_META,
             "members": member_rows(members),
             "members_preview": MEMBERS_PREVIEW,
-            "pending_count": pending + awaiting,
+            "pending_count": pending,
             "my_optional": my_optional,
             "my_mandatory": my_mandatory,
             "emblem_options": _emblem_options(),
@@ -408,6 +398,11 @@ async def group_members_fragment(
 # Management
 # ---------------------------------------------------------------------------
 
+# How many of the open queue the manage page shows inline. It has no paging
+# of its own -- a settings screen is scanned, not paged -- so this is a cap
+# with a note, not a page size.
+MAX_PENDING_ON_MANAGE = 50
+
 
 @router.get("/{group_id}/manage")
 async def group_manage_page(
@@ -424,6 +419,12 @@ async def group_manage_page(
     requests has no business confirming to a member that it exists. The JSON
     routes behind it answer 403, because those are fixed paths reached by a
     ``fetch()`` that has to tell "not allowed" from "signed out".
+
+    The pending queue is rendered directly on this page rather than on a
+    screen of its own: it has no pagination and no terminal states to filter
+    between, so the split that used to justify a separate page is gone. Only
+    ``MAX_PENDING_ON_MANAGE`` rows are shown, with a note if the queue runs
+    longer -- a settings screen is scanned, not paged.
     """
     group, membership = await load_group(db, group_id, viewer)
     context = await _group_context(db, group, membership, viewer)
@@ -431,6 +432,13 @@ async def group_manage_page(
         raise HTTPException(status_code=404, detail="Not found")
 
     pending = await count_pending_requests(db, group_id)
+    rows, has_more_requests = await fetch_request_page(
+        db,
+        group_id=group_id,
+        status=JoinRequestStatus.PENDING.value,
+        offset=0,
+        limit=MAX_PENDING_ON_MANAGE,
+    )
     # The public link is pulled out of the list rather than shown in it: it
     # is the one link with a *standing* meaning, and reading it out of a
     # list of five «لینک دعوت» rows is exactly the moment somebody hands out the
@@ -441,9 +449,6 @@ async def group_manage_page(
         (i for i in all_invites if i.requires_approval and i.state == INVITE_ACTIVE),
         None,
     )
-    awaiting, _ = await fetch_group_member_page(
-        db, group_id=group_id, trusted=False, offset=0, limit=MAX_MEMBER_PAGE_SIZE
-    )
     return templates.TemplateResponse(
         "group/manage.html",
         {
@@ -453,7 +458,8 @@ async def group_manage_page(
             "active_nav": "profile",
             **context,
             "pending_count": pending,
-            "awaiting": member_rows(awaiting),
+            "requests": request_rows(rows),
+            "more_requests": has_more_requests,
             "invites": [i for i in all_invites if i is not public_invite],
             "public_invite": public_invite,
             "emblem_options": _emblem_options(),
@@ -486,114 +492,6 @@ def request_rows(rows: list[GroupJoinRequest]) -> list[dict]:
         }
         for r in rows
     ]
-
-
-async def _request_page_context(
-    db: AsyncSession,
-    *,
-    group_id: int,
-    viewer: User,
-    status: str,
-    offset: int,
-    limit: int,
-) -> tuple[dict, list[dict], bool]:
-    """Load, gate and page in one place, so the page and its fragment agree.
-
-    Both routes ask the same three questions in the same order -- may this
-    person manage the group, is the state one of the three, and what is on
-    this page -- and a second copy is how the fragment ends up serving a
-    state the page refuses.
-    """
-    group, membership = await load_group(db, group_id, viewer)
-    context = await _group_context(db, group, membership, viewer)
-    if not context["can_manage"]:
-        raise HTTPException(status_code=404, detail="Not found")
-    if status not in REQUEST_STATES:
-        raise HTTPException(status_code=422, detail="Unknown status")
-    rows, has_more = await fetch_request_page(
-        db, group_id=group_id, status=status, offset=offset, limit=limit
-    )
-    return context, request_rows(rows), has_more
-
-
-@router.get("/{group_id}/requests")
-async def group_requests_page(
-    group_id: int,
-    request: Request,
-    viewer: User = Depends(get_page_user),
-    db: AsyncSession = Depends(get_db),
-    status: str = Query(default=JoinRequestStatus.PENDING.value),
-):
-    """Membership requests -- the open queue, and what was already decided.
-
-    A screen of its own rather than a section of ``/manage`` for the reason
-    the moderation roster is one: this list is unbounded and filtered, and a
-    list that pages cannot live inside a settings screen that is scanned
-    rather than read. It is **404** to a member who is not an administrator,
-    the same call the manage page makes and for the same reason -- a page
-    whose whole content is other people's requests has no business
-    confirming to a member that it exists.
-
-    **The default is the open queue and only the open queue.** The two
-    terminal states are history: they are what somebody comes here to check,
-    not what they come here to act on, so they are one tap away rather than
-    mixed into the list of people still waiting. The state is mirrored into
-    the query string like every other filter in this app, so a filtered
-    queue is a link somebody can send.
-    """
-    context, rows, has_more = await _request_page_context(
-        db,
-        group_id=group_id,
-        viewer=viewer,
-        status=status,
-        offset=0,
-        limit=DEFAULT_REQUEST_PAGE_SIZE,
-    )
-    return templates.TemplateResponse(
-        "group/requests.html",
-        {
-            "title": f"درخواست‌های {context['group'].name}",
-            "request": request,
-            "current_user_id": viewer.id,
-            "active_nav": "profile",
-            **context,
-            "requests": rows,
-            "status": status,
-            "has_more": has_more,
-            "page_size": DEFAULT_REQUEST_PAGE_SIZE,
-        },
-    )
-
-
-@router.get("/{group_id}/requests/fragment")
-async def group_requests_fragment(
-    group_id: int,
-    request: Request,
-    viewer: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-    status: str = Query(default=JoinRequestStatus.PENDING.value),
-    offset: int = Query(default=0, ge=0),
-    limit: int = Query(
-        default=DEFAULT_REQUEST_PAGE_SIZE, ge=1, le=MAX_REQUEST_PAGE_SIZE
-    ),
-):
-    """The scroller's pages. ``get_current_user``, so a stale cookie is a real
-    401 the scroller can redirect on -- the 303/401 split every other
-    fragment in this app follows."""
-    _, rows, has_more = await _request_page_context(
-        db,
-        group_id=group_id,
-        viewer=viewer,
-        status=status,
-        offset=offset,
-        limit=limit,
-    )
-    response = templates.TemplateResponse(
-        "group/_request_rows.html",
-        {"request": request, "requests": rows, "status": status},
-    )
-    response.headers["X-Has-More"] = "true" if has_more else "false"
-    return response
 
 
 @router.get("/{group_id}/challenges/{challenge_id}/participants")

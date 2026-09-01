@@ -1,7 +1,7 @@
 # routers/views/user.py
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select
+from sqlalchemy import func, not_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_page_user
@@ -9,10 +9,12 @@ from app.avatars import AVATAR_IDS, avatar_url, register_avatar_filters
 from app.config import BASE_DIR
 from app.database import get_db
 from app.explainers import register_explainer_filters
-from app.models.enrollment import Enrollment, EnrollmentStatus
+from app.models.challenge import Challenge
+from app.models.enrollment import Enrollment
 from app.models.user import User
 from app.permissions import Perm, can, is_admin
 from app.phone import national_mobile
+from app.routers.challenge import STATUS_FINISHED, status_filter
 from app.routers.user import profile_visibility_filter
 
 # The Farsi for `UserRole`, taken from the panel rather than restated here:
@@ -69,24 +71,25 @@ async def user_detail(
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    # "Done" is the challenge's own derived status (D-status), never
+    # `Enrollments.status` -- no route ever writes anything but `active` onto
+    # that column, so a branch keyed on it was always empty. See
+    # `routers/views/home.py::_fetch_enrollment_page`.
+    finished = status_filter(STATUS_FINISHED)
     stat_active = (
         await db.execute(
             select(func.count())
             .select_from(Enrollment)
-            .where(
-                Enrollment.user_id == user_id,
-                Enrollment.status != EnrollmentStatus.COMPLETED,
-            )
+            .join(Challenge, Enrollment.challenge_id == Challenge.id)
+            .where(Enrollment.user_id == user_id, not_(finished))
         )
     ).scalar_one()
     stat_done = (
         await db.execute(
             select(func.count())
             .select_from(Enrollment)
-            .where(
-                Enrollment.user_id == user_id,
-                Enrollment.status == EnrollmentStatus.COMPLETED,
-            )
+            .join(Challenge, Enrollment.challenge_id == Challenge.id)
+            .where(Enrollment.user_id == user_id, finished)
         )
     ).scalar_one()
     is_own_profile = current_user_id == user_id

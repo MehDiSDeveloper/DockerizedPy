@@ -191,14 +191,11 @@ async def test_the_participant_count_matches_the_rows(client, db):
 
 
 async def test_a_new_arrival_picks_up_the_standing_challenges(client, db):
-    """Through the invite door -- **once they have been approved**.
+    """Through the invite door -- **immediately**, no second approval.
 
-    Arriving and being let into what the group asks of everyone are two
-    answers now (``GroupMembership.is_trusted``), so this walks both: the
-    arrival is a member immediately and picks up nothing, and the approval is
-    what applies the standing challenges -- retroactively, through the same
-    `apply_standing_audience`, so the door somebody came through still cannot
-    change what they end up with.
+    Being in the group is the whole answer now: an arrival picks up every
+    ``all``-audience challenge the moment they join, and nothing outside
+    ``selected``'s own membership check.
     """
     owner = await make_user(db, "Owner")
     newcomer = await make_user(db, "Newcomer")
@@ -214,10 +211,6 @@ async def test_a_new_arrival_picks_up_the_standing_challenges(client, db):
 
     sign_in(client, newcomer)
     assert (await client.post(f"/invites/{code}/accept")).status_code == 201
-    assert newcomer.id not in await enrolled_ids(db, everyone.id)
-
-    sign_in(client, owner)
-    await client.post(f"/groups/{group.id}/members/{newcomer.id}/trust")
 
     assert newcomer.id in await enrolled_ids(db, everyone.id)
     assert newcomer.id not in await enrolled_ids(db, only_some.id)
@@ -239,11 +232,7 @@ async def test_an_approved_request_picks_them_up_too(client, db):
     request_id = (await client.post(f"/invites/{code}/request")).json()["id"]
     sign_in(client, owner)
     await client.post(f"/groups/{group.id}/requests/{request_id}/approve")
-    # Being let in is the first approval and only that: the standing
-    # challenges wait on the second, exactly as they do for the link door.
-    assert hopeful.id not in await enrolled_ids(db, everyone.id)
 
-    await client.post(f"/groups/{group.id}/members/{hopeful.id}/trust")
     assert hopeful.id in await enrolled_ids(db, everyone.id)
 
 

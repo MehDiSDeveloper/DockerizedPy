@@ -153,36 +153,6 @@ async def is_group_member(db: AsyncSession, group_id: int, user_id: int) -> bool
     return found.scalar_one_or_none() is not None
 
 
-async def trusted_member_ids(db: AsyncSession, group_id: int) -> set[int]:
-    """Who in this group may be swept into its standing challenges.
-
-    The *second* answer an administrator gives about a new arrival, and the
-    only place `GroupMembership.is_trusted` is read on the way to enrolling
-    somebody. Being in the group is the first answer and is what the
-    membership row means; this one is «محرمیت» -- permission to be put into
-    the challenges nobody picked them for by name.
-
-    Both `seed_group_participants` (creating an «همه اعضا» challenge) and
-    :func:`apply_standing_audience` (a new arrival picking those challenges
-    up) read it, so the two halves of "for everyone" agree about who everyone
-    is. Naming somebody explicitly is deliberately **not** filtered by it:
-    an administrator who picked a person by hand has given exactly the
-    approval this column stands for.
-    """
-    return set(
-        (
-            await db.execute(
-                select(GroupMembership.user_id).where(
-                    GroupMembership.group_id == group_id,
-                    GroupMembership.is_trusted.is_(True),
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-
-
 async def member_counts(db: AsyncSession, group_ids: list[int]) -> dict[int, int]:
     """How many people are in each of these groups, as one query.
 
@@ -371,28 +341,7 @@ async def apply_standing_audience(
     are told: they asked to join, somebody else decided when, and the
     obligations they acquired are news to them. The asymmetry is right and it
     costs no branch.
-
-    **A member who has not been approved for the group's challenges picks up
-    nothing here**, and the check is inside this function rather than at its
-    call sites for the reason every invariant in this app is inside its one
-    door: there are three paths that create a membership (a link, an approved
-    request, an administrator adding somebody by number) and the one that
-    forgot would not be a visible error -- it would be somebody quietly
-    enrolled in obligations they were never approved for. Being trusted later
-    calls this same function, which is what makes the approval *do* something
-    rather than merely record a fact.
     """
-    trusted = (
-        await db.execute(
-            select(GroupMembership.is_trusted).where(
-                GroupMembership.group_id == group_id,
-                GroupMembership.user_id == user_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if not trusted:
-        return []
-
     challenges = list(
         (
             await db.execute(
@@ -597,15 +546,6 @@ INVITE_STATE_LABELS = {
     INVITE_FULL: "ظرفیت پر",
 }
 
-# The two answers to «محرمیت» -- see `GroupMembership.is_trusted`. A label
-# per state rather than one word plus a negation, because both halves are
-# shown on a roster and «تاییدنشده» beside «تاییدشده» reads as a state while
-# an absent pill reads as a bug.
-TRUST_LABELS = {
-    True: "تاییدشده",
-    False: "در انتظار تایید",
-}
-
 AUDIENCE_LABELS = {
     GroupAudience.ALL.value: "همهٔ اعضای گروه",
     GroupAudience.SELECTED.value: "افراد منتخب",
@@ -623,6 +563,5 @@ def register_group_filters(env) -> None:
     env.globals["group_kind_icons"] = GROUP_KIND_ICONS
     env.globals["group_role_labels"] = GROUP_ROLE_LABELS
     env.globals["invite_state_labels"] = INVITE_STATE_LABELS
-    env.globals["trust_labels"] = TRUST_LABELS
     env.globals["audience_labels"] = AUDIENCE_LABELS
     env.globals["participation_labels"] = PARTICIPATION_LABELS

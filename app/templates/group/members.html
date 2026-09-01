@@ -96,25 +96,8 @@
       const id = Number(row.dataset.memberId);
       const name = row.dataset.memberName;
       const role = row.dataset.memberRole;
-      const trusted = row.dataset.memberTrusted === "true";
 
       const fields = [];
-      // The second approval, offered wherever a member is already being
-      // acted on. It is a separate write from the role -- two questions,
-      // two routes -- and the sheet sends only the one that changed.
-      if (CAN_MANAGE && role !== "owner") {
-        fields.push({
-          name: "trusted",
-          label: "چالش‌های گروه",
-          type: "chips",
-          value: trusted ? "yes" : "no",
-          options: [
-            { value: "no", label: "در انتظار تایید", icon: "clock" },
-            { value: "yes", label: "تاییدشده", icon: "check" },
-          ],
-          hint: "تا وقتی تایید نشده، فقط چالش‌هایی که خودت او را در آن‌ها انتخاب کنی به او می‌رسد.",
-        });
-      }
       if (CAN_MANAGE_ADMINS) {
         fields.push({
           name: "role",
@@ -154,23 +137,6 @@
           },
         } : undefined,
         onConfirm: async (values) => {
-          if (CAN_MANAGE && values.trusted && (values.trusted === "yes") !== trusted) {
-            const want = values.trusted === "yes";
-            const { ok, data } = await apiFetch(
-              `/groups/${GROUP_ID}/members/${id}/trust`,
-              { method: want ? "POST" : "DELETE" }
-            );
-            if (!ok) {
-              showToast("خطا: " + ((data && data.detail) || "ذخیره نشد"));
-              return false;
-            }
-            // Repainted from the server's answer, like the role pill below.
-            row.dataset.memberTrusted = data.is_trusted ? "true" : "false";
-            row.querySelector("[data-trust-pill]").hidden = !!data.is_trusted;
-            showToast(data.is_trusted
-              ? `${name} به چالش‌های گروه راه یافت`
-              : "دسترسی به چالش‌های گروه برداشته شد");
-          }
           if (!CAN_MANAGE_ADMINS || !values.role || values.role === role) return true;
           const { ok, data } = await apiFetch(`/groups/${GROUP_ID}/members/${id}`, {
             method: "PATCH",

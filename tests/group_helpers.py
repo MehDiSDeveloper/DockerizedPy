@@ -60,7 +60,6 @@ async def make_group(db: AsyncSession, owner: User, *, name: str = "شرکت آ�
             group_id=group.id,
             user_id=owner.id,
             role=GroupRole.OWNER.value,
-            is_trusted=True,
         )
     )
     await db.commit()
@@ -74,18 +73,9 @@ async def add_member(
     user: User,
     *,
     role: str = GroupRole.MEMBER.value,
-    trusted: bool = True,
 ) -> GroupMembership:
-    """An established member of the group.
-
-    ``trusted`` defaults to **True** because that is what "a member of this
-    group" means everywhere except the approval queue itself: somebody who
-    has been approved for the group's standing challenges. The tests that are
-    *about* that second approval pass ``trusted=False`` and say so.
-    """
-    membership = GroupMembership(
-        group_id=group.id, user_id=user.id, role=role, is_trusted=trusted
-    )
+    """An established member of the group."""
+    membership = GroupMembership(group_id=group.id, user_id=user.id, role=role)
     db.add(membership)
     await db.commit()
     await db.refresh(membership)

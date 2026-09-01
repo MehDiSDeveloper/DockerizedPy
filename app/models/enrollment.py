@@ -58,6 +58,10 @@ class Enrollment(AuditBase):
     current_streak = Column(Integer, nullable=False, default=0)
     longest_streak = Column(Integer, nullable=False, default=0)
     last_checkin_local_date = Column(Date, nullable=True)
+    # Frozen pre-migration data, kept read-only -- nothing writes it and
+    # nothing derives from it. Deliberately absent from every output schema
+    # (`EnrollmentRead` included): a consumer of the API would mistake it for
+    # a live completion count, which it has not been since the migration.
     legacy_completed_count = Column(Integer, nullable=False, default=0)
     # This member's role *in this challenge* -- see `ChallengeRole`. Written
     # at enrolment (the creator's auto-enrolment gets `owner`, everyone else

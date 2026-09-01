@@ -7,11 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user, get_optional_user_id
 from app.database import get_db
-from app.groups import (
-    assign_participants,
-    group_scope_filter,
-    trusted_member_ids,
-)
+from app.groups import assign_participants, group_scope_filter
 from app.models.audit_base import newest_first
 from app.models.challenge import (
     Challenge,
@@ -465,14 +461,6 @@ async def seed_group_participants(
     into a challenge they cannot even see -- the one place a group challenge
     could acquire a participant who is not in the group, closed here rather
     than trusted to the client that built the list.
-
-    **«همه اعضا» means every *approved* member** (`trusted_member_ids`), while
-    naming somebody explicitly ignores that column entirely: picking a person
-    by hand *is* the approval this feature asks for, and refusing it would
-    make an administrator approve somebody twice to do one thing. The same
-    split runs the other way round in `apply_standing_audience`, so an
-    arrival waiting for approval and a challenge written while they wait
-    reach the same answer.
     """
     if group is None:
         return
@@ -488,7 +476,7 @@ async def seed_group_participants(
         .all()
     )
     if challenge.group_audience == GroupAudience.ALL.value:
-        wanted = members & await trusted_member_ids(db, group.id)
+        wanted = set(members)
     else:
         wanted = members & set(member_ids)
     # The creator already has the owner enrolment written by the caller.
@@ -503,21 +491,29 @@ async def seed_group_participants(
         )
 
 
-@router.post("/", response_model=ChallengeRead, status_code=201)
-async def create_challenge(
-    challenge: ChallengeCreate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
+async def create_challenge_record(
+    db: AsyncSession,
+    *,
+    payload: ChallengeCreate,
+    current_user: User,
+) -> Challenge:
+    """Write a challenge, its creator's owner enrolment, its stats row and the
+    group audience it was created for.
+
+    The one implementation both front doors call. It used to be two copies,
+    and they had already drifted -- the SSR half was writing the creator's
+    enrolment without `is_anonymous=False`, so an `anonymous` challenge could
+    hide its own author. See CLAUDE.md on duplicated create logic.
+    """
     current_user_id = current_user.id
     # Checked before anything is written: a challenge under a group the
     # caller may not create in must not exist even briefly.
-    group = await resolve_group_for_create(db, challenge.group_id, current_user)
+    group = await resolve_group_for_create(db, payload.group_id, current_user)
 
-    data = challenge.model_dump(exclude={"cadence", "timezone", "member_ids"})
+    data = payload.model_dump(exclude={"cadence", "timezone", "member_ids"})
     db_challenge = Challenge(**data)
-    db_challenge.cadence_kind = challenge.cadence.kind
-    db_challenge.cadence = challenge.cadence.model_dump(mode="json")
+    db_challenge.cadence_kind = payload.cadence.kind
+    db_challenge.cadence = payload.cadence.model_dump(mode="json")
     db_challenge.owner_id = current_user_id
     db_challenge.last_modifier_user_id = current_user_id
     db.add(db_challenge)
@@ -526,7 +522,7 @@ async def create_challenge(
     # D1: the creator is auto-enrolled -- and that enrolment is the one that
     # carries `owner`, so the row states the role instead of every caller
     # re-deriving it from `owner_id`.
-    tz = resolve_timezone(challenge.timezone)
+    tz = resolve_timezone(payload.timezone)
     enrollment = Enrollment(
         challenge_id=db_challenge.id,
         user_id=current_user_id,
@@ -549,11 +545,23 @@ async def create_challenge(
         db,
         challenge=db_challenge,
         group=group,
-        member_ids=challenge.member_ids,
+        member_ids=payload.member_ids,
         actor_user_id=current_user_id,
         timezone=tz,
     )
 
+    return db_challenge
+
+
+@router.post("/", response_model=ChallengeRead, status_code=201)
+async def create_challenge(
+    challenge: ChallengeCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    db_challenge = await create_challenge_record(
+        db, payload=challenge, current_user=current_user
+    )
     await db.commit()
     await db.refresh(db_challenge)
     return db_challenge

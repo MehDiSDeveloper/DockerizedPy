@@ -46,8 +46,6 @@ class NotificationKind(str, enum.Enum):
     #: a sentence about "your request" would describe an event that never
     #: happened -- the row stores the event, so the two events are two kinds.
     GROUP_MEMBER_ADDED = "group_member_added"
-    #: A group administrator approved you for that group's own challenges.
-    GROUP_MEMBER_TRUSTED = "group_member_trusted"
     #: Your role inside a group changed.
     GROUP_ROLE_CHANGED = "group_role_changed"
     #: A group was handed over to you.

@@ -4,7 +4,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select
+from sqlalchemy import func, not_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -20,7 +20,7 @@ from app.models.checkin import CheckIn
 from app.models.enrollment import Enrollment, EnrollmentStatus
 from app.models.user import User
 from app.occurrences import local_today, week_start
-from app.routers.challenge import DEFAULT_TIMEZONE
+from app.routers.challenge import DEFAULT_TIMEZONE, STATUS_FINISHED, status_filter
 from app.routers.today import get_today_items
 
 router = APIRouter(prefix="/views/home", tags=["home-views"])
@@ -68,13 +68,18 @@ async def _fetch_enrollment_page(
 ) -> tuple[list[Enrollment], bool]:
     stmt = (
         select(Enrollment)
+        .join(Challenge, Enrollment.challenge_id == Challenge.id)
         .options(selectinload(Enrollment.challenge).selectinload(Challenge.enrollments))
         .where(Enrollment.user_id == user_id)
     )
+    # "Finished" is the challenge's own derived status (D-status), never
+    # `Enrollments.status` -- no route ever writes anything but `active` onto
+    # that column, so a branch keyed on it was always empty.
+    finished = status_filter(STATUS_FINISHED)
     if status == "completed":
-        stmt = stmt.where(Enrollment.status == EnrollmentStatus.COMPLETED)
+        stmt = stmt.where(finished)
     else:
-        stmt = stmt.where(Enrollment.status != EnrollmentStatus.COMPLETED)
+        stmt = stmt.where(not_(finished))
     stmt = stmt.order_by(*newest_first(Enrollment)).offset(offset).limit(limit + 1)
     result = await db.execute(stmt)
     enrollments = list(result.scalars().all())
@@ -266,24 +271,23 @@ async def home(
 ):
     current_user_id = db_user.id
 
+    # "Done" is the challenge's own derived status (D-status), never
+    # `Enrollments.status` -- see `_fetch_enrollment_page` above.
+    finished = status_filter(STATUS_FINISHED)
     stat_active = (
         await db.execute(
             select(func.count())
             .select_from(Enrollment)
-            .where(
-                Enrollment.user_id == current_user_id,
-                Enrollment.status != EnrollmentStatus.COMPLETED,
-            )
+            .join(Challenge, Enrollment.challenge_id == Challenge.id)
+            .where(Enrollment.user_id == current_user_id, not_(finished))
         )
     ).scalar_one()
     stat_done = (
         await db.execute(
             select(func.count())
             .select_from(Enrollment)
-            .where(
-                Enrollment.user_id == current_user_id,
-                Enrollment.status == EnrollmentStatus.COMPLETED,
-            )
+            .join(Challenge, Enrollment.challenge_id == Challenge.id)
+            .where(Enrollment.user_id == current_user_id, finished)
         )
     ).scalar_one()
 

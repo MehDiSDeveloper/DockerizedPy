@@ -1666,28 +1666,6 @@ label.sr-head{cursor:pointer; width:100%;}
 }
 .role-pill.is-admin{background:rgba(var(--accent-rgb),.14); color:var(--fayrouzeh);}
 
-/* «در انتظار تایید» — a member who is in the group but not yet approved for
-   its standing challenges. It takes --gold, which already means "worth
-   noticing" on the streak tiles, rather than --mohr: waiting for an approval
-   is not an error, and the red one would read as a fault in the member.
-   Drawn only while it is true (the row hides it otherwise), because a pill
-   on every settled row is thirty pills saying nothing. */
-.trust-pill{
-  flex-shrink:0; padding:3px 9px; border-radius:999px;
-  font-size:10.5px; font-weight:700;
-  background:rgba(var(--gold-rgb),0.16); color:var(--gold);
-  border:1px solid rgba(var(--gold-rgb),0.32);
-}
-.trust-pill[hidden]{display:none;}
-
-/* The approval queue on the manage screen shares the request queue's row:
-   an avatar, two lines and one button, so the two queues read as two of the
-   same thing rather than two designs. */
-.trust-row .mr-avatar{
-  width:36px; height:36px; border-radius:50%; background:var(--bg-1);
-  object-fit:cover; flex-shrink:0;
-}
-
 /* The roster's search box and role segment are the challenge list's own
    controls, reused verbatim so the app has one way to filter a list rather
    than two. Both were built for a full-bleed page and carry the 20px page
