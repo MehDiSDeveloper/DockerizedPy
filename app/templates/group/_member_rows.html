@@ -1,0 +1,46 @@
+{#- One row per member of a group. Fragment for /views/groups/{id}/members.
+
+    **A row is not a link.** Making a roster readable inside a group is one
+    step; reaching the named person's profile from it is a second one, and
+    CLAUDE.md is explicit that the second belongs to
+    `profile_visibility_filter` alone. The same rule the leaderboard follows,
+    for the same reason.
+
+    The role control renders only for whoever may use it, and the route it
+    calls (`PATCH /groups/{id}/members/{user_id}`) checks the same permission
+    again -- the template's decision is presentation, never the gate. -#}
+{% for m in members %}
+{% set is_owner = m.role == 'owner' %}
+{% set is_me = m.user_id == current_user_id %}
+<div class="setting-row glass member-row" data-member-id="{{ m.user_id }}"
+  data-member-role="{{ m.role }}" data-member-name="{{ m.name }}"
+  data-member-trusted="{{ 'true' if m.is_trusted else 'false' }}">
+  <div class="sr-head">
+    <img class="mr-avatar" src="{{ m.avatar | avatar_url }}" alt="" width="36" height="36"
+      loading="lazy">
+    <div class="sr-text">
+      <span class="sr-label">{{ m.name }}{% if is_me %} <span class="mr-you">(تو)</span>{% endif %}</span>
+      <span class="sr-hint">عضو از <span data-jalali="{{ m.joined_at.isoformat() }}"
+          data-jalali-format="day-month-year">{{ m.joined_at.strftime('%Y-%m-%d') }}</span></span>
+    </div>
+    {#- The waiting pill sits *before* the role, because it is the one thing
+        about this row that is unfinished, and it is drawn only while it is
+        true: a «تاییدشده» pill on every other row would be thirty pills
+        saying nothing. It borrows `--gold` («worth noticing», the streak
+        tiles' hue) rather than the error red -- somebody waiting for approval
+        is not a fault. -#}
+    <span class="trust-pill" data-trust-pill {{ '' if not m.is_trusted else 'hidden' }}>{{
+      trust_labels[False] }}</span>
+    <span class="role-pill {{ 'is-admin' if m.role in ('owner', 'admin') else '' }}"
+      data-role-pill>{{ group_role_labels.get(m.role, m.role) }}</span>
+    {#- Two different actions, and each is offered only to whoever holds the
+        permission behind it: the owner alone may change a role, while an
+        admin may remove a plain member. The owner's own row carries neither
+        -- leaving is a transfer, which lives on the manage screen. -#}
+    {% if not is_owner and (can_manage_admins or (can_manage and m.role == 'member' and not is_me)) %}
+    <button type="button" class="icon-btn mr-action" aria-label="مدیریت {{ m.name }}"
+      data-member-menu><span data-icon="settings"></span></button>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}

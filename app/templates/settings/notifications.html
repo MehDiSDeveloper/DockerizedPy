@@ -1,0 +1,74 @@
+{% extends "layout.html" %}
+
+{#- The notification switches: which events are allowed to reach the bell.
+
+    A page of its own rather than a section of `settings/index.html`, for the
+    reason the moderation roster is a page rather than a tab on the admin
+    panel: this is the one setting whose row count is not fixed. Every kind
+    added to `NOTIFICATION_META` earns a switch here for free, so inline it
+    would have grown until it pushed every other question off the index's
+    first screen. The index keeps one row saying how many are on.
+
+    The list itself is still built server-side by `notification_settings()`
+    rather than written out here: a kind cannot ship without a switch, and
+    the switch is worded by the same map that words the notification, so the
+    two can never describe different things.
+
+    A switch and not a sheet, because each answer is yes/no: the whole state
+    of the screen is readable at a glance. It saves on the tap -- no «ذخیره»
+    button, since there is nothing to review before committing one boolean --
+    and reverts itself with a toast if the request fails. The one thing it
+    must not do is look saved when it is not. -#}
+
+{% block topbar_leading %}
+<a href="/views/settings/" class="back-btn" data-back data-back-optional
+  aria-label="بازگشت"><span data-icon="chevronRight"></span></a>
+{% endblock %}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="اعلان‌ها">
+  <span class="crumb current" aria-current="page">اعلان‌ها</span>
+</nav>
+{% endblock %}
+
+{#- No bell here either: this is where its settings live, so a shortcut to
+    the inbox on top of them is one control too many. -#}
+{% block topbar_action %}{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+
+  <section class="setting-group">
+    <h2>کدام اعلان‌ها برسند</h2>
+    {% for pref in notification_prefs %}
+    <div class="setting-row glass">
+      <label class="sr-head" for="notif-{{ pref.kind }}">
+        {#- The feed's own tile, not a second one: the glyph means the same
+            thing on both screens -- *what kind of event this is* -- and one
+            of them drifting from the other is exactly the kind of small
+            disagreement that makes two screens feel like two apps. -#}
+        <span class="notif-icon" data-icon="{{ pref.icon }}" aria-hidden="true"></span>
+        <span class="sr-text">
+          <span class="sr-label">{{ pref.title }}</span>
+          <span class="sr-hint">{{ pref.hint }}</span>
+        </span>
+        {#- The input *is* the control: a native checkbox, so it is
+            keyboard-reachable, announced as a switch, and labelled by the
+            row it sits in without any of it being reimplemented in JS. -#}
+        <span class="switch">
+          <input type="checkbox" id="notif-{{ pref.kind }}" role="switch"
+            data-notif-pref="{{ pref.kind }}" {% if pref.enabled %}checked{% endif %}>
+          <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+        </span>
+      </label>
+    </div>
+    {% endfor %}
+    <p class="settings-note">اعلان‌ها داخل برنامه، در همان زنگولهٔ بالای صفحه نشان داده می‌شوند.</p>
+  </section>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+{% endblock %}

@@ -12,7 +12,7 @@
      tones are close enough that either still reads on either ground. -->
 <style>
   .d-fg{fill:#6f7d73}
-  @media (prefers-color-scheme:dark){.d-fg{fill:#a2b3a8}}
+  @media (prefers-color-scheme:dark){.d-fg{fill:#a8ada0}}
 </style>
 <defs><clipPath id="d-clip"><circle cx="50" cy="50" r="50"/></clipPath></defs>
 <g class="d-fg" clip-path="url(#d-clip)"><circle cx="50" cy="40" r="15.5"/><path d="M50 59c-18.4 0-33.6 13.7-35.8 31.4L13 100h74l-1.2-9.6C83.6 72.7 68.4 59 50 59Z"/></g>

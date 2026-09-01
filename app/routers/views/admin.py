@@ -1,5 +1,5 @@
 # routers/views/admin.py
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,19 +9,23 @@ from app.auth import get_admin_page_user, get_admin_user
 from app.avatars import register_avatar_filters
 from app.config import BASE_DIR
 from app.database import get_db
+from app.explainers import register_explainer_filters
 from app.icons import register_icon_filters
 from app.models.challenge import Challenge, LifecycleStatus, Visibility
-from app.models.enrollment import Enrollment
+from app.models.enrollment import ChallengeRole, Enrollment, EnrollmentStatus
 from app.models.user import User, UserRole
 from app.routers.challenge import (
     ALL_CATEGORIES,
     DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE,
+    SORT_MEMBERS,
+    SORT_RECENT,
     STATUS_ALL,
     STATUS_VALUES,
     challenge_status,
     fetch_challenge_page,
 )
+from app.routers.enrollment import fetch_participant_page
 from app.routers.user import (
     DEFAULT_MEMBER_PAGE_SIZE,
     MAX_MEMBER_PAGE_SIZE,
@@ -36,6 +40,7 @@ from app.routers.views.challenge import STATUS_META
 
 router = APIRouter(prefix="/views/admin", tags=["admin-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_explainer_filters(templates.env)
 register_avatar_filters(templates.env)
 # The challenge roster renders category icons and the derived status badge, so
 # this environment needs the same filters the public list registers -- every
@@ -59,12 +64,12 @@ ROLE_LABELS = {
 LIFECYCLE_LABELS = {
     LifecycleStatus.DRAFT.value: "پیش‌نویس",
     LifecycleStatus.ACTIVE.value: "فعال",
-    LifecycleStatus.ARCHIVED.value: "آرشیو",
+    LifecycleStatus.ARCHIVED.value: "بایگانی‌شده",
 }
 
 VISIBILITY_LABELS = {
     Visibility.PUBLIC.value: "عمومی",
-    Visibility.UNLISTED.value: "با لینک",
+    Visibility.UNLISTED.value: "فقط با لینک",
     Visibility.PRIVATE.value: "خصوصی",
 }
 
@@ -78,12 +83,50 @@ STATUS_FILTER_OPTIONS = [{"value": STATUS_ALL, "label": "همه", "icon": None}]
 
 STATUS_QUERY_PATTERN = "^({})$".format("|".join(STATUS_VALUES))
 
+# How the moderation roster can be ordered. Two options, not three: the
+# public list's «velocity» answers "what is hot", which is a discovery
+# question and not a moderation one. «پرعضوترین» is the roster read as a
+# breakdown of the install's memberships -- which is why the «عضویت» count
+# on the panel index links straight here with this sort applied, instead of
+# a second list of the same challenges in a different order living on its
+# own screen.
+SORT_LABELS = {
+    SORT_RECENT: "تازه‌ترین",
+    SORT_MEMBERS: "پرعضوترین",
+}
+
+SORT_FILTER_OPTIONS = [
+    {"value": value, "label": label} for value, label in SORT_LABELS.items()
+]
+
+# The moderation roster only offers the two orderings above; «velocity»
+# stays a discovery sort on the public list.
+SORT_QUERY_PATTERN = "^({})$".format("|".join(SORT_LABELS))
+
+# Farsi for the per-challenge role and the enrollment's own status, inlined
+# here for the same reason ROLE_LABELS is (D7). The participant roster is
+# the only screen that shows either.
+CHALLENGE_ROLE_LABELS = {
+    ChallengeRole.OWNER.value: "مالک",
+    ChallengeRole.PARTICIPANT.value: "شرکت‌کننده",
+}
+
+ENROLLMENT_STATUS_LABELS = {
+    EnrollmentStatus.ACTIVE.value: "فعال",
+    EnrollmentStatus.COMPLETED.value: "تمام‌شده",
+    EnrollmentStatus.ABANDONED.value: "رهاشده",
+}
+
 # Loaded on every challenge row: the owner's name is the one thing a roster of
 # other people's challenges must show, and the count of participants is what
 # decides whether deleting is even offered.
 CHALLENGE_ROW_OPTIONS = (
     selectinload(Challenge.owner),
     selectinload(Challenge.enrollments),
+    # The group, for the row's own hint. `scope_all=True` reaches group
+    # challenges like any other, and an operator reading «عمومی» without
+    # knowing it is a group challenge would read it as public to the world.
+    selectinload(Challenge.group),
 )
 
 
@@ -168,6 +211,10 @@ async def admin_page(
     return templates.TemplateResponse(
         "admin/index.html",
         {
+            # Paints the panel's own chrome in layout.html -- see the "Admin
+            # scope" section of styles.css. Presentation only: the gate is
+            # get_admin_page_user above.
+            "admin_scope": True,
             "title": "پنل مدیریت",
             "request": request,
             "current_user_id": admin.id,
@@ -227,6 +274,7 @@ async def admin_challenges_page(
     db: AsyncSession = Depends(get_db),
     q: str | None = Query(default=None, max_length=100),
     status: str = Query(default=STATUS_ALL, pattern=STATUS_QUERY_PATTERN),
+    sort: str = Query(default=SORT_RECENT, pattern=SORT_QUERY_PATTERN),
 ):
     """The challenge side of the panel -- the public list, with the roster's
     reach and a set of actions.
@@ -243,11 +291,15 @@ async def admin_challenges_page(
     for one URL, and neither would be linkable.
     """
     challenges, has_more = await _challenge_page(
-        db, q=q, status=status, offset=0, limit=DEFAULT_PAGE_SIZE
+        db, q=q, status=status, sort=sort, offset=0, limit=DEFAULT_PAGE_SIZE
     )
     return templates.TemplateResponse(
         "admin/challenges.html",
         {
+            # Paints the panel's own chrome in layout.html -- see the "Admin
+            # scope" section of styles.css. Presentation only: the gate is
+            # get_admin_page_user above.
+            "admin_scope": True,
             "title": "مدیریت چالش‌ها",
             "request": request,
             "current_user_id": admin.id,
@@ -256,6 +308,8 @@ async def admin_challenges_page(
             "query": q or "",
             "active_status": status,
             "status_options": STATUS_FILTER_OPTIONS,
+            "active_sort": sort,
+            "sort_options": SORT_FILTER_OPTIONS,
             "lifecycle_labels": LIFECYCLE_LABELS,
             "visibility_labels": VISIBILITY_LABELS,
             "has_more": has_more,
@@ -271,6 +325,7 @@ async def admin_challenges_fragment(
     db: AsyncSession = Depends(get_db),
     q: str | None = Query(default=None, max_length=100),
     status: str = Query(default=STATUS_ALL, pattern=STATUS_QUERY_PATTERN),
+    sort: str = Query(default=SORT_RECENT, pattern=SORT_QUERY_PATTERN),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
 ):
@@ -278,7 +333,7 @@ async def admin_challenges_fragment(
     the member fragment takes it: a `fetch()` needs a real 401 to redirect on,
     and the page dependency's 303 would be appended as if it were rows."""
     challenges, has_more = await _challenge_page(
-        db, q=q, status=status, offset=offset, limit=limit
+        db, q=q, status=status, sort=sort, offset=offset, limit=limit
     )
     response = templates.TemplateResponse(
         "admin/_challenge_rows.html",
@@ -287,6 +342,114 @@ async def admin_challenges_fragment(
             "challenges": challenges,
             "lifecycle_labels": LIFECYCLE_LABELS,
             "visibility_labels": VISIBILITY_LABELS,
+        },
+    )
+    response.headers["X-Has-More"] = "true" if has_more else "false"
+    return response
+
+
+async def _load_challenge(db: AsyncSession, challenge_id: int) -> Challenge:
+    """The challenge a participant roster belongs to, or 404.
+
+    No visibility clause: the caller has already been resolved to an admin,
+    who holds `Perm.CHALLENGE_LIST_ALL` -- "may see every challenge" -- so
+    narrowing here would only re-ask a question already answered. The 404 is
+    a genuine miss, not the enumeration-proofing 404 the member-facing routes
+    use.
+    """
+    challenge = (
+        await db.execute(
+            select(Challenge)
+            .where(Challenge.id == challenge_id)
+            .options(selectinload(Challenge.owner))
+        )
+    ).scalar_one_or_none()
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+    return challenge
+
+
+@router.get("/challenges/{challenge_id}/members")
+async def admin_challenge_members_page(
+    challenge_id: int,
+    request: Request,
+    admin: User = Depends(get_admin_page_user),
+    db: AsyncSession = Depends(get_db),
+    q: str | None = Query(default=None, max_length=100),
+):
+    """Who is enrolled in one challenge -- the drill-down from a roster row.
+
+    This is the one screen in the app that answers "who is in this", and it
+    exists here rather than on `challenge-detail.html` on purpose: profiles
+    are own-only (`profile_visibility_filter`) and challenge-detail therefore
+    shows participant *initials*, never a roster. Widening that for members
+    means loosening that one function first; until then the roster is an
+    operator tool, reached only from a page an admin had to be an admin to
+    open, and it links to nobody's profile.
+
+    It is a page of its own rather than a panel inside the moderation sheet
+    for the reason every other list here is: it is searched and lazily paged,
+    and a list behind a modal can be neither linkable nor scrolled to its
+    end.
+    """
+    challenge = await _load_challenge(db, challenge_id)
+    enrollments, has_more = await fetch_participant_page(
+        db, challenge_id=challenge_id, q=q, offset=0, limit=DEFAULT_MEMBER_PAGE_SIZE
+    )
+    total = (
+        await db.execute(
+            select(func.count())
+            .select_from(Enrollment)
+            .where(Enrollment.challenge_id == challenge_id)
+        )
+    ).scalar_one()
+    return templates.TemplateResponse(
+        "admin/challenge_members.html",
+        {
+            # Paints the panel's own chrome in layout.html -- see the "Admin
+            # scope" section of styles.css. Presentation only: the gate is
+            # get_admin_page_user above.
+            "admin_scope": True,
+            "title": f"اعضای {challenge.title}",
+            "request": request,
+            "current_user_id": admin.id,
+            "active_nav": "profile",
+            "challenge": challenge,
+            "enrollments": enrollments,
+            "total": total,
+            "query": q or "",
+            "challenge_role_labels": CHALLENGE_ROLE_LABELS,
+            "enrollment_status_labels": ENROLLMENT_STATUS_LABELS,
+            "has_more": has_more,
+            "page_size": DEFAULT_MEMBER_PAGE_SIZE,
+        },
+    )
+
+
+@router.get("/challenges/{challenge_id}/members/fragment")
+async def admin_challenge_members_fragment(
+    challenge_id: int,
+    request: Request,
+    _admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+    q: str | None = Query(default=None, max_length=100),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=DEFAULT_MEMBER_PAGE_SIZE, ge=1, le=MAX_MEMBER_PAGE_SIZE),
+):
+    """The next page of participant rows. `get_admin_user` for the same
+    reason every other `/fragment` route takes it: a `fetch()` needs a real
+    401 to redirect on, and the page dependency's 303 would be followed
+    silently and the login page appended as if it were rows."""
+    enrollments, has_more = await fetch_participant_page(
+        db, challenge_id=challenge_id, q=q, offset=offset, limit=limit
+    )
+    response = templates.TemplateResponse(
+        "admin/_participant_rows.html",
+        {
+            "request": request,
+            "enrollments": enrollments,
+            "challenge_role_labels": CHALLENGE_ROLE_LABELS,
+            "enrollment_status_labels": ENROLLMENT_STATUS_LABELS,
         },
     )
     response.headers["X-Has-More"] = "true" if has_more else "false"

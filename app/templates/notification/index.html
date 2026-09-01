@@ -1,0 +1,88 @@
+{% extends "layout.html" %}
+
+{#- The notification feed.
+
+    One flat list, newest first, and deliberately nothing else: no filter, no
+    «خوانده‌نشده» tab, no per-row menu. Everything in this feed is
+    informational -- someone joined a challenge you own, a challenge you are
+    in changed state -- so nothing is ever kept unread as a task, and a
+    control that partitions a list nobody needs partitioned is a control that
+    has to be explained. See routers/views/notification.py.
+
+    Built out of the settings screen's own primitives (.settings-page,
+    .setting-group, .setting-row) for the same reason the admin panel is: it
+    is the same shape of question -- a column of rows, each a label, a line of
+    detail and a mark -- and a second layout for it would be a second thing to
+    keep in step. -#}
+
+{% block topbar_leading %}
+<a href="/views/today/" class="back-btn" data-back data-back-optional
+  aria-label="بازگشت"><span data-icon="chevronRight"></span></a>
+{% endblock %}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="اعلان‌ها">
+  <span class="crumb current" aria-current="page">اعلان‌ها</span>
+</nav>
+{% endblock %}
+
+{#- No bell here: this page *is* the bell's destination, and a shortcut to
+    the screen you are standing on is one control too many -- the same call
+    the settings page makes about its own row. -#}
+{% block topbar_action %}{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+  <section class="setting-group notif-feed">
+    <div class="notif-list" id="notifList" data-page-size="{{ page_size }}"
+      data-initial-count="{{ notifications|length }}"
+      data-has-more="{{ 'true' if has_more else 'false' }}">
+      {% include "notification/_notification_rows.html" %}
+    </div>
+
+    {#- The empty state is the good one, not an error: a member with no
+        notifications has simply not had anything happen yet, and the line
+        says which things would. -#}
+    <div class="empty" id="notifEmpty" {{ 'hidden' if notifications }}>
+      <span data-icon="bell"></span>
+      <p>هنوز خبری نیست.<br>وقتی کسی به چالش‌هایت بپیوندد یا وضعیت چالشی عوض شود، همین‌جا می‌بینی‌اش.</p>
+    </div>
+
+    <div class="scroll-sentinel" id="notifSentinel" aria-hidden="true"></div>
+    <div class="list-loading" id="notifLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const listEl = document.getElementById("notifList");
+    const emptyEl = document.getElementById("notifEmpty");
+
+    createInfiniteScroller({
+      container: listEl,
+      sentinel: document.getElementById("notifSentinel"),
+      loadingEl: document.getElementById("notifLoading"),
+      emptyEl: emptyEl,
+      pageSize: Number(listEl.dataset.pageSize) || 20,
+      initialOffset: Number(listEl.dataset.initialCount) || 0,
+      initialHasMore: listEl.dataset.hasMore === "true",
+      buildUrl: (offset, limit) =>
+        `/views/notifications/fragment?offset=${offset}&limit=${limit}`,
+      onEmpty: () => { emptyEl.hidden = false; },
+    });
+
+    // Clearing the badge is a mutation this page *sends*, not a side effect
+    // of the GET that rendered it -- see POST /notifications/read. It runs
+    // after the rows are on screen and repaints nothing, so what was new
+    // keeps its «تازه» mark for this view and the bell is quiet on the next
+    // page. A failure is silent on purpose: the feed is already readable,
+    // and the only cost is the badge lingering until the next visit.
+    if (listEl.querySelector(".is-unread")) {
+      apiFetch("/notifications/read", { method: "POST" });
+    }
+  });
+</script>
+{% endblock %}

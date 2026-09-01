@@ -8,11 +8,15 @@
     sprinkled through the member-facing screens.
 
     Everything here is *about other people*, which is the one thing the rest
-    of the app deliberately never shows (profile_visibility_filter is
-    own-only). So the page states plainly what it is, and shows only what it
-    administers: identity, and the role. It does not link to anyone's
-    profile, because that route is still own-only and would 404 -- an admin
-    who needs to change a role does it here, in place.
+    of the app deliberately never shows a member (profile_visibility_filter
+    is own-only for everyone but an operator). So the page states plainly
+    what it is, and each row shows the two things a roster is searched by --
+    who they are, and the one field the panel administers.
+
+    A row **opens that member's profile**; nothing is edited from the list
+    itself. The roster's job is to find someone, the profile's is to show and
+    change them, and splitting it that way is what keeps the role change in
+    front of the evidence for it rather than beside a name in a long list.
 
     The roster is searched, filtered by role and paged in exactly the way
     the challenge list is: a `.search-bar` and a `.seg` that stay visible
@@ -32,30 +36,38 @@
 </nav>
 {% endblock %}
 
-{% block topbar_action %}{% endblock %}
-
 {% block content %}
 <div class="settings-page">
 
   {#- Three counts, not a dashboard: they answer "how big is this thing"
       before the roster below answers "who is in it". Live counts off the
       tables, like every other figure in the app -- nothing cached, and
-      deliberately not narrowed by the search below. -#}
+      deliberately not narrowed by the search below.
+
+      Each card is a link into the list it counts, because a number an
+      operator cannot open is a number they have to go looking for
+      elsewhere. Two of the three leave the page; «عضو» is an in-page
+      anchor, since the member roster *is* this page's list and moving it
+      away would leave the panel an index of nothing. «عضویت» is the
+      moderation roster ordered by membership rather than a fourth screen:
+      a list of enrollments broken down by challenge is the challenge list
+      in a different order, and the same rows under two URLs is how a search
+      starts meaning two things. -#}
   <section class="setting-group">
     <h2>یک نگاه</h2>
     <div class="admin-stats">
-      <div class="admin-stat glass">
+      <a href="#adminMembers" class="admin-stat glass">
         <span class="as-value">{{ totals.members }}</span>
         <span class="as-label">عضو</span>
-      </div>
-      <div class="admin-stat glass">
+      </a>
+      <a href="/views/admin/challenges" class="admin-stat glass">
         <span class="as-value">{{ totals.challenges }}</span>
         <span class="as-label">چالش</span>
-      </div>
-      <div class="admin-stat glass">
+      </a>
+      <a href="/views/admin/challenges?sort=members" class="admin-stat glass">
         <span class="as-value">{{ totals.enrollments }}</span>
         <span class="as-label">عضویت</span>
-      </div>
+      </a>
     </div>
   </section>
 
@@ -68,15 +80,15 @@
       <div class="sr-head">
         <div class="sr-text">
           <span class="sr-label">مدیریت چالش‌ها</span>
-          <span class="sr-hint">همه چالش‌ها، حتی خصوصی‌ها؛ آرشیو، تغییر دسترسی و حذف.</span>
+          <span class="sr-hint">همهٔ چالش‌ها، حتی خصوصی‌ها؛ بایگانی، تغییر دسترسی و حذف.</span>
         </div>
         <span class="sr-chev" data-icon="chevronLeft"></span>
       </div>
     </a>
   </section>
 
-  <section class="setting-group admin-members">
-    <h2>اعضا</h2>
+  <section class="setting-group admin-members" id="adminMembers">
+    <h2>اعضا{{ explain("admin-member-edit") }}</h2>
 
     {#- Search spans name and email, because those are the two things an
         admin has in hand when someone asks for help. No filter button: role
@@ -97,10 +109,10 @@
       </div>
     </div>
 
-    {#- One row per member, tappable, opening the role sheet. The role is
-        visible on the row itself rather than only inside the sheet -- the
+    {#- One row per member, opening that member's profile. The role stays
+        visible on the row rather than only on the page it links to -- the
         same rule the settings rows follow: the current value is part of
-        what the list tells you. -#}
+        what a list tells you, and it is what the filter above cuts by. -#}
     <div class="admin-list" id="amList" data-page-size="{{ page_size }}"
       data-initial-count="{{ members|length }}" data-has-more="{{ 'true' if has_more else 'false' }}">
       {% include "admin/_member_rows.html" %}
@@ -124,8 +136,6 @@
     const roleSeg = document.getElementById("amRoleSeg");
     const listEl = document.getElementById("amList");
     const emptyEl = document.getElementById("amEmpty");
-    const roleLabels = {{ role_labels | tojson }};
-    const meId = Number(document.body.dataset.userId || 0);
 
     const state = {
       q: search.value.trim(),
@@ -200,62 +210,10 @@
       apply();
     }, 300));
 
-    // Editing a role goes through the JSON API in a createSheet, like every
-    // other edit in the app -- there is no /views/ twin for it (see CLAUDE.md
-    // on why only `create` has one). The server refuses self-demotion; the
-    // sheet does not offer it either, so the refusal is a backstop rather
-    // than the first thing an admin discovers.
-    //
-    // The listener is delegated on the list, so rows appended by the
-    // scroller are covered without rebinding, and each row carries its own
-    // current role -- there is no page-level array of members that a later
-    // page could fall out of sync with.
-    listEl.addEventListener("click", (e) => {
-      const row = e.target.closest(".admin-member");
-      if (!row) return;
-      const id = Number(row.dataset.memberId);
-
-      if (id === meId) {
-        showToast("نقش خودت را نمی‌توانی عوض کنی");
-        return;
-      }
-
-      createSheet({
-        title: row.dataset.memberName,
-        confirmLabel: "ذخیره",
-        fields: [
-          {
-            name: "role",
-            label: "نقش",
-            type: "select",
-            options: Object.entries(roleLabels).map(([value, label]) => ({ value, label })),
-            value: row.dataset.memberRole,
-          },
-        ],
-        onConfirm: async (values) => {
-          if (values.role === row.dataset.memberRole) return true;
-          const { ok, data } = await apiFetch(`/users/${id}/role`, {
-            method: "PATCH",
-            body: { role: values.role },
-          });
-          if (!ok) {
-            showToast("خطا: " + ((data && data.detail) || "ذخیره نشد"));
-            return false;
-          }
-          // The row shows the role, so it is repainted in place -- one field
-          // changed and nothing else on the page derives from it. The row is
-          // *not* dropped when it falls out of the current role filter: the
-          // scroller's offset counts rows the server returned, so removing
-          // one here would skip a member on the next page.
-          row.dataset.memberRole = data.role;
-          const pill = row.querySelector("[data-role-pill]");
-          pill.textContent = roleLabels[data.role] || data.role;
-          pill.classList.toggle("is-admin", data.role === "admin");
-          showToast("ذخیره شد");
-          return true;
-        },
-      });
-    });
+    // Nothing is edited here: a row is a link to the member's profile, and
+    // the role sheet lives there. Which also means this page needs no
+    // delegated click listener for rows appended by the scroller -- an `<a>`
+    // arrives working.
   });
 </script>
 {% endblock %}

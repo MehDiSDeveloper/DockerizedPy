@@ -378,5 +378,17 @@
   }
 
   window.enhanceJalaliInputs = enhanceJalaliInputs;
+
+  // The month arithmetic above is the app's only Jalali calendar, so anything
+  // else drawing a month grid borrows it rather than keeping a second copy --
+  // two implementations of the leap cycle is exactly how a cell ends up under
+  // the wrong month name. Deliberately just the maths: the picker's sheet, its
+  // min/max and its native-input plumbing stay private to this file.
+  window.jalaliCalendar = {
+    toJalali, toGregorian, daysInMonth, monthName, irWeekday, isoDate,
+    parseIsoDate, utc, WEEKDAY_LABELS, GRID_CELLS, DAY_MS,
+    faNum: (n) => faNum.format(n),
+  };
+
   document.addEventListener("DOMContentLoaded", () => enhanceJalaliInputs());
 })();

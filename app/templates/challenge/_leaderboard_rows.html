@@ -1,0 +1,44 @@
+{#- One participant per row — the infinite-scroll fragment for a challenge's
+    standings.
+
+    Included for the first server-rendered page by `challenge/leaderboard.html`
+    and re-served bare by `GET /views/challenges/{id}/leaderboard/fragment`
+    for every page after it, exactly like `challenge/_challenge_cards.html`.
+    It must therefore stay free of anything but the rows: no wrapper, no
+    heading, no empty state — `createInfiniteScroller()` counts this file's
+    top-level children to advance the offset.
+
+    A row is a `<div>`, not an `<a>`, and that is the feature rather than an
+    omission: the board names people, and naming them is one step. Opening
+    somebody's profile from here would be a second one, and it belongs to
+    `profile_visibility_filter` in routers/user.py — the single function
+    CLAUDE.md says that widening has to be an edit to. Until it is, there is
+    nothing here to link to.
+
+    Who a row is allowed to look like comes from `participant_display` in
+    app/identity.py: an anonymous participant keeps their score and loses
+    their name and picture, and the viewer's own row is always themselves. -#}
+{% for row in rows %}
+<div class="lb-row glass{{ ' is-you' if row.who.is_you }}"
+  {% if row.rank <= 3 %}data-podium="{{ row.rank }}"{% endif %}>
+  {#- The rank is spelled out on every row rather than implied by position:
+      ties share a number (see `leaderboard_rank`), so position and rank are
+      genuinely different things here and only one of them is true. -#}
+  <span class="lb-rank" aria-label="رتبه {{ row.rank }}">{{ row.rank }}</span>
+
+  {#- An opaque neutral behind every avatar: several catalogue styles ship a
+      transparent ground (CLAUDE.md, Avatars). -#}
+  <span class="lb-av"><img src="{{ row.who.avatar | avatar_url }}" alt=""
+      loading="lazy" width="36" height="36"></span>
+
+  <div class="lb-who">
+    <b>{{ row.who.name }}{% if row.who.is_you %}<span class="lb-you">تو</span>{% endif %}</b>
+    {#- The figure the board is *not* ranked by, kept beside the one it is:
+        a member who is tenth on volume and second on streak should be able
+        to see that without switching the sort and losing their place. -#}
+    <span class="lb-other">{{ row.other }} {{ other_label }}</span>
+  </div>
+
+  <span class="lb-score"><b>{{ row.score }}</b><span>{{ score_label }}</span></span>
+</div>
+{% endfor %}

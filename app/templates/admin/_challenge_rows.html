@@ -22,9 +22,14 @@
     never be in such an array (see `admin/_member_rows.html`). -#}
 {% for c in challenges %}
 {% set status = c | challenge_status %}
-{#- Non-owner participants: the creator's own auto-enrolment (D1) doesn't
-    count, and this is the exact number the server's delete guard uses. -#}
+{#- Two counts, and they are not the same number. `others` excludes the
+    creator's own auto-enrolment (D1) and is the exact figure the server's
+    delete guard uses, so the sheet can state the refusal instead of
+    discovering it. `members` is every enrollment row, which is what the
+    «عضویت» count on the panel index totals and what `sort=members` orders
+    by -- so the number the link shows is the number that ranked the row. -#}
 {% set others = c.enrollments | rejectattr('user_id', 'equalto', c.owner_id) | list | length %}
+{% set members = c.enrollments | length %}
 <div class="setting-row glass admin-challenge" role="button" tabindex="0"
   data-challenge-id="{{ c.id }}" data-challenge-title="{{ c.title }}"
   data-challenge-lifecycle="{{ c.lifecycle_status }}"
@@ -39,13 +44,34 @@
     </span>
     <div class="sr-text">
       <span class="sr-label">{{ c.title }}</span>
-      <span class="sr-hint">{{ c.owner.name }} · {{ others }} عضو ·
+      {#- The group is named here rather than shown as a chip: this row is
+          scanned, and «چه کسی، در چه حالتی، برای چه کسانی» is one line. It
+          matters most for the visibility half beside it -- inside a group,
+          «عمومی» means public *to the group*, so an operator reading the
+          stored field without the group name would read it as public to the
+          world. -#}
+      <span class="sr-hint">{{ c.owner.name }}{% if c.group %} ·
+        {{ c.group.name }}{% endif %} ·
         {{ lifecycle_labels.get(c.lifecycle_status, c.lifecycle_status) }} ·
         {{ visibility_labels.get(c.visibility, c.visibility) }}</span>
     </div>
     <span class="status-pill st-{{ status }}"><span
         data-icon="{{ status_meta[status].icon }}"></span>{{ status_meta[status].label }}</span>
     <span class="sr-chev" data-icon="chevronLeft"></span>
+  </div>
+  {#- The roster drill-down: a real <a> inside the row rather than an entry
+      in the action sheet, because it is navigation and not a moderation
+      action, and because the count is the thing an operator is already
+      looking at when they want to know *who*. It is an anchor and not a
+      nested <button>, so it stays keyboard-reachable and openable in a new
+      tab; the row's delegated click handler bails out on any <a> it
+      contains, so tapping here does not also open the sheet. -#}
+  <div class="sr-foot">
+    <a class="admin-members-link" href="/views/admin/challenges/{{ c.id }}/members">
+      <span data-icon="users"></span>
+      <span>{{ members }} عضو</span>
+      <span class="sr-chev" data-icon="chevronLeft"></span>
+    </a>
   </div>
 </div>
 {% endfor %}

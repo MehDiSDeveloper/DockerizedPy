@@ -41,6 +41,11 @@
         data-icon="{{ meta.icon }}"></span>{{ meta.label }}</button>
     {% endfor %}
   </div>
+  {#- The three statuses are *derived* (see challenge_status), so what puts a
+      card in each bucket is not visible on the card. The dot is beside the
+      control that filters by them rather than on a card, because that is
+      where the question is actually asked. -#}
+  {{ explain("challenge-status") }}
 </div>
 
 {#- What the hidden filters are currently doing, and a one-tap way out of each.
@@ -92,7 +97,7 @@
     const MINE_LABELS = {
       all: "همه",
       only: "فقط چالش‌های من",
-      hide: "بدون چالش‌های من",
+      hide: "چالش‌های دیگران",
     };
     // An anonymous visitor owns nothing, so the "my challenges" scope is not
     // a filter that can mean anything to them.

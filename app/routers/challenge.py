@@ -5,18 +5,28 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import Select, and_, func, not_, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user, get_current_user_id, get_optional_user_id
+from app.auth import get_current_user, get_optional_user_id
 from app.database import get_db
+from app.groups import (
+    assign_participants,
+    group_scope_filter,
+    trusted_member_ids,
+)
+from app.models.audit_base import newest_first
 from app.models.challenge import (
     Challenge,
     ChallengeCategory,
+    GroupAudience,
     LifecycleStatus,
     Visibility,
 )
 from app.models.checkin import CheckIn
 from app.models.enrollment import ChallengeRole, Enrollment
+from app.models.group import Group, GroupMembership
+from app.models.notification import NotificationKind
 from app.models.stats import ChallengeStats
 from app.models.user import User
+from app.notifications import notify_many
 from app.occurrences import local_today
 from app.permissions import Perm, can
 from app.schemas.challenge import ChallengeCreate, ChallengeRead, ChallengeUpdate
@@ -45,17 +55,39 @@ def resolve_timezone(tz: str | None) -> str:
     return DEFAULT_TIMEZONE
 
 
+# Both filters below are `group_scope_filter AND <the rule that already
+# existed>`. The group gate is a *conjunct*, never a replacement, and that
+# single line is how a group's challenges reach its members and nobody else:
+#
+#   * outside a group (`group_id IS NULL`) the gate is a no-op and the app
+#     behaves exactly as it did;
+#   * inside one, the existing three-way rule runs unchanged, so `public`
+#     means public *to the group* and `private` means only its participants.
+#
+# One rule, scoped -- rather than a second rule that would have to be kept in
+# agreement with the first. See `app/groups.py` for the whole argument,
+# including why an existing enrollment is a key of its own.
 def challenge_visibility_filter(user_id: int | None):
-    """A challenge is visible if it's public, unlisted, or the requester owns it or is enrolled in it."""
+    """A challenge is visible if it's public, unlisted, or the requester owns
+    it or is enrolled in it -- and, if it belongs to a group, only to that
+    group (`group_scope_filter`)."""
     if user_id is None:
-        return Challenge.visibility == Visibility.PUBLIC.value
+        return and_(
+            group_scope_filter(None),
+            Challenge.visibility == Visibility.PUBLIC.value,
+        )
     enrolled_challenge_ids = select(Enrollment.challenge_id).where(
         Enrollment.user_id == user_id
     )
-    return or_(
-        Challenge.visibility.in_([Visibility.PUBLIC.value, Visibility.UNLISTED.value]),
-        Challenge.owner_id == user_id,
-        Challenge.id.in_(enrolled_challenge_ids),
+    return and_(
+        group_scope_filter(user_id),
+        or_(
+            Challenge.visibility.in_(
+                [Visibility.PUBLIC.value, Visibility.UNLISTED.value]
+            ),
+            Challenge.owner_id == user_id,
+            Challenge.id.in_(enrolled_challenge_ids),
+        ),
     )
 
 
@@ -63,14 +95,20 @@ def listing_visibility_filter(user_id: int | None):
     """Like challenge_visibility_filter, but excludes unlisted challenges (D11):
     they're reachable at their own URL but never appear in a listing."""
     if user_id is None:
-        return Challenge.visibility == Visibility.PUBLIC.value
+        return and_(
+            group_scope_filter(None),
+            Challenge.visibility == Visibility.PUBLIC.value,
+        )
     enrolled_challenge_ids = select(Enrollment.challenge_id).where(
         Enrollment.user_id == user_id
     )
-    return or_(
-        Challenge.visibility == Visibility.PUBLIC.value,
-        Challenge.owner_id == user_id,
-        Challenge.id.in_(enrolled_challenge_ids),
+    return and_(
+        group_scope_filter(user_id),
+        or_(
+            Challenge.visibility == Visibility.PUBLIC.value,
+            Challenge.owner_id == user_id,
+            Challenge.id.in_(enrolled_challenge_ids),
+        ),
     )
 
 
@@ -249,6 +287,36 @@ def apply_challenge_filters(
     return stmt
 
 
+# The three orderings a challenge list can be read in. "recent" is the
+# app-wide rule (`newest_first`, D-list-ordering); "velocity" is Discover's
+# "what is people doing right now"; "members" is the moderation panel's
+# "which challenges actually carry the membership". All three fall back to
+# `newest_first` for their ties, so paging stays stable inside a block of
+# equal leading keys.
+SORT_RECENT = "recent"
+SORT_VELOCITY = "velocity"
+SORT_MEMBERS = "members"
+SORT_VALUES = (SORT_RECENT, SORT_VELOCITY, SORT_MEMBERS)
+SORT_PATTERN = "^({})$".format("|".join(SORT_VALUES))
+
+
+def _member_count() -> Select:
+    """Enrollments per challenge, correlated to the outer Challenges query.
+
+    Counted live off `Enrollments` rather than read from
+    `ChallengeStats.participant_count`: that column is a monotonic counter
+    that never comes down when someone unenrols, so ordering by it would rank
+    a challenge everyone has left above one they are still in. The same
+    reason Discover computes its velocity here instead of caching it.
+    """
+    return (
+        select(func.count(Enrollment.id))
+        .where(Enrollment.challenge_id == Challenge.id)
+        .correlate(Challenge)
+        .scalar_subquery()
+    )
+
+
 def _velocity_count() -> Select:
     """Check-ins per challenge in the last VELOCITY_WINDOW_DAYS, correlated to
     the outer Challenges query -- hits ix_checkins_challenge_created, needs no
@@ -270,13 +338,17 @@ async def fetch_challenge_page(
     q: str | None,
     offset: int,
     limit: int,
-    sort: str = "recent",
+    sort: str = SORT_RECENT,
     mine: str | None = None,
     status: str | None = None,
     scope_all: bool = False,
+    group_id: int | None = None,
     options=(),
 ) -> tuple[list[Challenge], bool]:
     """Fetch one page of visible challenges plus whether more pages remain.
+
+    `group_id` narrows to one group's challenges and is the group page; it
+    is applied *on top of* the visibility clause, never instead of it.
 
     `scope_all` drops the visibility narrowing entirely and is the moderation
     roster -- the challenge-side twin of `GET /users/` ignoring
@@ -288,6 +360,13 @@ async def fetch_challenge_page(
     stmt = select(Challenge)
     if not scope_all:
         stmt = stmt.where(listing_visibility_filter(current_user_id))
+    if group_id is not None:
+        # Narrowing, never widening: the visibility clause above still runs,
+        # so asking for a group you are not in returns nothing rather than
+        # that group's challenges. The group page passes this instead of
+        # building its own query, so «چالش‌های این گروه» and the app-wide
+        # list can never disagree about what a search matches.
+        stmt = stmt.where(Challenge.group_id == group_id)
     stmt = apply_challenge_filters(stmt, category, q)
     mine_clause = mine_filter(current_user_id, mine)
     if mine_clause is not None:
@@ -295,10 +374,12 @@ async def fetch_challenge_page(
     status_clause = status_filter(status)
     if status_clause is not None:
         stmt = stmt.where(status_clause)
-    if sort == "velocity":
-        stmt = stmt.order_by(_velocity_count().desc(), Challenge.id.desc())
+    if sort == SORT_VELOCITY:
+        stmt = stmt.order_by(_velocity_count().desc(), *newest_first(Challenge))
+    elif sort == SORT_MEMBERS:
+        stmt = stmt.order_by(_member_count().desc(), *newest_first(Challenge))
     else:
-        stmt = stmt.order_by(Challenge.id.desc())
+        stmt = stmt.order_by(*newest_first(Challenge))
     stmt = stmt.offset(offset).limit(limit + 1)
     for opt in options:
         stmt = stmt.options(opt)
@@ -308,13 +389,132 @@ async def fetch_challenge_page(
     return challenges[:limit], has_more
 
 
+# ==========================================================================
+# Group challenges
+# ==========================================================================
+# Creating a challenge under a group is the one moment the group axis and
+# the challenge axis touch, and it is deliberately the *only* one: the check
+# below asks `Perm.GROUP_CREATE_CHALLENGE` in that group, and from then on
+# the challenge has an owner like any other and every later question about
+# it is answered by `challenge_role`. A group administrator does not become
+# the editor of a challenge somebody else wrote under their group, and the
+# app-wide operator does not become an administrator of the group -- see
+# `app/permissions.py`.
+#
+# Both create paths (this router and `POST /views/challenges/create`) call
+# these two helpers rather than repeating the rules, because CLAUDE.md's
+# note about the duplicated create logic is exactly the place a permission
+# check goes missing from one copy.
+
+
+async def resolve_group_for_create(
+    db: AsyncSession, group_id: int | None, user: User
+) -> Group | None:
+    """The group a new challenge is being created under, or None.
+
+    404 for a group the caller is not in -- the group visibility rule, so a
+    non-member cannot learn a group id is real by trying to post to it -- and
+    403 for a member who is not allowed to create there, which leaks nothing
+    they could not already see from inside the group.
+    """
+    if group_id is None:
+        return None
+    row = (
+        await db.execute(
+            select(Group, GroupMembership)
+            .outerjoin(
+                GroupMembership,
+                and_(
+                    GroupMembership.group_id == Group.id,
+                    GroupMembership.user_id == user.id,
+                ),
+            )
+            .where(Group.id == group_id)
+        )
+    ).one_or_none()
+    group, membership = row if row else (None, None)
+    if group is None or (membership is None and group.owner_id != user.id):
+        raise HTTPException(status_code=404, detail="Group not found")
+    if not can(
+        user, Perm.GROUP_CREATE_CHALLENGE, group=group, membership=membership
+    ):
+        raise HTTPException(
+            status_code=403, detail="Not allowed to create a challenge here"
+        )
+    return group
+
+
+async def seed_group_participants(
+    db: AsyncSession,
+    *,
+    challenge: Challenge,
+    group: Group | None,
+    member_ids: list[int],
+    actor_user_id: int,
+    timezone: str,
+) -> None:
+    """Enrol the audience a group challenge was created for.
+
+    `all` is read off the group's membership rather than off the request, so
+    the list cannot be stale by the time it is submitted -- and
+    `apply_standing_audience` re-reads it for everybody who joins later, which
+    is what makes «همه اعضا» a standing answer.
+
+    `selected` is intersected with the membership before anything is written.
+    A body naming somebody outside the group would otherwise enrol a stranger
+    into a challenge they cannot even see -- the one place a group challenge
+    could acquire a participant who is not in the group, closed here rather
+    than trusted to the client that built the list.
+
+    **«همه اعضا» means every *approved* member** (`trusted_member_ids`), while
+    naming somebody explicitly ignores that column entirely: picking a person
+    by hand *is* the approval this feature asks for, and refusing it would
+    make an administrator approve somebody twice to do one thing. The same
+    split runs the other way round in `apply_standing_audience`, so an
+    arrival waiting for approval and a challenge written while they wait
+    reach the same answer.
+    """
+    if group is None:
+        return
+    members = set(
+        (
+            await db.execute(
+                select(GroupMembership.user_id).where(
+                    GroupMembership.group_id == group.id
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if challenge.group_audience == GroupAudience.ALL.value:
+        wanted = members & await trusted_member_ids(db, group.id)
+    else:
+        wanted = members & set(member_ids)
+    # The creator already has the owner enrolment written by the caller.
+    wanted = wanted - {actor_user_id}
+    if wanted:
+        await assign_participants(
+            db,
+            challenge=challenge,
+            user_ids=sorted(wanted),
+            actor_user_id=actor_user_id,
+            timezone=timezone,
+        )
+
+
 @router.post("/", response_model=ChallengeRead, status_code=201)
 async def create_challenge(
     challenge: ChallengeCreate,
-    current_user_id: int = Depends(get_current_user_id),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    data = challenge.model_dump(exclude={"cadence", "timezone"})
+    current_user_id = current_user.id
+    # Checked before anything is written: a challenge under a group the
+    # caller may not create in must not exist even briefly.
+    group = await resolve_group_for_create(db, challenge.group_id, current_user)
+
+    data = challenge.model_dump(exclude={"cadence", "timezone", "member_ids"})
     db_challenge = Challenge(**data)
     db_challenge.cadence_kind = challenge.cadence.kind
     db_challenge.cadence = challenge.cadence.model_dump(mode="json")
@@ -333,9 +533,26 @@ async def create_challenge(
         timezone=tz,
         start_date=local_today(tz, datetime.now(UTC)),
         role=ChallengeRole.OWNER.value,
+        # Named in every mode, including `anonymous`: anonymity here is about
+        # participation, and challenge-detail names the creator as «سازنده»
+        # regardless -- a challenge whose content nobody is accountable for
+        # is a moderation problem, not a privacy feature. See
+        # `app/models/challenge.py::IdentityMode`. `resolve_anonymity` is
+        # deliberately not consulted for this row.
+        is_anonymous=False,
     )
     db.add(enrollment)
     db.add(ChallengeStats(challenge_id=db_challenge.id, participant_count=1))
+    await db.flush()
+
+    await seed_group_participants(
+        db,
+        challenge=db_challenge,
+        group=group,
+        member_ids=challenge.member_ids,
+        actor_user_id=current_user_id,
+        timezone=tz,
+    )
 
     await db.commit()
     await db.refresh(db_challenge)
@@ -350,7 +567,7 @@ async def list_challenges(
     q: str | None = Query(default=None, max_length=100),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
-    sort: str = Query(default="recent", pattern="^(recent|velocity)$"),
+    sort: str = Query(default=SORT_RECENT, pattern=SORT_PATTERN),
     mine: str = Query(default=MINE_ALL, pattern="^(all|only|hide)$"),
     status: str = Query(
         default=STATUS_ALL, pattern="^(all|upcoming|active|finished)$"
@@ -410,6 +627,65 @@ async def get_challenge_stats(
     return stats
 
 
+# Which lifecycle states are worth telling participants about, and what each
+# arrival is called. Keyed on the *new* state alone rather than on the pair:
+# what a member needs to know is that the challenge they are in stopped or
+# started counting, not which of the other two states it came from. `draft` is
+# absent deliberately -- a challenge moving back to draft has no participants
+# to tell that its owner has not already told.
+LIFECYCLE_NOTIFICATIONS = {
+    LifecycleStatus.ARCHIVED.value: NotificationKind.CHALLENGE_ARCHIVED,
+    LifecycleStatus.ACTIVE.value: NotificationKind.CHALLENGE_ACTIVATED,
+}
+
+
+async def notify_lifecycle_change(
+    db: AsyncSession,
+    *,
+    challenge: Challenge,
+    previous_lifecycle: str,
+    actor_user_id: int,
+) -> None:
+    """Tell everyone enrolled that this challenge changed state.
+
+    The one broadcast in the app, and the reason it exists: a lifecycle
+    change is the only edit to a challenge that silently changes what the
+    app expects of *other* people -- an archived challenge stops producing
+    occurrences, so a member who is not told simply watches their streak
+    stop. Every other field a PATCH can carry is visible on the page they
+    would already be looking at.
+
+    It reads participant ids only, not rows -- a broadcast has no use for
+    anything else -- and adds to the caller's transaction without
+    committing, so the announcement and the change land together or not at
+    all. `notify` drops the actor's own copy, which covers both the owner
+    archiving their own challenge and a moderator acting on one they happen
+    to be enrolled in.
+    """
+    kind = LIFECYCLE_NOTIFICATIONS.get(challenge.lifecycle_status)
+    if kind is None or challenge.lifecycle_status == previous_lifecycle:
+        return
+    participant_ids = list(
+        (
+            await db.execute(
+                select(Enrollment.user_id).where(
+                    Enrollment.challenge_id == challenge.id
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    await notify_many(
+        db,
+        user_ids=participant_ids,
+        kind=kind,
+        actor_user_id=actor_user_id,
+        challenge_id=challenge.id,
+        group_id=challenge.group_id,
+    )
+
+
 @router.patch("/{challenge_id}", response_model=ChallengeRead)
 async def update_challenge(
     challenge_id: int,
@@ -447,7 +723,15 @@ async def update_challenge(
             status_code=403, detail="Not allowed to edit this challenge"
         )
 
-    locked_fields = {"cadence", "goal_amount", "goal_unit"}
+    # `identity_mode` is locked by the same count for a different reason:
+    # loosening it unmasks people who joined on the promise of anonymity, and
+    # tightening it hides participants the others already know. Either way the
+    # deal a member signed up to would change under them, which is exactly
+    # what a stored-and-never-re-derived `Enrollment.is_anonymous` is designed
+    # to prevent (see app/identity.py). Before anyone else joins there is
+    # nothing to break, so an owner can still fix a mistake -- and the only
+    # enrolment that exists then is their own, which is named in every mode.
+    locked_fields = {"cadence", "goal_amount", "goal_unit", "identity_mode"}
     changing_locked = bool(locked_fields & updates.keys())
     reverting_from_public = (
         "visibility" in updates
@@ -462,13 +746,20 @@ async def update_challenge(
         if changing_locked and non_owner_count > 0:
             raise HTTPException(
                 status_code=409,
-                detail="Cadence and goal are locked once others have enrolled",
+                detail=(
+                    "Cadence, goal and identity mode are locked once others "
+                    "have enrolled"
+                ),
             )
         if reverting_from_public and non_owner_count > 0:
             raise HTTPException(
                 status_code=409,
                 detail="Cannot leave public while others are enrolled",
             )
+
+    # Captured before the fields are written: the notification below is about
+    # a *transition*, and after the loop there is nothing left to compare to.
+    previous_lifecycle = db_challenge.lifecycle_status
 
     cadence_provided = "cadence" in updates
     updates.pop("cadence", None)
@@ -480,6 +771,13 @@ async def update_challenge(
 
     db_challenge.updated_at = datetime.now(UTC)
     db_challenge.last_modifier_user_id = current_user_id
+
+    await notify_lifecycle_change(
+        db,
+        challenge=db_challenge,
+        previous_lifecycle=previous_lifecycle,
+        actor_user_id=current_user_id,
+    )
 
     await db.commit()
     await db.refresh(db_challenge)

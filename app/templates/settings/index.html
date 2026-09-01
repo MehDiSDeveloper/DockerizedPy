@@ -35,7 +35,7 @@
 {% endblock %}
 
 {#- No notification bell here: this page is where its settings live, so a
-    shortcut to the (unbuilt) inbox on top of them is one control too many. -#}
+    shortcut to the inbox on top of them is one control too many. -#}
 {% block topbar_action %}{% endblock %}
 
 {% block content %}
@@ -76,20 +76,45 @@
     </div>
   </section>
 
-  {#- «اعلان‌ها» -- when the app is allowed to interrupt. -#}
+  {#- «اعلان‌ها» -- one row pointing at the switches, not the switches.
+
+      This is the one setting whose row count is not fixed: every kind added
+      to `NOTIFICATION_META` earns a switch, so held inline the section would
+      grow until it pushed every other question off the first screen. A
+      settings index is scanned, so the row states the answer -- how many of
+      them are on -- and hands the detail to a page of its own. -#}
   <section class="setting-group">
     <h2>اعلان‌ها</h2>
-    <div class="setting-row glass" data-coming-soon="تنظیمات اعلان‌ها به‌زودی اضافه می‌شود"
-      role="button" tabindex="0">
+    <a class="setting-row glass" href="/views/settings/notifications">
       <div class="sr-head">
         <div class="sr-text">
-          <span class="sr-label">یادآوری چالش‌ها</span>
-          <span class="sr-hint">یادآوری نوبت‌های امروز و پایان مهلت‌ها.</span>
+          <span class="sr-label">تنظیم اعلان‌ها</span>
+          <span class="sr-hint">انتخاب کن کدام رویدادها به زنگولهٔ بالای صفحه برسند.</span>
         </div>
-        <span class="sr-value muted">به‌زودی</span>
+        {#- The current value, without opening anything: how many kinds are
+            allowed through out of how many exist. -#}
+        <span class="sr-value">{{ notification_prefs | selectattr("enabled") | list | length }} از {{ notification_prefs | length }} روشن</span>
         <span class="sr-chev" data-icon="chevronLeft"></span>
       </div>
-    </div>
+    </a>
+  </section>
+
+  {#- «گروه‌ها» -- one row, pointing at the member's groups. It is here for
+      the same reason the panel row is: settings is where somebody looks for
+      the parts of the app that are not one of the four nav destinations, and
+      a second entrance costs one line. The page behind it is the same one
+      the profile menu opens. -#}
+  <section class="setting-group">
+    <h2>گروه‌ها</h2>
+    <a class="setting-row glass" href="/views/groups/">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">گروه‌های من</span>
+          <span class="sr-hint">شرکت، مدرسه یا تیمی که در آن چالش می‌گذارید.</span>
+        </div>
+        <span class="sr-chev" data-icon="chevronLeft"></span>
+      </div>
+    </a>
   </section>
 
   {#- «حساب کاربری» -- settings *about the account*, as opposed to its

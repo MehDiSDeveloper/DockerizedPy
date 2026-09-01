@@ -20,6 +20,8 @@ const icons = {
   seal: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M9 12l2 2 4-4"/></svg>`,
   empty: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="13" rx="2"/><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>`,
   mail: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>`,
+  phone: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18.5h2"/></svg>`,
+  message: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 01-8 8H7l-4 3 1-4.4A8 8 0 1121 12z"/><path d="M8.5 11.5h.01M12 11.5h.01M15.5 11.5h.01"/></svg>`,
   lock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 118 0v3"/></svg>`,
   eye: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>`,
   eyeOff: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.1A11 11 0 0123 12s-1.6 2.8-4.4 4.9M6.4 6.9C3.8 8.8 2 12 2 12s4 7 11 7c1.3 0 2.6-.2 3.7-.6"/><path d="M9.5 9.5a3 3 0 004.2 4.2"/></svg>`,
@@ -54,8 +56,16 @@ const icons = {
   cadenceQuota: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 18.5a8.5 8.5 0 1117 0"/><path d="M12 18.5l4.4-4.9"/><path d="M3.6 15.6l1.9.6M20.4 15.6l-1.9.6M12 10v2"/></svg>`,
   theme: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 000 18z" fill="currentColor" stroke="none"/></svg>`,
   settings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 14.5a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-1.8-.3 1.6 1.6 0 00-1 1.5v.2a2 2 0 11-4 0v-.1a1.6 1.6 0 00-1-1.5 1.6 1.6 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.6 1.6 0 00.3-1.8 1.6 1.6 0 00-1.5-1H3a2 2 0 110-4h.1a1.6 1.6 0 001.5-1 1.6 1.6 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.6 1.6 0 001.8.3h.1a1.6 1.6 0 001-1.5V3a2 2 0 114 0v.1a1.6 1.6 0 001 1.5 1.6 1.6 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.6 1.6 0 00-.3 1.8v.1a1.6 1.6 0 001.5 1h.2a2 2 0 110 4h-.1a1.6 1.6 0 00-1.5 1z"/></svg>`,
+  // A domino mask -- anonymity, and deliberately not `eyeOff`, which the
+  // visibility grid already spends on «فقط با لینک». One glyph, one meaning.
+  mask: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8.5c0 4.2-3.2 8-5.6 8-1.5 0-2.5-1.2-3.4-1.2s-1.9 1.2-3.4 1.2C6.2 16.5 3 12.7 3 8.5c0-1.6 1.1-2.6 3-2.6 1.6 0 2.9.6 4.1 1.4.7.5 1.1.7 1.9.7s1.2-.2 1.9-.7c1.2-.8 2.5-1.4 4.1-1.4 1.9 0 3 1 3 2.6z"/><path d="M7.3 10.2h2.2M14.5 10.2h2.2"/></svg>`,
+  building: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V6a2 2 0 012-2h7a2 2 0 012 2v15"/><path d="M15 10h3a2 2 0 012 2v9"/><path d="M2 21h20"/><path d="M8 8h.01M11 8h.01M8 12h.01M11 12h.01M8 16h.01M11 16h.01M18 14h.01M18 17h.01"/></svg>`,
+  school: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L2 8l10 5 10-5z"/><path d="M6 10.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5"/><path d="M21 8.5V14"/></svg>`,
+  link: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 13.5a4 4 0 005.7 0l3-3a4 4 0 10-5.7-5.7l-1.3 1.3"/><path d="M13.5 10.5a4 4 0 00-5.7 0l-3 3a4 4 0 105.7 5.7l1.3-1.3"/></svg>`,
+  userPlus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.5" cy="8" r="3.6"/><path d="M2.5 20c1.1-3.6 3.7-5.5 7-5.5s5.9 1.9 7 5.5"/><path d="M18.5 6.5v6M21.5 9.5h-6"/></svg>`,
   shield: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5.5c0 4.4-2.9 8.2-7 9.5-4.1-1.3-7-5.1-7-9.5V6z"/><path d="M9.2 12.2l2 2 3.6-3.8"/></svg>`,
   info: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 8h.01"/></svg>`,
+  trophy: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 01-10 0z"/><path d="M7 5.5H4.8A1.8 1.8 0 003 7.3C3 9.6 4.8 11 7 11"/><path d="M17 5.5h2.2A1.8 1.8 0 0121 7.3c0 2.3-1.8 3.7-4 3.7"/><path d="M12 14v3.5"/><path d="M8.5 20.5h7"/><path d="M10 17.5h4l.7 3h-5.4z"/></svg>`,
 };
 
 // Injects inline SVGs into every [data-icon] placeholder under `root`.
@@ -393,16 +403,58 @@ function initNavTrail() {
 
 // Relative deadlines go stale just by sitting on screen. One shared minute
 // tick keeps every card honest instead of each one owning a timer.
+// ---- notification bell ---------------------------------------------------
+// The bell lives in layout.html's header, so it is on nearly every page --
+// which is exactly why its unread count is *not* server-rendered. Filling it
+// in server-side would mean every view router in the app running one more
+// COUNT and passing one more context key, and a route that forgot would show
+// a silently wrong badge. One small request, made once the page is up,
+// belongs to the shell rather than to each of its screens.
+//
+// Two digits is the cap: past that the number stops being information and
+// starts being a shape, and a three-digit badge no longer fits the 40px
+// control it sits on.
+const BELL_MAX_COUNT = 99;
+
+function initNotificationBell() {
+  const bell = document.querySelector("[data-notif-bell]");
+  const badge = bell && bell.querySelector("[data-notif-badge]");
+  // No bell on a signed-out shell (layout.html renders it only for a member),
+  // and no request without one: an anonymous visitor asking would get a 401
+  // and nothing to do with it.
+  if (!bell || !badge || !document.body.dataset.userId) return;
+
+  // Deliberately not apiFetch(): that helper sends a 401 to the login page,
+  // which is right for an action the member asked for and wrong for a
+  // background count -- a stale cookie would bounce someone out of the page
+  // they were reading. Every failure here is silent; the worst case is a
+  // header with no badge, which is what it already looks like.
+  fetch("/notifications/unread-count", { headers: { Accept: "application/json" } })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      const unread = data && Number(data.unread);
+      if (!unread) return;
+      badge.textContent = unread > BELL_MAX_COUNT ? `+${BELL_MAX_COUNT}` : unread;
+      badge.hidden = false;
+      // The label carries the count too: the badge is a visual mark, and a
+      // screen reader announcing "notifications" alone would lose the one
+      // thing it is there to say.
+      bell.setAttribute("aria-label", `اعلان‌ها، ${unread} مورد خوانده‌نشده`);
+    })
+    .catch(() => {});
+}
+
 const DEADLINE_TICK_MS = 60 * 1000;
 
 document.addEventListener("DOMContentLoaded", () => {
   renderIcons();
   renderDates();
   initNavTrail();
+  initNotificationBell();
   setInterval(() => renderDeadlines(document), DEADLINE_TICK_MS);
 
-  // Elements not wired up to a real feature yet (notifications, account
-  // settings, ...) get a clear "coming soon" toast instead of doing
+  // Elements not wired up to a real feature yet (account settings, password
+  // change, ...) get a clear "coming soon" toast instead of doing
   // nothing when clicked -- a dead, silent control is worse UX than an
   // honest "not built yet" message.
   document.querySelectorAll("[data-coming-soon]").forEach((el) => {
@@ -620,6 +672,12 @@ function createSheet({
   confirmLabel = "تایید",
   skipLabel = "رد کردن",
   danger,
+  // Markup from `explain()`, rendered beside the sheet's heading.
+  explainHtml,
+  // Fired exactly once when the sheet goes away, however it went -- confirm,
+  // skip, ✕, Esc or the backdrop. A sheet that *asks a question* has to hear
+  // about the dismissal too, or a caller awaiting an answer waits forever.
+  onClose,
 }) {
   const backdrop = document.createElement("div");
   backdrop.className = "sheet-backdrop";
@@ -637,6 +695,17 @@ function createSheet({
   head.className = "sheet-head";
   const heading = document.createElement("h3");
   heading.textContent = title || "";
+  // `explainHtml` is the markup `explain()` renders server-side (see
+  // app/explainers.py), handed in by the page. A sheet is where the app asks
+  // its harder questions -- what a lock means, what a mode does -- and it has
+  // no room for a paragraph, so it gets the same «؟» every screen has rather
+  // than a hint line per field saying half of it.
+  if (explainHtml) {
+    const slot = document.createElement("span");
+    slot.innerHTML = explainHtml;
+    const dot = slot.firstElementChild;
+    if (dot) heading.appendChild(dot);
+  }
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.className = "icon-btn";
@@ -653,6 +722,22 @@ function createSheet({
   // be painted after the generic `f.value` prefill below has run.
   const chipSyncers = [];
   fields.forEach((f) => {
+    // A "note" is a field with nothing to fill in: one or two sentences the
+    // reader has to have in front of them *before* they press the button,
+    // which is a different job from a `hint` (one line under a control,
+    // saying what picking it means). It exists because the sheets that ask
+    // the app's irreversible questions -- leaving a group, giving up every
+    // challenge in it -- have no input at all, and a `confirm()` cannot name
+    // what is about to be lost. It contributes no value, so `collectValues`
+    // never sees it.
+    if (f.type === "note") {
+      const note = document.createElement("p");
+      note.className = "sheet-note";
+      note.textContent = f.text;
+      if (f.tone) note.classList.add(`is-${f.tone}`);
+      form.appendChild(note);
+      return;
+    }
     const wrap = document.createElement("div");
     // chips and avatars are their own grid of controls, so they drop the
     // boxed input shell every other field type wears (see .field-chips /
@@ -785,6 +870,15 @@ function createSheet({
     fieldInput.appendChild(input);
     wrap.appendChild(label);
     wrap.appendChild(fieldInput);
+    // One line under the control saying what picking it *means*. Same job as
+    // a settings row's `.sr-hint`, and it reuses that type scale: a choice
+    // whose consequence is not on screen is a choice made blind.
+    if (f.hint) {
+      const hint = document.createElement("p");
+      hint.className = "field-note";
+      hint.textContent = f.hint;
+      wrap.appendChild(hint);
+    }
     form.appendChild(wrap);
     inputs[f.name] = input;
   });
@@ -852,6 +946,7 @@ function createSheet({
     if (previouslyFocused && typeof previouslyFocused.focus === "function") {
       previouslyFocused.focus();
     }
+    if (typeof onClose === "function") onClose();
   }
 
   function focusableEls() {
@@ -909,7 +1004,7 @@ window.createSheet = createSheet;
 
 
 // ==========================================================================
-// Theme — «شن و مریم‌گلی» (light) / «شب روشن» (dark)
+// Theme — «شن و مریم‌گلی» (light) / «شب کرمی» (dark)
 //
 // Three states, not two: "system" is the default and leaves the choice to
 // the device, so styles.css's prefers-color-scheme block decides; "light"
@@ -988,6 +1083,47 @@ function initThemeControls(root = document) {
 }
 
 document.addEventListener("DOMContentLoaded", () => initThemeControls());
+
+/* ---- notification preferences (settings page) --------------------------
+   One switch per NotificationKind, each saving on the tap: there is nothing
+   to review before committing a boolean, so a «ذخیره» button would only add
+   a state where the screen and the account disagree.
+
+   The switch is optimistic -- it moves immediately, because a control that
+   waits for a round trip before responding reads as broken -- but it owns
+   the failure: on a rejected or dropped request it snaps back to what it
+   was and says so. The one thing it must never do is look saved when it is
+   not. `apiFetch` (not plain fetch) on purpose: this is a deliberate write,
+   so a stale session should land on the login page rather than fail quietly.
+
+   The rows are rendered by the server from the same map that words the
+   notifications, so there is no list of kinds here to keep in step. */
+function initNotificationPrefs(root = document) {
+  root.querySelectorAll("[data-notif-pref]").forEach(input => {
+    input.addEventListener("change", async () => {
+      const wrap = input.closest(".switch");
+      const wanted = input.checked;
+      input.disabled = true;
+      if (wrap) wrap.classList.add("is-saving");
+
+      const { ok } = await apiFetch("/notifications/prefs", {
+        method: "PUT",
+        body: { kind: input.dataset.notifPref, enabled: wanted },
+      });
+
+      input.disabled = false;
+      if (wrap) wrap.classList.remove("is-saving");
+      if (!ok) {
+        input.checked = !wanted;
+        showToast("ذخیره نشد. دوباره تلاش کن.");
+        return;
+      }
+      showToast(wanted ? "این اعلان روشن شد" : "این اعلان خاموش شد");
+    });
+  });
+}
+
+document.addEventListener("DOMContentLoaded", () => initNotificationPrefs());
 
 window.getTheme = getTheme;
 window.setTheme = setTheme;
@@ -1107,3 +1243,184 @@ function initPressFeedback() {
 }
 
 document.addEventListener("DOMContentLoaded", () => initPressFeedback());
+
+
+// ==========================================================================
+// راهنمای درجا — the in-place explainer
+//
+// The «؟» dots are rendered server-side by `explain()` in app/explainers.py,
+// which is where every word of the glossary lives; this half only opens them.
+//
+// Three things are deliberate:
+//   - **The text arrives in the markup**, in data attributes on the dot. No
+//     fetch, no loading state, nothing to fail offline — and a dot appended by
+//     an infinite-scroll fragment works the instant it lands, because the
+//     listener below is delegated on the document and re-initialisation is
+//     never needed.
+//   - **One popover element, reused.** Only one explanation may be open at a
+//     time: two open panes turn a quiet affordance into clutter, which is the
+//     whole thing this design is avoiding.
+//   - **Positioned fixed, from the dot's viewport rect.** A dot can sit inside
+//     a scrolling card, a sticky header or a sheet, and an absolutely
+//     positioned pane would be clipped by the first ancestor with overflow.
+//     The trade is that the pane has to be re-placed while the page scrolls,
+//     which is what the rAF-throttled reposition below does; it closes rather
+//     than follows once its anchor has left the screen.
+// ==========================================================================
+const EXPLAIN_GAP = 10;   // dot to pane; must clear the arrow it grows
+const EXPLAIN_EDGE = 12;  // smallest distance from the pane to a screen edge
+const EXPLAIN_ARROW = 5.5;
+
+let explainPop = null;    // the single reused pane
+let explainDot = null;    // the dot it currently belongs to
+let explainFrame = 0;
+
+function explainPane() {
+  if (explainPop) return explainPop;
+  const pop = document.createElement("div");
+  pop.className = "explain-pop";
+  pop.setAttribute("role", "dialog");
+  pop.tabIndex = -1;
+  const arrow = document.createElement("i");
+  arrow.className = "explain-arrow";
+  pop.appendChild(arrow);
+  document.body.appendChild(pop);
+  explainPop = pop;
+  return pop;
+}
+
+// Each point is "<name> — <what it means>": the name is emphasised and the
+// meaning steps back, so a set of named states reads as a key rather than as
+// a paragraph. A point without the dash is simply printed whole.
+function explainPoint(text) {
+  const li = document.createElement("li");
+  const at = text.indexOf(" — ");
+  if (at === -1) {
+    li.textContent = text;
+    return li;
+  }
+  const name = document.createElement("b");
+  name.textContent = text.slice(0, at);
+  li.appendChild(name);
+  li.appendChild(document.createTextNode(text.slice(at)));
+  return li;
+}
+
+function placeExplainer() {
+  if (!explainPop || !explainDot) return;
+  const dot = explainDot.getBoundingClientRect();
+
+  // The anchor has scrolled away: a pane pointing at nothing is worse than a
+  // pane that closed.
+  if (dot.bottom < 0 || dot.top > window.innerHeight) {
+    closeExplainer(false);
+    return;
+  }
+
+  const pane = explainPop.getBoundingClientRect();
+  // The bottom nav is fixed and always on screen, so the usable floor is
+  // above it, not at the viewport edge -- a pane that "fits" over the nav is
+  // one the reader has to move the phone to finish reading.
+  const nav = document.querySelector(".bottom-nav");
+  const floor = window.innerHeight - EXPLAIN_EDGE - (nav ? nav.offsetHeight : 0);
+  const below = dot.bottom + EXPLAIN_GAP;
+  const above = dot.top - EXPLAIN_GAP - pane.height;
+  const fitsBelow = below + pane.height <= floor;
+  const side = fitsBelow || above < EXPLAIN_EDGE ? "bottom" : "top";
+
+  explainPop.dataset.side = side;
+  explainPop.style.top = (side === "bottom" ? below : above) + "px";
+
+  const centre = dot.left + dot.width / 2;
+  const max = window.innerWidth - EXPLAIN_EDGE - pane.width;
+  const left = Math.max(EXPLAIN_EDGE, Math.min(centre - pane.width / 2, max));
+  explainPop.style.left = left + "px";
+
+  // The arrow stays on the dot even when the pane itself was pushed off
+  // centre by a screen edge — clamped so it never slides past the corner.
+  const arrow = explainPop.querySelector(".explain-arrow");
+  const arrowX = Math.max(14, Math.min(centre - left, pane.width - 14));
+  arrow.style.left = arrowX - EXPLAIN_ARROW + "px";
+}
+
+function closeExplainer(returnFocus) {
+  if (!explainDot) return;
+  const dot = explainDot;
+  explainDot = null;
+  dot.setAttribute("aria-expanded", "false");
+  if (explainPop) explainPop.classList.remove("is-open");
+  if (returnFocus && typeof dot.focus === "function") dot.focus();
+}
+
+function openExplainer(dot) {
+  const pop = explainPane();
+  const title = dot.dataset.explainTitle || "";
+  const body = dot.dataset.explainBody || "";
+  const points = (dot.dataset.explainPoints || "").split("\n").filter(Boolean);
+
+  // Rebuilt rather than patched: the pane is shared, so anything left over
+  // from the previous entry would be a second explanation of the wrong thing.
+  pop.querySelectorAll("h4, p, ul").forEach((el) => el.remove());
+  const heading = document.createElement("h4");
+  heading.textContent = title;
+  pop.appendChild(heading);
+  const para = document.createElement("p");
+  para.textContent = body;
+  pop.appendChild(para);
+  if (points.length) {
+    const list = document.createElement("ul");
+    points.forEach((pt) => list.appendChild(explainPoint(pt)));
+    pop.appendChild(list);
+  }
+  pop.setAttribute("aria-label", title);
+
+  explainDot = dot;
+  dot.setAttribute("aria-expanded", "true");
+  // Made visible before measuring: the pane is `visibility:hidden` rather
+  // than `display:none` precisely so it has a height to be placed by.
+  pop.classList.add("is-open");
+  placeExplainer();
+  pop.focus();
+}
+
+function initExplainers() {
+  document.addEventListener("click", (e) => {
+    const dot = e.target.closest ? e.target.closest("[data-explain]") : null;
+    if (dot) {
+      e.preventDefault();
+      // A second tap on the same dot puts it away — the dot is the control,
+      // so it has to be able to undo itself.
+      if (explainDot === dot) closeExplainer(true);
+      else openExplainer(dot);
+      return;
+    }
+    if (explainDot && !(explainPop && explainPop.contains(e.target))) {
+      closeExplainer(false);
+    }
+  });
+
+  // Capture, and it swallows the key: an explainer opened from inside a sheet
+  // has to be the thing Esc puts away first, or one press closes both and the
+  // member loses the form they were only asking a question about.
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && explainDot) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeExplainer(true);
+    }
+  }, { capture: true });
+
+  const replace = () => {
+    if (!explainDot || explainFrame) return;
+    explainFrame = requestAnimationFrame(() => {
+      explainFrame = 0;
+      placeExplainer();
+    });
+  };
+  // capture, so a scroll inside a card list or a sheet is heard too — those
+  // never reach window on their own.
+  window.addEventListener("scroll", replace, { capture: true, passive: true });
+  window.addEventListener("resize", replace, { passive: true });
+}
+
+document.addEventListener("DOMContentLoaded", () => initExplainers());

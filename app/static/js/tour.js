@@ -38,7 +38,7 @@
   // intended way to ship a changed run, so change it only when the steps
   // really did change. An entry written by an older version has a different
   // shape entirely and is discarded rather than translated.
-  const TOUR_VERSION = 2;
+  const TOUR_VERSION = 3;
 
   // Onboarding is an *account's* state, not a device's: a phone that has
   // already walked one member through the app must still introduce it to the
@@ -71,7 +71,7 @@
     },
     {
       id: "nav",
-      path: "/views/today/",
+      path: "/views/home/",
       target: "nav",
       title: "مسیرهای اصلی",
       body: "چهار بخش برنامه همیشه همین‌جاست: امروز، خانه، چالش‌ها و پروفایل.",

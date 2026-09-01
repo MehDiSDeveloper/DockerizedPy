@@ -1,0 +1,124 @@
+{% extends "layout.html" %}
+
+{#- Who is in one group challenge, and the only screen that changes it.
+
+    Administrator-only (the route 404s a plain member, like the manage page).
+    It lists the *whole* group with a mark on whoever is already enrolled,
+    rather than only the participants, because the actual task is "add the
+    three people who are missing" and a list of only the enrolled would make
+    that a job across two screens.
+
+    **There are no numbers here.** Running a group buys the right to decide
+    who is in a challenge; it does not buy a file on anybody. The collective
+    figures are on the challenge itself and the leaderboard honours anonymity
+    there exactly as it does everywhere else -- so this screen shows names and
+    a checkbox, and nothing about how anyone is doing. -#}
+
+{% block topbar_leading %}
+<a href="/views/challenges/{{ challenge.id }}" class="back-btn" data-back aria-label="بازگشت"><span
+    data-icon="chevronRight"></span></a>
+{% endblock %}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="شرکت‌کنندگان">
+  <span class="crumb current" aria-current="page">شرکت‌کنندگان</span>
+</nav>
+{% endblock %}
+
+{% block topbar_action %}{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <p class="hero-eyebrow">{{ group.name }}</p>
+  <h1 class="hero-title">{{ challenge.title }}</h1>
+</section>
+
+<div class="settings-page">
+  <section class="setting-group">
+    <div class="section-head">
+      <h2>{{ enrolled_count }} از {{ member_count }} عضو</h2>
+      <span class="cc-tag {{ 'accent' if challenge.participation_mode == 'mandatory' }}">{{
+        participation_labels.get(challenge.participation_mode, '') }}</span>
+    </div>
+
+    {#- Said once, at the top: what «همهٔ اعضای گروه» means for this screen.
+        A standing audience is re-read whenever somebody joins the group
+        (`apply_standing_audience`), so hand-picking on top of it would be a
+        list the app overwrites -- better to say so than to offer controls
+        that quietly stop mattering. -#}
+    {% if challenge.group_audience == 'all' %}
+    <p class="info-note">این چالش برای همهٔ اعضای گروه است، پس هرکسی که بعداً به گروه بپیوندد
+      هم خودکار به آن اضافه می‌شود.</p>
+    {% endif %}
+
+    <div id="cpList">
+      {% for m in members %}
+      <div class="setting-row glass member-row" data-member-id="{{ m.user_id }}"
+        data-member-name="{{ m.name }}" data-enrolled="{{ 'true' if m.enrolled else 'false' }}">
+        <div class="sr-head">
+          <img class="mr-avatar" src="{{ m.avatar | avatar_url }}" alt="" width="36" height="36"
+            loading="lazy">
+          <div class="sr-text">
+            <span class="sr-label">{{ m.name }}</span>
+            <span class="sr-hint" data-state-text>{{ 'در این چالش هست' if m.enrolled else 'در این چالش نیست' }}</span>
+          </div>
+          {#- A native checkbox inside `.switch`, the settings screen's own
+              control -- focusable, announced, and flipped by a tap anywhere
+              on the row. Same primitive the notification switches use. -#}
+          <label class="switch" aria-label="عضویت {{ m.name }} در این چالش">
+            <input type="checkbox" data-participant {{ 'checked' if m.enrolled }}
+              {{ 'disabled' if m.user_id == challenge.owner_id }}>
+            <span class="switch-track"><span class="switch-thumb"></span></span>
+          </label>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const GROUP_ID = {{ group.id }};
+    const CHALLENGE_ID = {{ challenge.id }};
+    const list = document.getElementById("cpList");
+
+    // Optimistic, and it snaps back on failure -- the same shape
+    // `initNotificationPrefs()` uses, because it is the same control doing
+    // the same kind of one-boolean write. There is no «ذخیره» button for the
+    // same reason there is none there: nothing to review before committing.
+    list.addEventListener("change", async (e) => {
+      const input = e.target.closest("[data-participant]");
+      if (!input) return;
+      const row = input.closest(".member-row");
+      const id = Number(row.dataset.memberId);
+      const wanted = input.checked;
+      const stateText = row.querySelector("[data-state-text]");
+      stateText.textContent = wanted ? "در این چالش هست" : "در این چالش نیست";
+
+      const res = wanted
+        ? await apiFetch(`/groups/${GROUP_ID}/challenges/${CHALLENGE_ID}/participants`, {
+            method: "POST", body: { user_ids: [id] },
+          })
+        : await apiFetch(
+            `/groups/${GROUP_ID}/challenges/${CHALLENGE_ID}/participants/${id}`,
+            { method: "DELETE" }
+          );
+
+      if (!res.ok) {
+        input.checked = !wanted;
+        stateText.textContent = !wanted ? "در این چالش هست" : "در این چالش نیست";
+        showToast("خطا: " + ((res.data && res.data.detail) || "انجام نشد"));
+        return;
+      }
+      row.dataset.enrolled = wanted ? "true" : "false";
+      showToast(wanted
+        ? `${row.dataset.memberName} به چالش اضافه شد`
+        : `${row.dataset.memberName} از چالش خارج شد`);
+    });
+  });
+</script>
+{% endblock %}

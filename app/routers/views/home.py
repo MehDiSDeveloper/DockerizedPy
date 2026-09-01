@@ -11,8 +11,10 @@ from sqlalchemy.orm import selectinload
 from app.auth import get_current_user_id, get_page_user
 from app.config import BASE_DIR
 from app.database import get_db
+from app.explainers import register_explainer_filters
 from app.icons import register_icon_filters
 from app.jalali import to_jalali
+from app.models.audit_base import newest_first
 from app.models.challenge import Challenge
 from app.models.checkin import CheckIn
 from app.models.enrollment import Enrollment, EnrollmentStatus
@@ -23,6 +25,7 @@ from app.routers.today import get_today_items
 
 router = APIRouter(prefix="/views/home", tags=["home-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_explainer_filters(templates.env)
 register_icon_filters(templates.env)
 
 DEFAULT_PAGE_SIZE = 20
@@ -72,7 +75,7 @@ async def _fetch_enrollment_page(
         stmt = stmt.where(Enrollment.status == EnrollmentStatus.COMPLETED)
     else:
         stmt = stmt.where(Enrollment.status != EnrollmentStatus.COMPLETED)
-    stmt = stmt.order_by(Enrollment.id.desc()).offset(offset).limit(limit + 1)
+    stmt = stmt.order_by(*newest_first(Enrollment)).offset(offset).limit(limit + 1)
     result = await db.execute(stmt)
     enrollments = list(result.scalars().all())
     has_more = len(enrollments) > limit

@@ -1,0 +1,46 @@
+{#- One row per membership request. Fragment for
+    /views/groups/{id}/requests/fragment.
+
+    Two shapes, one row: a pending request carries the two buttons that
+    answer it, a decided one carries the answer instead. That is deliberately
+    not a third template -- the reader is looking at the same fact in two
+    moments, and splitting it is how the two come to describe the same person
+    differently.
+
+    A row is **not a link**. Reaching somebody's profile from a list they
+    appear on is the second step CLAUDE.md keeps with
+    `profile_visibility_filter` alone -- the same rule the roster and the
+    leaderboard follow. -#}
+{% for r in requests %}
+<div class="setting-row glass request-row" data-request-id="{{ r.id }}"
+  data-request-name="{{ r.name }}">
+  <div class="sr-head">
+    <img class="mr-avatar" src="{{ r.avatar | avatar_url }}" alt="" width="36" height="36"
+      loading="lazy">
+    <div class="sr-text">
+      <span class="sr-label">{{ r.name }}</span>
+      {% if r.status == 'pending' %}
+      <span class="sr-hint">درخواست در <span data-jalali="{{ r.created_at.isoformat() }}"
+          data-jalali-format="day-month-year">{{ r.created_at.strftime('%Y-%m-%d') }}</span></span>
+      {% else %}
+      {#- The decided row names *when* and *by whom*: that pair is the only
+          thing this table records which the membership itself cannot say,
+          and it is the whole reason a terminal row is kept rather than
+          deleted. -#}
+      <span class="sr-hint">{{ 'تایید' if r.status == 'approved' else 'رد' }} شده{% if r.decided_at %}
+        در <span data-jalali="{{ r.decided_at.isoformat() }}"
+          data-jalali-format="day-month-year">{{ r.decided_at.strftime('%Y-%m-%d') }}</span>{% endif %}{%
+        if r.decided_by %} · به دست {{ r.decided_by }}{% endif %}</span>
+      {% endif %}
+    </div>
+    {% if r.status == 'pending' %}
+    <div class="rr-actions">
+      <button type="button" class="cc-btn ghost sm" data-reject>رد</button>
+      <button type="button" class="cc-btn primary sm" data-approve>تایید</button>
+    </div>
+    {% else %}
+    <span class="req-pill is-{{ r.status }}">{{ 'تاییدشده' if r.status == 'approved' else 'ردشده' }}</span>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}

@@ -27,14 +27,14 @@
   <section class="stats">
     <div class="stat-card glass accent" data-tour="today-count">
       <span class="stat-num" id="todayCount">{{ total_count }}</span>
-      <span class="stat-label">مانده تا امروز</span>
+      <span class="stat-label">مانده برای امروز</span>
     </div>
   </section>
 
   <!-- today's occurrences -->
   <section>
     <div class="section-head">
-      <h2>موارد امروز</h2>
+      <h2>نوبت‌های امروز{{ explain("today-list") }}</h2>
     </div>
 
     <div class="challenge-list" id="todayList"
@@ -123,8 +123,8 @@
       createSheet({
         title: title,
         fields: fields,
-        confirmLabel: "تکمیل شد",
-        skipLabel: "رد کردم",
+        confirmLabel: "انجام شد",
+        skipLabel: "انجام ندادم",
         onConfirm: (values) => submit("completed", values),
         onSkip: (values) => submit("skipped", values),
       });

@@ -1,0 +1,125 @@
+{% extends "layout.html" %}
+
+{#- The invite landing -- the one group screen somebody outside the group
+    ever sees, and the whole of «کاربر ناواردشده‌ای که روی لینک دعوت کلیک
+    می‌کند»: `get_page_user` raises `LoginRequired`, app.main turns it into a
+    303 to the login page carrying `?next=`, and they land back here after
+    signing in with the link still working. No code was needed for that; the
+    machinery already existed.
+
+    It shows the group's name, emblem, kind and size and nothing else.
+    Whoever holds this code is not a member yet, so a page that listed the
+    challenges or the people would turn an unused invite into a way to read
+    the group.
+
+    A dead link is not a dead end: a revoked, expired or full one says which,
+    and offers the other door -- a join request keyed on this same code, so
+    somebody handed a link that filled up is not simply stuck. -#}
+
+{% block topbar_leading %}{% endblock %}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="دعوت به گروه"
+  data-crumb-root>
+  <span class="crumb current" aria-current="page">دعوت به گروه</span>
+</nav>
+{% endblock %}
+
+{% block topbar_action %}{% endblock %}
+
+{% block content %}
+<div class="invite-card glass">
+  <div class="gh-emblem"><img src="{{ group.emblem | avatar_url }}" alt="" width="72" height="72"></div>
+  <p class="invite-eyebrow">{% if requires_approval %}گروه{% else %}دعوت شده‌ای به{% endif %}</p>
+  <h1>{{ group.name }}{{ explain("group") }}</h1>
+  <div class="detail-tags">
+    <span class="cc-tag"><span data-icon="{{ group_kind_icons.get(group.kind, 'catOther') }}"></span>{{ group_kind_labels.get(group.kind, 'گروه') }}</span>
+    <span class="cc-tag"><span data-icon="users"></span>{{ member_count }} عضو</span>
+  </div>
+  {% if group.description %}<p class="invite-desc">{{ group.description }}</p>{% endif %}
+
+  {#- Five states, five different next steps, and each says what will happen
+      rather than only what went wrong. «درخواست فرستاده‌ای» comes before
+      everything but membership: it is true of a live public link as much as
+      of a dead one, and a page that offered the button again would be
+      offering to do something already done. -#}
+  {% if already_member %}
+  <p class="invite-note">تو همین حالا عضو این گروه هستی.</p>
+  <a class="cc-btn primary block" href="/views/groups/{{ group.id }}">رفتن به گروه</a>
+
+  {% elif request_pending %}
+  <p class="invite-note">درخواست عضویت تو ثبت شده و منتظر پاسخ مدیران گروه است. نتیجه را با
+    اعلان می‌بینی.</p>
+
+  {% elif requires_approval and state == 'active' %}
+  {#- The public link: alive, and it admits nobody by itself. -#}
+  <p class="invite-note">با این لینک می‌توانی درخواست عضویت بفرستی؛ ورودت به گروه به تایید
+    یکی از مدیران آن بستگی دارد.</p>
+  <button type="button" class="cc-btn primary block" id="requestBtn">درخواست عضویت</button>
+
+  {% elif is_usable %}
+  <p class="invite-note">با پذیرفتن این دعوت، بی‌درنگ عضو گروه می‌شوی و چالش‌های گروه در فهرست
+    چالش‌های تو دیده می‌شود.</p>
+  <button type="button" class="cc-btn primary block" id="acceptBtn">پیوستن به گروه</button>
+
+  {% else %}
+  <p class="invite-note">این لینک دیگر کار نمی‌کند ({{ invite_state_labels.get(state, state) }}).
+    می‌توانی درخواست عضویت بفرستی تا مدیران گروه آن را ببینند.</p>
+  <button type="button" class="cc-btn primary block" id="requestBtn">درخواست عضویت</button>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const CODE = {{ code | tojson }};
+
+    const accept = document.getElementById("acceptBtn");
+    if (accept) {
+      accept.addEventListener("click", async () => {
+        accept.disabled = true;
+        // The browser's own zone, so the enrollments a standing group
+        // challenge writes on the way in start on the right local day --
+        // the same reason every other join passes it.
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const { ok, status, data } = await apiFetch(
+          `/invites/${encodeURIComponent(CODE)}/accept?timezone=${encodeURIComponent(tz)}`,
+          { method: "POST" }
+        );
+        if (status === 409) {
+          // Somebody took the last seat between the page rendering and the
+          // tap. Reloading shows the real state and the request button.
+          showToast("ظرفیت این لینک پر شد.");
+          window.location.reload();
+          return;
+        }
+        if (!ok) {
+          accept.disabled = false;
+          showToast("پیوستن انجام نشد");
+          return;
+        }
+        window.location.href = `/views/groups/${data.id}`;
+      });
+    }
+
+    const request = document.getElementById("requestBtn");
+    if (request) {
+      request.addEventListener("click", async () => {
+        request.disabled = true;
+        const { ok } = await apiFetch(`/invites/${encodeURIComponent(CODE)}/request`, {
+          method: "POST",
+        });
+        if (!ok) {
+          request.disabled = false;
+          showToast("ارسال درخواست انجام نشد");
+          return;
+        }
+        showToast("درخواستت فرستاده شد؛ نتیجه را با اعلان می‌بینی.");
+        window.location.reload();
+      });
+    }
+  });
+</script>
+{% endblock %}

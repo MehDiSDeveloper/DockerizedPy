@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_current_user_id, get_page_user
 from app.config import BASE_DIR
 from app.database import get_db
+from app.explainers import register_explainer_filters
 from app.icons import register_icon_filters
 from app.models.user import User
 from app.routers.challenge import DEFAULT_TIMEZONE
@@ -15,6 +16,7 @@ from app.routers.today import get_today_items
 
 router = APIRouter(prefix="/views/today", tags=["today-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_explainer_filters(templates.env)
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100

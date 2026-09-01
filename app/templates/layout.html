@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
 
     {#- Theme, applied before first paint. The stylesheet ships the light
-        theme «شن و مریم‌گلی» on :root and the dark «شب روشن» under both
+        theme «شن و مریم‌گلی» on :root and the dark «شب کرمی» under both
         prefers-color-scheme and [data-theme="dark"]; this only has to carry
         an *explicit* choice the visitor made on another page. It is inline
         and blocking on purpose -- deferred to app.js it would repaint the
@@ -27,7 +27,17 @@
     not per device -- tour.js is the one today, which keys its progress on
     this so a second member signing in on the same phone is not judged by
     the first one's run. Blank for the pages that render signed-out. -#}
-<body data-user-id="{{ current_user_id or '' }}">
+{#- `admin_scope` is set by the three /views/admin pages and is what the
+    "Admin scope" rules in styles.css hang the panel's chrome on: the header's
+    action slot carries a shield instead of the bell, and the page's own name
+    in the trail is written in the admin hue. Both live in the topbar, which
+    is sticky -- so the answer to "am I in the panel?" is on screen at every
+    scroll position of every admin page, and nowhere else in the app.
+
+    It says which mode the operator is looking at; it grants nothing. Each of
+    those routes gates itself on get_admin_page_user, and an attribute on
+    <body> is not a permission. -#}
+<body data-user-id="{{ current_user_id or '' }}"{% if admin_scope %} data-admin-scope{% endif %}>
     <div class="app-bg"></div>
 
     <div class="shell">
@@ -60,9 +70,40 @@
                 {% endblock %}
             </div>
 
+            {#- The bell is a real destination now, and it renders only for a
+                signed-in visitor: challenge discovery is open to anonymous
+                readers, and a notification bell for someone with no account
+                is a control that can only disappoint.
+
+                `data-icon` sits on an inner span rather than on the anchor
+                itself, because renderIcons() replaces that element's whole
+                innerHTML -- on the anchor it would wipe the badge beside it
+                on every render. The badge starts hidden and empty: the
+                server would have to count unread rows on every page of the
+                app to fill it in, so initNotificationBell() in app.js asks
+                for the one number once the page is up. -#}
+            {#- On the panel the slot carries a shield instead. The bell is a
+                member-facing destination and the panel is not a place to be
+                interrupted from; swapping rather than adding is also what
+                makes the marker readable -- one glyph in a fixed corner
+                changes, so the difference is noticed instead of counted.
+
+                It is a real link to the panel's index, so the marker is also
+                the way back out of the two sub-pages; a decorative glyph in a
+                slot that has held a button on every other screen reads as a
+                broken control. -#}
             {% block topbar_action %}
-            <button class="icon-btn has-dot" aria-label="اعلان‌ها" data-icon="bell"
-                data-coming-soon="بخش اعلان‌ها به‌زودی اضافه می‌شود"></button>
+            {% if admin_scope %}
+            <a href="/views/admin/" class="icon-btn admin-mark" aria-label="پنل مدیریت">
+                <span data-icon="shield"></span>
+            </a>
+            {% elif current_user_id %}
+            <a href="/views/notifications/" class="icon-btn" aria-label="اعلان‌ها"
+                data-notif-bell>
+                <span data-icon="bell"></span>
+                <span class="icon-badge" data-notif-badge hidden></span>
+            </a>
+            {% endif %}
             {% endblock %}
         </header>
 

@@ -48,6 +48,16 @@
   <div class="detail-tags">
     <span class="cc-tag cat-tag"><span data-icon="{{ challenge.category | category_icon }}"></span>{{ challenge.category.value }}</span>
     <span class="cc-tag accent"><span data-icon="{{ challenge.cadence_kind | cadence_icon }}"></span>{{ cadence_plan.label }}</span>
+    {#- Which group this belongs to, and one tap to it. A chip, not a colour:
+        status owns `--st-*` and category owns `--cat-*`, and a third meaning
+        on either channel is how a card stops being readable. -#}
+    {% if challenge.group %}
+    <a class="cc-tag group-chip" href="/views/groups/{{ challenge.group.id }}"><span
+        data-icon="{{ group_kind_icons.get(challenge.group.kind, 'catOther') }}"></span>{{ challenge.group.name }}</a>
+    {% if challenge.participation_mode == 'mandatory' %}
+    <span class="cc-tag warn"><span data-icon="lock"></span>{{ participation_labels.get('mandatory') }}</span>
+    {% endif %}
+    {% endif %}
     {% if challenge.visibility != 'public' %}<span class="cc-tag">{{ visibility_label }}</span>{% endif %}
     {% if challenge.lifecycle_status != 'active' %}<span class="cc-tag warn">{{ lifecycle_label }}</span>{% endif %}
   </div>
@@ -58,7 +68,7 @@
     <div><b>{{ history_summary.pct }}٪</b><span>پیشرفت من</span></div>
     <div class="gold">
       <b><span data-icon="flame"></span>{{ my_streak or 0 }}</b>
-      <span>پیاپی من</span>
+      <span>رشتهٔ من</span>
     </div>
     {% elif challenge.due_date %}
     <div><b>{{ total_completions }}</b><span>ثبت انجام‌شده</span></div>
@@ -98,11 +108,73 @@
 {# ========================= پنل: من ========================= #}
 <div class="tab-panel" id="panel-me" role="tabpanel" aria-labelledby="tab-me" tabindex="-1">
 
+  {#- Changing your mind about being named. It renders only where the
+      challenge actually defers the question to each member
+      (`asks_the_joiner`), and the route behind it runs the answer back
+      through `resolve_anonymity` -- so this is not a way around the
+      challenge's own policy, it is that policy's own door.
+
+      It matters most for a group challenge, where an administrator enrolled
+      these people and nobody asked them anything: they are stored
+      *anonymous* for that reason (`resolve_assigned_anonymity`), and this is
+      how they say otherwise. -#}
+  {#- Two named states, not a switch labelled with one of them. «ناشناس
+      بمانم» + a toggle made the reader infer the *other* state from an
+      unchecked box, and spent a full settings row plus two lines of hint on
+      a control that is one word wide. This is the app's own `.seg` — the
+      same primitive the list filters and the settings page use for "a few
+      mutually exclusive options" — so both answers are on screen, the
+      current one is the highlighted one, and there is nothing to infer.
+
+      The explanation is the «؟» beside the label (app/explainers.py) plus
+      the toast the change already raises -- not a permanent block of hint
+      text above the member's own stats. It used to be a `title=` on the row,
+      which is invisible on the phone this app is designed for; the dot is
+      the same promise, reachable by a tap. -#}
+  {% if can_set_anonymity %}
+  <section class="detail-section">
+    <div class="ident-switch glass" data-anonymity>
+      <span class="ident-label">نمایش تو{{ explain("anonymity") }}</span>
+      <div class="seg" role="radiogroup" aria-label="نمایش تو در این چالش">
+        <button type="button" class="seg-btn {{ '' if my_is_anonymous else 'active' }}"
+          role="radio" data-anon="false"
+          aria-checked="{{ 'false' if my_is_anonymous else 'true' }}">
+          <span data-icon="user"></span>با نام
+        </button>
+        <button type="button" class="seg-btn {{ 'active' if my_is_anonymous }}"
+          role="radio" data-anon="true"
+          aria-checked="{{ 'true' if my_is_anonymous else 'false' }}">
+          <span data-icon="mask"></span>ناشناس
+        </button>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  {#- The one entrance to the participants screen, rendered for whoever
+      administers the group. The route gates itself (404 for a member), so
+      the two agree without either trusting the other. -#}
+  {% if group_can_manage and challenge.group %}
+  <section class="detail-section">
+    <a class="setting-row glass" href="/views/groups/{{ challenge.group.id }}/challenges/{{ challenge.id }}/participants">
+      <div class="sr-head">
+        <div class="mi-icon"><span data-icon="users"></span></div>
+        <div class="sr-text">
+          <span class="sr-label">شرکت‌کنندگان این چالش</span>
+          <span class="sr-hint">افزودن یا خارج‌کردن اعضای گروه.</span>
+        </div>
+        <span class="sr-chev" data-icon="chevronLeft"></span>
+      </div>
+    </a>
+  </section>
+  {% endif %}
+
+  {% set state_labels = {'completed': 'تکمیل‌شده', 'skipped': 'رد شده', 'missed': 'ازدست‌رفته', 'pending': 'در انتظار'} %}
   {% if my_stats %}
   <section class="detail-section">
     <div class="section-head">
-      <h2>وضعیت من</h2>
-      <span class="cc-tag">خوداظهاری</span>
+      <h2>وضعیت من{{ explain("checkin-states") }}</h2>
+      <span class="cc-tag">ثبت‌های خودت</span>
     </div>
 
     {% if history_summary and history_summary.total %}
@@ -115,12 +187,22 @@
             completion share of that. CSS rotates it to start at twelve. -#}
         <svg class="ring" viewBox="0 0 48 48" aria-hidden="true">
           <circle class="ring-track" cx="24" cy="24" r="20"></circle>
-          {#- omitted entirely at zero: a round-capped stroke of length 0 still
-              paints a dot, which reads as "one done" when none are. -#}
-          {% if history_summary.pct %}
-          <circle class="ring-fill" cx="24" cy="24" r="20"
-            style="stroke-dasharray:{{ (history_summary.pct * 1.2566) | round(1) }} 200;"></circle>
+          {#- One arc per state, not one fill for "completed" alone -- a share
+              only reads against the others it displaces, so "missed" needs
+              its own wedge or the ring silently drops it. Each segment's
+              length is its share of the circumference (125.66); dashoffset
+              carries forward the previous segments' combined length so they
+              sit edge to edge, in the order the legend lists them. -#}
+          {% set ns = namespace(offset=0) %}
+          {% for state in ['completed', 'skipped', 'missed', 'pending'] %}
+          {% set count = history_summary.get(state, 0) %}
+          {% if count %}
+          {% set seg_len = (count / history_summary.total * 125.66) | round(2) %}
+          <circle class="ring-seg {{ state }}" cx="24" cy="24" r="20"
+            style="stroke-dasharray:{{ seg_len }} 200; stroke-dashoffset:{{ -ns.offset }};"></circle>
+          {% set ns.offset = ns.offset + seg_len %}
           {% endif %}
+          {% endfor %}
         </svg>
         <div class="ring-center">
           <b>{{ history_summary.pct }}٪</b>
@@ -141,10 +223,10 @@
 
     <div class="mine-grid">
       <div class="mine-tile gold">
-        <b><span data-icon="flame"></span>{{ my_stats.current_streak }}</b><span>پیاپی فعلی</span>
+        <b><span data-icon="flame"></span>{{ my_stats.current_streak }}</b><span>رشتهٔ فعلی</span>
       </div>
       <div class="mine-tile gold">
-        <b><span data-icon="seal"></span>{{ my_stats.longest_streak }}</b><span>رکورد پیاپی</span>
+        <b><span data-icon="seal"></span>{{ my_stats.longest_streak }}</b><span>بهترین رشته</span>
       </div>
       <div class="mine-tile">
         {#- no spaces around the slash: "0 / 1" splits into two number runs
@@ -158,12 +240,43 @@
     <p class="mine-empty glass">هنوز نوبتی برای این چالش نرسیده.</p>
     {% endif %}
 
+    {% if participant_count > 1 %}
+    {#- The way into the leaderboard, and the only one. It sits in «من»
+        rather than in «درباره» because that is the panel a participant lands
+        on and the question it answers is a personal one — where do I stand —
+        and because the board is gated on membership, so a link rendered in a
+        panel a visitor can read would lead them to a 403.
+
+        A board of one is not a board, so it appears only once somebody else
+        has joined. The route gates itself either way; this only decides
+        whether the row is worth a tap. -#}
+    <a class="lb-entry glass" href="/views/challenges/{{ challenge.id }}/leaderboard">
+      <span class="lb-entry-icon"><span data-icon="trophy"></span></span>
+      <div class="lb-entry-text">
+        <b>جدول رتبه‌بندی</b>
+        <span>جایگاه تو بین {{ participant_count }} شرکت‌کننده</span>
+      </div>
+      <span class="sr-chev" data-icon="chevronLeft"></span>
+    </a>
+    {% endif %}
+
     {% if history_strip | length > 1 %}
     {#- The shape of the run: one square per occurrence, oldest first, so in
         RTL the oldest sits top-right and "now" ends up bottom-left, right
         above the timeline's newest row. Deliberately unlabelled -- the
         timeline below is the readable version; this is the pattern. -#}
-    <h3 class="sub-head">روند {{ history_strip | length }} نوبت اخیر</h3>
+    <div class="sub-head-row">
+      <h3 class="sub-head">روند {{ history_strip | length }} نوبت اخیر{{ explain("backfill") }}</h3>
+      {% if history_calendar %}
+      {#- The strip is the shape of the recent run; the calendar is the whole
+          of it, on the dates it actually happened. Beside the heading rather
+          than below the grid because it expands what that heading names. -#}
+      <button type="button" class="cc-btn ghost tiny" id="calToggle"
+        aria-expanded="false" aria-controls="historyCalendar">
+        <span data-icon="calendar"></span>تقویم کامل
+      </button>
+      {% endif %}
+    </div>
     <div class="occ-strip" role="img"
       aria-label="روند {{ history_strip | length }} نوبت اخیر، {{ history_summary.completed }} نوبت تکمیل‌شده از {{ history_summary.total }}">
       {% for c in history_strip %}
@@ -178,15 +291,47 @@
       <span><i class="lg-dot miss"></i>ازدست‌رفته</span>
       <span><i class="lg-dot wait"></i>در انتظار</span>
     </div>
+    {% if history_calendar %}
+    {#- Rendered empty and filled by JS: a month grid needs Jalali month
+        arithmetic to lay out at all, and that lives in jalali-picker.js --
+        server-rendering one month would still leave every other month to the
+        client, i.e. the same code written twice. -#}
+    <div class="hist-cal glass" id="historyCalendar" hidden>
+      <div class="jp-nav">
+        <button type="button" class="jp-nav-btn cal-prev" data-icon="chevronRight" aria-label="ماه قبل"></button>
+        <button type="button" class="jp-title cal-title" aria-live="polite"></button>
+        <button type="button" class="jp-nav-btn cal-next" data-icon="chevronLeft" aria-label="ماه بعد"></button>
+      </div>
+      <div class="jp-weekdays cal-weekdays"></div>
+      <div class="jp-grid cal-grid" role="grid"></div>
+      {#- The answer to tapping a cell. Lives below the grid rather than in a
+          sheet: the point is to read a day *against* the month around it, and
+          a sheet would cover the thing being compared. -#}
+      <div class="cal-day" id="calDay" hidden></div>
+      {#- The strip's four states plus the two things only the calendar can
+          show: a nobat that has not come round yet, and a day the challenge
+          itself marks. -#}
+      <div class="occ-key cal-key">
+        <span><i class="lg-dot ok"></i>تکمیل‌شده</span>
+        <span><i class="lg-dot skip"></i>رد شده</span>
+        <span><i class="lg-dot miss"></i>ازدست‌رفته</span>
+        <span><i class="lg-dot wait"></i>در انتظار</span>
+        <span><i class="lg-dot soon"></i>پیش رو</span>
+        <span><i class="lg-dot mark"></i>رویداد چالش</span>
+      </div>
+    </div>
+    {% endif %}
     {% endif %}
   </section>
   {% endif %}
 
-  {% set state_labels = {'completed': 'تکمیل‌شده', 'skipped': 'رد شده', 'missed': 'ازدست‌رفته', 'pending': 'در انتظار'} %}
+  {#- Only the quota cadence still gets a list here. Every other cadence is
+      day-shaped, so its history *is* the calendar above -- repeating it as a
+      timeline was the same twelve occurrences written twice. A quota period
+      is not a day and has no cell to live in, so it keeps its own rows. -#}
+  {% if cadence_kind == 'recurring_quota' %}
   <section class="detail-section">
-    <h2>تاریخچه من</h2>
-
-    {% if cadence_kind == 'recurring_quota' %}
+    <h2>تاریخچهٔ من{{ explain("backfill") }}</h2>
     <div class="quota-history" id="quotaHistory">
       {% for row in quota_rows %}
       <div class="quota-row{{ ' current' if row.is_current else '' }}">
@@ -210,44 +355,8 @@
       </div>
       {% endfor %}
     </div>
-
-    {% else %}
-    <ol class="timeline" id="historyTimeline">
-      {% for item in timeline %}
-      <li class="tl-row {{ item.state }}{{ ' today' if item.is_today else '' }}" data-key="{{ item.key }}"
-        data-date="{{ item.date.isoformat() }}">
-        <span class="tl-badge" aria-hidden="true"></span>
-        <div class="tl-main">
-          <div class="tl-date" data-jalali="{{ item.date.isoformat() }}" data-jalali-format="weekday-day-month">
-            {{ item.date.isoformat() }}</div>
-          <div class="tl-meta">
-            {{ 'امروز · ' if item.is_today else '' }}{{ state_labels.get(item.state, item.state) }}{% if item.amount %} ·
-            {{ item.amount }} {{ goal_unit or '' }}{% endif %}
-          </div>
-        </div>
-        {% if item.writable %}
-        <button type="button" class="tl-action" data-key="{{ item.key }}"
-          data-jalali="{{ item.date.isoformat() }}" data-jalali-format="weekday-day-month"
-          data-jalali-prefix="ثبت " data-jalali-attr="aria-label"
-          aria-label="ثبت {{ item.date.isoformat() }}">ثبت</button>
-        {% elif item.editable %}
-        <button type="button" class="tl-action tl-edit" data-checkin-id="{{ item.checkin_id }}"
-          data-state="{{ item.state }}" data-amount="{{ item.amount | num }}"
-          data-note="{{ item.note or '' }}"
-          data-jalali="{{ item.date.isoformat() }}" data-jalali-format="weekday-day-month"
-          data-jalali-prefix="ویرایش " data-jalali-attr="aria-label"
-          aria-label="ویرایش {{ item.date.isoformat() }}">ویرایش</button>
-        {% endif %}
-      </li>
-      {% else %}
-      <li class="tl-empty">هنوز نوبتی برای این چالش نرسیده.</li>
-      {% endfor %}
-    </ol>
-    {% if has_more_history %}
-    <p class="tl-more">فقط {{ timeline | length }} نوبت اخیر نشان داده شده.</p>
-    {% endif %}
-    {% endif %}
   </section>
+  {% endif %}
 
   {% if my_stats %}
   <section class="detail-section">
@@ -291,7 +400,7 @@
   {% if is_enrolled %}hidden{% endif %}>
   <section class="detail-section">
     <div class="section-head">
-      <h2>برنامهٔ چالش</h2>
+      <h2>برنامهٔ چالش{{ explain("cadence-plan") }}</h2>
       {% if cadence_plan.kind != 'once' %}
       <span class="cc-tag" title="{{ cadence_plan.timezone }}">{{ cadence_plan.timezone }}</span>
       {% endif %}
@@ -380,7 +489,7 @@
 {# ========================= پنل: درباره ========================= #}
 <div class="tab-panel" id="panel-about" role="tabpanel" aria-labelledby="tab-about" tabindex="-1" hidden>
   <section class="detail-section">
-    <h2>درباره چالش</h2>
+    <h2>دربارهٔ این چالش</h2>
     <p>{{ challenge.description or 'برای این چالش توضیحی نوشته نشده.' }}</p>
   </section>
 
@@ -398,7 +507,7 @@
       it, and a lone avatar row means nothing without the bar. -#}
   <section class="detail-section">
     <div class="section-head">
-      <h2>پیشرفت جمعی</h2>
+      <h2>پیشرفت جمعی{{ explain("collective-progress") }}</h2>
       <span class="cc-tag">خوداظهاری</span>
     </div>
     <div class="plan-card glass">
@@ -408,8 +517,11 @@
           {% for enrollment in challenge.enrollments[:4] %}
           {#- Picture, not name: the roster stays anonymous here (see
               profile_visibility_filter) and an avatar from a fixed catalogue
-              identifies nobody. -#}
-          <div class="av"><img src="{{ (enrollment.user.avatar if enrollment.user else None) | avatar_url }}"
+              identifies nobody. `participant_avatar` goes one step further
+              for a member enrolled anonymously -- their *own* avatar is
+              recognisable to anyone who has seen it elsewhere, so they get
+              the same unset placeholder as a member who never picked one. -#}
+          <div class="av"><img src="{{ enrollment | participant_avatar | avatar_url }}"
                                alt="" loading="lazy" width="30" height="30"></div>
           {% endfor %}
         </div>
@@ -451,7 +563,15 @@
       </div>
       <div class="meta-item">
         <span data-icon="eye"></span>
-        <div><b>{{ visibility_label }}</b><span>دسترسی</span></div>
+        <div><b>{{ visibility_label }}</b><span>دسترسی دیدن</span></div>
+      </div>
+      {#- Stated on the page rather than only in the join sheet: someone
+          weighing whether to join has to be able to read the deal before
+          tapping, and someone already in has to be able to check what they
+          agreed to. -#}
+      <div class="meta-item">
+        <span data-icon="{{ 'mask' if challenge.identity_mode == 'anonymous' else 'users' }}"></span>
+        <div><b>{{ identity_label }}</b><span>هویت اعضا</span></div>
       </div>
       <div class="meta-item">
         <span data-icon="seal"></span>
@@ -483,14 +603,24 @@
 {% block scripts %}
 
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
+{#- Loaded for window.jalaliCalendar alone -- this page has no date input to
+    enhance, but the history calendar needs the same Jalali month arithmetic
+    the picker already owns. -#}
+<script src="{{ url_for('static', path='/js/jalali-picker.js') }}"></script>
 <script>
   const challengeId = {{ challenge.id }};
+  const historyCalendarData = {{ (history_calendar or none) | tojson }};
   const goalUnit = {{ (challenge.goal_unit or "") | tojson }};
   let enrolled = {{ 'true' if is_enrolled else 'false' }};
   // The one occurrence the CTA can record right now, or null. Derived by the
   // server on every load from the same backfill-window rule the API enforces
   // -- never advanced client-side.
   let todayKey = {{ (today_key or none) | tojson }};
+  // Whether leaving is even offered. A mandatory group challenge cannot be
+  // left while you are still in the group that set it -- decided by
+  // `leaving_is_allowed` on the server, which is the same function the
+  // DELETE route refuses with, so the button and the rule cannot disagree.
+  const canLeave = {{ 'true' if can_leave else 'false' }};
   let busy = false;
 
   // ---- tabs --------------------------------------------------------------
@@ -539,8 +669,14 @@
   // not guessed, and re-measured whenever the header reflows.
   const topbar = document.querySelector(".topbar");
   if (topbar) {
-    const syncTabOffset = () =>
-      tabBar.style.setProperty("--topbar-h", topbar.offsetHeight + "px");
+    const syncTabOffset = () => {
+      // The topbar does not always park at 0: on desktop the bottom nav moves
+      // to the top and the topbar parks under it (top:var(--nav-top-h)), so
+      // the tab bar has to clear that offset *plus* the header, or it sticks
+      // where the header already is and slides underneath it.
+      const parked = parseFloat(getComputedStyle(topbar).top) || 0;
+      tabBar.style.setProperty("--topbar-h", parked + topbar.offsetHeight + "px");
+    };
     syncTabOffset();
     // renderIcons() and the nav trail both land after this script runs and
     // both change the header's height, so one measurement at parse time is
@@ -548,9 +684,10 @@
     window.addEventListener("load", syncTabOffset);
     if ("ResizeObserver" in window) {
       new ResizeObserver(syncTabOffset).observe(topbar, { box: "border-box" });
-    } else {
-      window.addEventListener("resize", syncTabOffset);
     }
+    // Crossing the 900px breakpoint changes where the topbar parks without
+    // changing its height, so a ResizeObserver alone would not see it.
+    window.addEventListener("resize", syncTabOffset);
   }
 
   // ---- the sticky CTA ----------------------------------------------------
@@ -560,18 +697,67 @@
   function renderCta() {
     const checkingIn = Boolean(enrolled && todayKey);
     // Leaving is the primary action only when there is nothing to record --
-    // otherwise it steps aside into the icon button.
-    cta.classList.toggle("is-leave", enrolled && !checkingIn);
-    leaveBtn.hidden = !checkingIn;
-    if (!enrolled) cta.innerHTML = `${icons.check} ثبت‌نام در چالش`;
+    // otherwise it steps aside into the icon button. In a mandatory group
+    // challenge there is no leaving at all, so the fallback says *why*
+    // rather than offering a button that answers 403: a disabled control
+    // with no explanation is the same dead end as a failed request.
+    const canQuit = enrolled && !canLeave ? false : true;
+    cta.classList.toggle("is-leave", enrolled && !checkingIn && canQuit);
+    cta.classList.toggle("is-locked", enrolled && !checkingIn && !canQuit);
+    cta.disabled = enrolled && !checkingIn && !canQuit;
+    leaveBtn.hidden = !checkingIn || !canQuit;
+    if (!enrolled) cta.innerHTML = `${icons.check} پیوستن به چالش`;
     else if (checkingIn) cta.innerHTML = `${icons.check} ثبت نوبت امروز`;
+    else if (!canQuit) cta.innerHTML = `${icons.lock} چالش اجباری گروه`;
     else cta.innerHTML = `${icons.x} انصراف از چالش`;
+  }
+
+  // Whether joining this challenge is a question or a tap. The server
+  // decided (`asks_the_joiner`); the sheet below only asks it. Answering
+  // «ناشناس» in a challenge that names everyone would change nothing --
+  // `resolve_anonymity` is the authority -- so the question is not posed.
+  const identityAsksJoiner = {{ 'true' if identity_asks_joiner else 'false' }};
+  const identityOptions = {{ identity_options | tojson }};
+
+  // Asks the joiner how they want to appear, and resolves to the choice --
+  // or to null if they backed out. A `member_choice` challenge is the only
+  // one that reaches the sheet; everyone else gets the same confirm() this
+  // has always been, because there is nothing to decide.
+  function askJoinIdentity() {
+    return new Promise((resolve) => {
+      let answered = false;
+      createSheet({
+        title: "چطور عضو بشی؟",
+        confirmLabel: "پیوستن",
+        fields: [{
+          name: "identity", label: "نمایش تو در این چالش", type: "chips",
+          value: "named",
+          hint: "بعداً هم می‌تونی از همین صفحه تغییرش بدی.",
+          options: identityOptions
+            .filter((o) => o.value !== "member_choice")
+            .map((o) => ({ value: o.value, label: o.label, icon: o.icon })),
+        }],
+        onConfirm: async (values) => {
+          answered = true;
+          resolve(values.identity === "anonymous");
+          return true;
+        },
+        onClose: () => { if (!answered) resolve(null); },
+      });
+    });
   }
 
   async function toggleEnrollment() {
     if (busy) return;
-    const msg = enrolled ? "از این چالش انصراف می‌دی؟" : "می‌خوای در این چالش ثبت‌نام کنی؟";
-    if (!confirm(msg)) return;
+    let anonymous = false;
+    if (enrolled) {
+      if (!confirm("از این چالش انصراف می‌دی؟")) return;
+    } else if (identityAsksJoiner) {
+      anonymous = await askJoinIdentity();
+      if (anonymous === null) return; // sheet dismissed -- not a join
+    } else if (!confirm("می‌خوای در این چالش ثبت‌نام کنی؟")) {
+      return;
+    }
 
     busy = true;
     try {
@@ -580,7 +766,10 @@
         headers: enrolled ? undefined : { "Content-Type": "application/json" },
         body: enrolled
           ? undefined
-          : JSON.stringify({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
+          : JSON.stringify({
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+              is_anonymous: anonymous,
+            }),
       });
       if (res.status === 401) {
         window.location.href = `/views/auth/?next=/views/challenges/${challengeId}`;
@@ -613,6 +802,50 @@
     toggleEnrollment();
   });
   leaveBtn.addEventListener("click", toggleEnrollment);
+
+  // The anonymity switch. Optimistic and snapping back on failure, the same
+  // shape `initNotificationPrefs()` uses, because it is the same control
+  // writing the same single boolean -- and no «ذخیره» button for the same
+  // reason there is none there.
+  const identSwitch = document.querySelector("[data-anonymity]");
+  if (identSwitch) {
+    const identBtns = [...identSwitch.querySelectorAll("[data-anon]")];
+    // One place the two buttons are painted, so "which is on" is never
+    // spelled out twice and cannot disagree with itself.
+    const paintIdent = (anon) => identBtns.forEach((b) => {
+      const on = (b.dataset.anon === "true") === Boolean(anon);
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-checked", on ? "true" : "false");
+    });
+    let identBusy = false;
+    identSwitch.addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-anon]");
+      if (!btn || identBusy) return;
+      const wanted = btn.dataset.anon === "true";
+      if (btn.classList.contains("active")) return;
+      identBusy = true;
+      // Moved before the round trip so the tap answers instantly; the
+      // response repaints either way, so a refusal cannot leave it lying.
+      paintIdent(wanted);
+      const { ok, data } = await apiFetch(`/enrollments/${challengeId}/anonymity`, {
+        method: "PATCH",
+        body: { is_anonymous: wanted },
+      });
+      identBusy = false;
+      if (!ok) {
+        paintIdent(!wanted);
+        showToast("خطا: " + ((data && data.detail) || "ذخیره نشد"));
+        return;
+      }
+      // Painted from the response, not from the tap: the challenge's own
+      // policy is what decides, and a refusal must not leave the control
+      // claiming otherwise.
+      paintIdent(data.is_anonymous);
+      showToast(data.is_anonymous
+        ? "از این پس ناشناس دیده می‌شوی؛ نامت روی فهرست‌ها نیست."
+        : "از این پس با نام خودت روی فهرست‌ها دیده می‌شوی.");
+    });
+  }
 
   renderCta();
 
@@ -666,8 +899,8 @@
     createSheet({
       title: dateLabel,
       fields: fields,
-      confirmLabel: "تکمیل شد",
-      skipLabel: "رد کردم",
+      confirmLabel: "انجام شد",
+      skipLabel: "انجام ندادم",
       onConfirm: (values) => submit("completed", values),
       onSkip: (values) => submit("skipped", values),
     });
@@ -709,7 +942,10 @@
     const checkinId = btn.dataset.checkinId;
 
     createSheet({
-      title: row.querySelector(".tl-date").textContent.trim(),
+      // The timeline titled the sheet from its own row; the calendar's day
+      // pane carries the date once, in its heading.
+      title: (row.querySelector(".tl-date") || row.querySelector(".cal-day-head"))
+        .textContent.trim(),
       fields: fields,
       confirmLabel: "ذخیره",
       danger: {
@@ -744,24 +980,214 @@
     });
   }
 
-  const timeline = document.getElementById("historyTimeline");
-  if (timeline) {
-    timeline.addEventListener("click", (e) => {
-      const row = e.target.closest(".tl-row");
-      if (!row) return;
-      const editBtn = e.target.closest(".tl-edit");
+  // ---- the history calendar ----------------------------------------------
+  // Every occurrence of this enrollment, on the day it fell on. The month
+  // arithmetic is window.jalaliCalendar (jalali-picker.js) rather than a
+  // second copy -- see the note where it is exported.
+  const calRoot = document.getElementById("historyCalendar");
+  const calToggle = document.getElementById("calToggle");
+
+  if (calRoot && calToggle && historyCalendarData && window.jalaliCalendar) {
+    const jc = window.jalaliCalendar;
+    const days = historyCalendarData.days;
+    const marks = historyCalendarData.marks;
+    const stateLabels = {
+      completed: "تکمیل‌شده", skipped: "رد شده",
+      missed: "ازدست‌رفته", pending: "در انتظار",
+      upcoming: "نوبت پیش رو",
+    };
+
+    const grid = calRoot.querySelector(".cal-grid");
+    const title = calRoot.querySelector(".cal-title");
+    const dayPane = document.getElementById("calDay");
+
+    calRoot.querySelector(".cal-weekdays").innerHTML =
+      jc.WEEKDAY_LABELS.map((w) => `<span>${w}</span>`).join("");
+
+    // Everything the calendar has anything to say about -- occurrences past
+    // and future, plus the challenge's own milestones. Paging past either end
+    // would only show empty months, so the arrows stop there.
+    const minMonth = jc.toJalali(jc.parseIsoDate(historyCalendarData.start));
+    const maxMonth = jc.toJalali(jc.parseIsoDate(historyCalendarData.end));
+    const monthIndex = (m) => m.jy * 12 + m.jm;
+
+    // Opens on today rather than on the last month with content: "how am I
+    // doing" is a question about now, and a challenge running months ahead
+    // would otherwise land the member in an empty future.
+    let cursor = jc.toJalali(jc.parseIsoDate(historyCalendarData.today));
+    let selectedIso = null;
+
+    function renderDayPane() {
+      const entries = selectedIso ? days[selectedIso] : null;
+      if (!selectedIso) {
+        dayPane.hidden = true;
+        return;
+      }
+      dayPane.hidden = false;
+      const date = jc.parseIsoDate(selectedIso);
+      const heading =
+        `<div class="cal-day-head" data-jalali="${selectedIso}"` +
+        ` data-jalali-format="weekday-day-month">${selectedIso}</div>`;
+
+      // The challenge's own milestones lead the day: they are the reason the
+      // occurrences around them start, stop, or are missing entirely, so they
+      // belong above the occurrence rather than tacked on after it.
+      const dayMarks = (marks[selectedIso] || []).map(
+        (m) =>
+          `<div class="cal-mark ${m.kind}"><span data-icon="${
+            m.kind === "member_start" ? "seal" : "calendar"
+          }"></span>${m.label}</div>`
+      );
+
+      if (!entries || !entries.length) {
+        // A real answer, not an empty pane: most days of a "every Tuesday"
+        // challenge legitimately have nothing, and silence reads as a bug --
+        // but a day carrying only a milestone has plenty to say.
+        dayPane.innerHTML =
+          heading + dayMarks.join("") +
+          (dayMarks.length
+            ? ""
+            : `<p class="cal-day-empty">این چالش در این روز نوبتی نداشت.</p>`);
+        window.renderIcons(dayPane);
+        window.renderDates(dayPane);
+        return;
+      }
+
+      const rows = entries.map((e, i) => {
+        const bits = [stateLabels[e.state] || e.state];
+        if (e.amount) bits.push(`${e.amount} ${goalUnit || ""}`.trim());
+        if (entries.length > 1) bits.unshift(`نوبت ${i + 1}`);
+        const note = e.note
+          ? `<div class="cal-note">${e.note.replace(/[<&]/g, (c) =>
+              c === "<" ? "&lt;" : "&amp;")}</div>`
+          : "";
+        let action = "";
+        if (e.writable) {
+          action = `<button type="button" class="tl-action" data-cal-key="${e.key}">ثبت</button>`;
+        } else if (e.editable) {
+          action =
+            `<button type="button" class="tl-action tl-edit" data-cal-edit="1"` +
+            ` data-checkin-id="${e.checkin_id}" data-state="${e.state}"` +
+            ` data-amount="${e.amount}" data-note="${e.note.replace(/"/g, "&quot;")}"` +
+            `>ویرایش</button>`;
+        }
+        // Same .tl-row vocabulary the timeline used, so a day reads exactly
+        // the way the history list did -- badge, state, amount, action.
+        return (
+          `<div class="tl-row ${e.state}"><span class="tl-badge" aria-hidden="true"></span>` +
+          `<div class="tl-main"><div class="tl-meta">${bits.join(" · ")}</div>${note}</div>` +
+          action + `</div>`
+        );
+      });
+      dayPane.innerHTML = heading + dayMarks.join("") + rows.join("");
+      window.renderIcons(dayPane);
+      window.renderDates(dayPane);
+    }
+
+    function render() {
+      title.textContent =
+        `${jc.monthName(cursor.jy, cursor.jm)} ${jc.faNum(cursor.jy)}`;
+      const first = jc.toGregorian(cursor.jy, cursor.jm, 1);
+      const lead = jc.irWeekday(first);
+      const total = jc.daysInMonth(cursor.jy, cursor.jm);
+      const todayIso = historyCalendarData.today;
+
+      // Only the weeks the month actually occupies. The picker pads to a
+      // fixed six rows so its sheet does not change height between months;
+      // this grid sits inline in the page, where a trailing empty row is
+      // just a gap between the calendar and the day it is explaining.
+      const cellCount = Math.ceil((lead + total) / 7) * 7;
+      const cells = [];
+      for (let i = 0; i < cellCount; i++) {
+        const dayNumber = i - lead + 1;
+        if (dayNumber < 1 || dayNumber > total) {
+          cells.push('<span class="jp-cell jp-blank" aria-hidden="true"></span>');
+          continue;
+        }
+        const date = new Date(first.getTime() + (dayNumber - 1) * jc.DAY_MS);
+        const iso = jc.isoDate(date);
+        const entries = days[iso];
+        // A day's colour is the state of what it holds. With more than one
+        // occurrence the worst outstanding one wins, so a day that is half
+        // done never reads as finished; `upcoming` sorts last because a day
+        // that already asked something of you outranks one that has not.
+        let state = "";
+        if (entries && entries.length) {
+          for (const s of ["pending", "missed", "skipped", "completed", "upcoming"]) {
+            if (entries.some((e) => e.state === s)) { state = s; break; }
+          }
+        }
+        // A milestone is neither a status nor a category, so it gets a dot in
+        // the cell's own ink rather than a colour of its own -- the day pane
+        // is where it says which milestone it is.
+        const dayMarks = marks[iso];
+        const classes = [
+          "jp-cell", "cal-cell",
+          state ? "has-" + state : "is-blank",
+          dayMarks ? "has-mark" : "",
+          iso === todayIso ? "is-today" : "",
+          iso === selectedIso ? "is-selected" : "",
+        ].filter(Boolean).join(" ");
+        const label = dayMarks
+          ? ` aria-label="${jc.faNum(dayNumber)} — ${dayMarks
+              .map((m) => m.label).join("، ")}"`
+          : "";
+        cells.push(
+          `<button type="button" class="${classes}" data-iso="${iso}"${label}` +
+          ` aria-pressed="${iso === selectedIso}">${jc.faNum(dayNumber)}</button>`
+        );
+      }
+      grid.innerHTML = cells.join("");
+
+      const at = monthIndex(cursor);
+      calRoot.querySelector(".cal-prev").disabled = at <= monthIndex(minMonth);
+      calRoot.querySelector(".cal-next").disabled = at >= monthIndex(maxMonth);
+      renderDayPane();
+    }
+
+    function shift(months) {
+      let { jy, jm } = cursor;
+      jm += months;
+      while (jm > 12) { jm -= 12; jy += 1; }
+      while (jm < 1) { jm += 12; jy -= 1; }
+      const next = { jy, jm };
+      const at = monthIndex(next);
+      if (at < monthIndex(minMonth) || at > monthIndex(maxMonth)) return;
+      cursor = next;
+      render();
+    }
+
+    calRoot.querySelector(".cal-prev").addEventListener("click", () => shift(-1));
+    calRoot.querySelector(".cal-next").addEventListener("click", () => shift(1));
+
+    grid.addEventListener("click", (e) => {
+      const cell = e.target.closest(".cal-cell[data-iso]");
+      if (!cell) return;
+      // Tapping the open day closes it -- the pane is an answer to a
+      // question, and there has to be a way to stop asking.
+      selectedIso = cell.dataset.iso === selectedIso ? null : cell.dataset.iso;
+      render();
+    });
+
+    dayPane.addEventListener("click", (e) => {
+      const editBtn = e.target.closest("[data-cal-edit]");
       if (editBtn) {
-        openEditSheet(editBtn, row);
+        openEditSheet(editBtn, dayPane);
         return;
       }
-      const btn = e.target.closest(".tl-action");
-      if (btn) {
-        openCheckinSheet(btn.dataset.key, row.querySelector(".tl-date").textContent.trim());
-        return;
+      const btn = e.target.closest("[data-cal-key]");
+      if (btn) openCheckinSheet(btn.dataset.calKey,
+        dayPane.querySelector(".cal-day-head").textContent.trim());
+    });
+
+    calToggle.addEventListener("click", () => {
+      const open = calRoot.hidden;
+      calRoot.hidden = !open;
+      calToggle.setAttribute("aria-expanded", open ? "true" : "false");
+      if (open) {
+        render();
+        window.renderIcons(calRoot);
       }
-      // Recorded / expired rows explain themselves rather than sitting inert.
-      const meta = row.querySelector(".tl-meta");
-      showToast(`${row.querySelector(".tl-date").textContent.trim()} — ${meta.textContent.trim()}`);
     });
   }
 
@@ -787,11 +1213,17 @@
       "description": challenge.description or "",
       "rules": challenge.rules or "",
       "visibility": challenge.visibility,
+      "identity_mode": challenge.identity_mode,
       "lifecycle_status": challenge.lifecycle_status,
     } | tojson }};
     const visibilityOptions = {{ visibility_options | tojson }};
     const lifecycleOptions = {{ lifecycle_options | tojson }};
     const canDelete = {{ 'true' if can_delete else 'false' }};
+    // Locked by the same count that locks cadence and goal, and for the same
+    // kind of reason: changing it would rewrite the deal the people already
+    // here joined under. The sheet offers only what the API would accept, so
+    // it drops the field entirely rather than showing one that 409s.
+    const canEditIdentity = {{ 'true' if can_edit_identity else 'false' }};
 
     function asOptions(map) {
       return Object.entries(map).map(([value, label]) => ({ value, label }));
@@ -818,6 +1250,10 @@
     manageBtn.addEventListener("click", () => {
       createSheet({
         title: "مدیریت چالش",
+        // Why zamanbandi/hadaf are not in this sheet at all, and what
+        // «بایگانی» is for. The sheet shows only what the API would accept,
+        // so without this the absent fields look like an oversight.
+        explainHtml: {{ explain("locked-fields") | tojson }},
         confirmLabel: "ذخیره",
         fields: [
           { name: "title", label: "عنوان", required: true, maxlength: 50,
@@ -826,8 +1262,14 @@
             value: challengeData.description },
           { name: "rules", label: "قوانین", type: "textarea", rows: 3,
             value: challengeData.rules },
-          { name: "visibility", label: "دسترسی", type: "select",
+          { name: "visibility", label: "دسترسی دیدن", type: "select",
             options: asOptions(visibilityOptions), value: challengeData.visibility },
+          ...(canEditIdentity ? [{
+            name: "identity_mode", label: "هویت اعضا", type: "select",
+            options: identityOptions.map(({ value, label }) => ({ value, label })),
+            value: challengeData.identity_mode,
+            hint: "تا وقتی کسی عضو نشده قابل تغییر است.",
+          }] : []),
           { name: "lifecycle_status", label: "وضعیت", type: "select",
             options: asOptions(lifecycleOptions), value: challengeData.lifecycle_status },
         ],
@@ -840,6 +1282,7 @@
             visibility: values.visibility,
             lifecycle_status: values.lifecycle_status,
           };
+          if (canEditIdentity) payload.identity_mode = values.identity_mode;
           const { ok, status, data } = await apiFetch(`/challenges/${challengeId}`, {
             method: "PATCH",
             body: payload,

@@ -9,7 +9,7 @@
      THEMES — every colour in this file lives in one of the three blocks below
      and nowhere else. This block is the light theme «شن و مریم‌گلی»
      (sand & sage) and is the base; the two blocks after it restate the same
-     token names for the dark theme «شب روشن» (soft night), once for a device
+     token names for the dark theme «شب کرمی» (creamy night), once for a device
      that asks for dark and once for an explicit [data-theme="dark"].
      Nothing downstream may hardcode a colour — a rule that needs a tint uses
      rgba(var(--accent-rgb),a) rather than a second copy of the hex — so
@@ -80,6 +80,14 @@
   --cat-social:#b05788;       --cat-social-rgb:176,87,136;
   --cat-other:#6b7c8f;        --cat-other-rgb:107,124,143;
   --on-cat:#ffffff;
+
+  /* --- admin scope: the chrome that says "you are in the panel". A third
+     colour channel on purpose, and deliberately *chrome only* -- it paints
+     the topbar rule, the ambient wash and the mode strip, and never a card,
+     a pill or a swatch. Status (--st-*) and category (--cat-*) keep their
+     surfaces; this one only ever paints the frame around them, so nothing
+     on a page has to be read as two channels at once. --- */
+  --admin:#4f5d9f;            --admin-rgb:79,93,159;
 
   --st-active:#46806f;
   --st-upcoming:#b8863f;
@@ -167,44 +175,48 @@
 }
 
 /* --------------------------------------------------------------------------
-   Dark theme «شب روشن» (soft night) — the night-tile palette the app shipped
-   with, lifted off pure black and desaturated to pastel: the ground moves
-   #0b0f1f -> #161c33 and the three accents lose their neon so they can glow
-   without vibrating. Written twice on purpose — once for a device that asks
+   Dark theme «شب کرمی» (creamy night) — the *same room* as the sand theme with
+   the lamp switched off, not a second palette: the ground keeps the light
+   theme's warm hue and only drops in lightness (#f8f4ee -> #16120d,
+   #f0e9e0 -> #1e1913, #ffffff -> #272018), and every wash over it is tinted
+   with warm cream rgba(240,224,198,a) rather than the blue-white a neutral
+   overlay would give. The accents are the light theme's own hues pulled up
+   into pastel so they read on a dark ground without neon. Written twice on
+   purpose — once for a device that asks
    for dark (guarded so an explicit light choice still wins), once for the
    [data-theme] the toggle writes. Only the selector differs; keep the two
    value lists in sync when adding a token.
    -------------------------------------------------------------------------- */
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
-    --bg-0:#0f1220;
-    --bg-1:#161a2c;
-    --bg-2:#1d2238;
+    --bg-0:#16120d;
+    --bg-1:#1e1913;
+    --bg-2:#272018;
 
-    --glass:rgba(150,178,255,0.05);
-    --glass-strong:rgba(150,178,255,0.09);
-    --border:rgba(170,190,255,0.13);
-    --border-strong:rgba(180,200,255,0.22);
-    --glass-sheen:rgba(190,210,255,0.12);
+    --glass:rgba(240,224,198,0.05);
+    --glass-strong:rgba(240,224,198,0.09);
+    --border:rgba(242,228,205,0.13);
+    --border-strong:rgba(242,228,205,0.22);
+    --glass-sheen:rgba(250,238,220,0.12);
 
-    --fill-1:rgba(150,178,255,0.045);
-    --fill-2:rgba(150,178,255,0.07);
-    --track:rgba(160,180,255,0.09);
-    --fill-mute:rgba(160,180,255,0.13);
+    --fill-1:rgba(240,224,198,0.045);
+    --fill-2:rgba(240,224,198,0.07);
+    --track:rgba(240,224,198,0.09);
+    --fill-mute:rgba(240,224,198,0.13);
 
-    --fayrouzeh:#74d3b6;
-    --fayrouzeh-dim:#53b397;
-    --accent-rgb:116,211,182;
-    --mohr:#f4a19e;
-    --mohr-dim:#d5807e;
-    --mohr-rgb:244,161,158;
-    --gold:#edc478;
-    --gold-rgb:237,196,120;
+    --fayrouzeh:#7fc9ad;
+    --fayrouzeh-dim:#5da88f;
+    --accent-rgb:127,201,173;
+    --mohr:#eda893;
+    --mohr-dim:#cd8878;
+    --mohr-rgb:237,168,147;
+    --gold:#e3c07c;
+    --gold-rgb:227,192,124;
 
-    --on-accent:#0c3c30;
-    --on-gold:#3a2b0d;
-    --on-finished:#101623;
-    --danger-text:#f19d9f;
+    --on-accent:#0e2a22;
+    --on-gold:#35270a;
+    --on-finished:#16120d;
+    --danger-text:#ef9d92;
 
 
     /* --- one hue per challenge category (app/models/challenge.py). All six
@@ -214,32 +226,35 @@
        means "primary/live" everywhere else and a category may not borrow it.
        --on-cat is the ink on a *filled* category surface (the detail hero
        tile), the --on-accent of this scale. --- */
-    --cat-fitness:#9bca8b;      --cat-fitness-rgb:155,202,139;
-    --cat-nutrition:#eeac75;    --cat-nutrition-rgb:238,172,117;
-    --cat-mental:#c3a8ed;       --cat-mental-rgb:195,168,237;
-    --cat-productivity:#8dbbf0; --cat-productivity-rgb:141,187,240;
-    --cat-social:#e79dc3;       --cat-social-rgb:231,157,195;
-    --cat-other:#a5b6c8;        --cat-other-rgb:165,182,200;
-    --on-cat:#101623;
+    --cat-fitness:#9ac98a;      --cat-fitness-rgb:154,201,138;
+    --cat-nutrition:#e8b183;    --cat-nutrition-rgb:232,177,131;
+    --cat-mental:#c7a9e0;       --cat-mental-rgb:199,169,224;
+    --cat-productivity:#8fbde6; --cat-productivity-rgb:143,189,230;
+    --cat-social:#e5a1bf;       --cat-social-rgb:229,161,191;
+    --cat-other:#b3a898;        --cat-other-rgb:179,168,152;
+    --on-cat:#16120d;
 
-    --st-active:#74d3b6;
-    --st-upcoming:#edc478;
-    --st-finished:#99a5bb;
+    /* admin scope chrome -- see :root */
+    --admin:#a9b4ee;            --admin-rgb:169,180,238;
 
-    --text-1:#e9effb;
-    --text-2:#acb7d2;
-    --text-3:#8892ab;
+    --st-active:#7fc9ad;
+    --st-upcoming:#e3c07c;
+    --st-finished:#a29684;
 
-    --chrome-bg:rgba(15,18,32,0.70);
-    --chrome-bg-strong:rgba(15,18,32,0.88);
-    --sheet-bg:rgba(29,34,56,0.95);
-    --scrim:rgba(3,5,12,0.68);
-    --tour-veil:rgba(9,12,24,0.31);
+    --text-1:#f2ebe0;
+    --text-2:#b6a894;
+    --text-3:#948673;
+
+    --chrome-bg:rgba(22,18,13,0.70);
+    --chrome-bg-strong:rgba(22,18,13,0.88);
+    --sheet-bg:rgba(39,32,24,0.95);
+    --scrim:rgba(10,7,4,0.68);
+    --tour-veil:rgba(30,25,19,0.31);
 
     --amb-accent:0.20;
     --amb-mohr:0.13;
     --tile-opacity:.05;
-    --tile-url:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84' viewBox='0 0 84 84'%3E%3Cg fill='none' stroke='%2374d3b6' stroke-width='1'%3E%3Cpath d='M42 0 L84 42 L42 84 L0 42 Z'/%3E%3Ccircle cx='42' cy='42' r='18'/%3E%3C/g%3E%3C/svg%3E");
+    --tile-url:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84' viewBox='0 0 84 84'%3E%3Cg fill='none' stroke='%237fc9ad' stroke-width='1'%3E%3Cpath d='M42 0 L84 42 L42 84 L0 42 Z'/%3E%3Ccircle cx='42' cy='42' r='18'/%3E%3C/g%3E%3C/svg%3E");
 
     --glow-accent:0 0 26px rgba(var(--accent-rgb),0.26);
     --glow-accent-lift:0 10px 30px rgba(var(--accent-rgb),0.28);
@@ -258,34 +273,34 @@
 }
 
 :root[data-theme="dark"]{
-  --bg-0:#0f1220;
-  --bg-1:#161a2c;
-  --bg-2:#1d2238;
+  --bg-0:#16120d;
+  --bg-1:#1e1913;
+  --bg-2:#272018;
 
-  --glass:rgba(150,178,255,0.05);
-  --glass-strong:rgba(150,178,255,0.09);
-  --border:rgba(170,190,255,0.13);
-  --border-strong:rgba(180,200,255,0.22);
-  --glass-sheen:rgba(190,210,255,0.12);
+  --glass:rgba(240,224,198,0.05);
+  --glass-strong:rgba(240,224,198,0.09);
+  --border:rgba(242,228,205,0.13);
+  --border-strong:rgba(242,228,205,0.22);
+  --glass-sheen:rgba(250,238,220,0.12);
 
-  --fill-1:rgba(150,178,255,0.045);
-  --fill-2:rgba(150,178,255,0.07);
-  --track:rgba(160,180,255,0.09);
-  --fill-mute:rgba(160,180,255,0.13);
+  --fill-1:rgba(240,224,198,0.045);
+  --fill-2:rgba(240,224,198,0.07);
+  --track:rgba(240,224,198,0.09);
+  --fill-mute:rgba(240,224,198,0.13);
 
-  --fayrouzeh:#74d3b6;
-  --fayrouzeh-dim:#53b397;
-  --accent-rgb:116,211,182;
-  --mohr:#f4a19e;
-  --mohr-dim:#d5807e;
-  --mohr-rgb:244,161,158;
-  --gold:#edc478;
-  --gold-rgb:237,196,120;
+  --fayrouzeh:#7fc9ad;
+  --fayrouzeh-dim:#5da88f;
+  --accent-rgb:127,201,173;
+  --mohr:#eda893;
+  --mohr-dim:#cd8878;
+  --mohr-rgb:237,168,147;
+  --gold:#e3c07c;
+  --gold-rgb:227,192,124;
 
-  --on-accent:#0c3c30;
-  --on-gold:#3a2b0d;
-  --on-finished:#101623;
-  --danger-text:#f19d9f;
+  --on-accent:#0e2a22;
+  --on-gold:#35270a;
+  --on-finished:#16120d;
+  --danger-text:#ef9d92;
 
   /* --- one hue per challenge category (app/models/challenge.py). All six
      sit at the same OKLCH lightness (~.78) and chroma (~.10) so no category
@@ -294,32 +309,35 @@
      means "primary/live" everywhere else and a category may not borrow it.
      --on-cat is the ink on a *filled* category surface (the detail hero
      tile), the --on-accent of this scale. --- */
-  --cat-fitness:#9bca8b;      --cat-fitness-rgb:155,202,139;
-  --cat-nutrition:#eeac75;    --cat-nutrition-rgb:238,172,117;
-  --cat-mental:#c3a8ed;       --cat-mental-rgb:195,168,237;
-  --cat-productivity:#8dbbf0; --cat-productivity-rgb:141,187,240;
-  --cat-social:#e79dc3;       --cat-social-rgb:231,157,195;
-  --cat-other:#a5b6c8;        --cat-other-rgb:165,182,200;
-  --on-cat:#101623;
+  --cat-fitness:#9ac98a;      --cat-fitness-rgb:154,201,138;
+  --cat-nutrition:#e8b183;    --cat-nutrition-rgb:232,177,131;
+  --cat-mental:#c7a9e0;       --cat-mental-rgb:199,169,224;
+  --cat-productivity:#8fbde6; --cat-productivity-rgb:143,189,230;
+  --cat-social:#e5a1bf;       --cat-social-rgb:229,161,191;
+  --cat-other:#b3a898;        --cat-other-rgb:179,168,152;
+  --on-cat:#16120d;
 
-  --st-active:#74d3b6;
-  --st-upcoming:#edc478;
-  --st-finished:#99a5bb;
+  /* admin scope chrome -- see :root */
+  --admin:#a9b4ee;            --admin-rgb:169,180,238;
 
-  --text-1:#e9effb;
-  --text-2:#acb7d2;
-  --text-3:#8892ab;
+  --st-active:#7fc9ad;
+  --st-upcoming:#e3c07c;
+  --st-finished:#a29684;
 
-  --chrome-bg:rgba(15,18,32,0.70);
-  --chrome-bg-strong:rgba(15,18,32,0.88);
-  --sheet-bg:rgba(29,34,56,0.95);
-  --scrim:rgba(3,5,12,0.68);
-  --tour-veil:rgba(9,12,24,0.31);
+  --text-1:#f2ebe0;
+  --text-2:#b6a894;
+  --text-3:#948673;
+
+  --chrome-bg:rgba(22,18,13,0.70);
+  --chrome-bg-strong:rgba(22,18,13,0.88);
+  --sheet-bg:rgba(39,32,24,0.95);
+  --scrim:rgba(10,7,4,0.68);
+  --tour-veil:rgba(30,25,19,0.31);
 
   --amb-accent:0.20;
   --amb-mohr:0.13;
   --tile-opacity:.05;
-  --tile-url:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84' viewBox='0 0 84 84'%3E%3Cg fill='none' stroke='%2374d3b6' stroke-width='1'%3E%3Cpath d='M42 0 L84 42 L42 84 L0 42 Z'/%3E%3Ccircle cx='42' cy='42' r='18'/%3E%3C/g%3E%3C/svg%3E");
+  --tile-url:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84' viewBox='0 0 84 84'%3E%3Cg fill='none' stroke='%237fc9ad' stroke-width='1'%3E%3Cpath d='M42 0 L84 42 L42 84 L0 42 Z'/%3E%3Ccircle cx='42' cy='42' r='18'/%3E%3C/g%3E%3C/svg%3E");
 
   --glow-accent:0 0 26px rgba(var(--accent-rgb),0.26);
   --glow-accent-lift:0 10px 30px rgba(var(--accent-rgb),0.28);
@@ -366,6 +384,7 @@ body{
   background-image:var(--tile-url);
   background-size:84px 84px;
 }
+
 
 a{color:inherit; text-decoration:none;}
 button{font-family:inherit;}
@@ -516,6 +535,30 @@ ul{list-style:none; margin:0; padding:0;}
   background:var(--mohr); border:2px solid var(--bg-0);
   transform:translate(11px,-11px);
 }
+/* The notification bell's unread count. A number rather than the bare dot
+   above, because "something happened" and "eleven things happened" are
+   different messages and the bell is the only place either is delivered.
+   It is `hidden` until app.js has a count, so a member with nothing unread
+   -- and a page that could not reach the server -- gets a plain bell rather
+   than a badge reading zero.
+
+   Placed to match `.has-dot` exactly, with a physical corner rather than a
+   logical one: the two marks sit on the same control in the same header, and
+   one flipping sides per direction while the other did not would read as a
+   bug. The ring is `--bg-0`, so the badge lifts off whatever passes under
+   the translucent topbar. */
+.icon-badge{
+  position:absolute; top:-4px; right:-4px;
+  min-width:18px; height:18px; padding:0 5px; border-radius:999px;
+  display:grid; place-items:center;
+  font-size:10.5px; font-weight:800; line-height:1;
+  background:var(--mohr); color:var(--on-accent);
+  border:2px solid var(--bg-0);
+  /* The count is decoration on top of the link's own label, which app.js
+     rewrites to carry the number -- announcing it twice is worse than once. */
+  pointer-events:none;
+}
+.icon-badge[hidden]{display:none;}
 
 /* --- greeting / hero --- */
 .hero{padding:6px 20px 18px;}
@@ -722,8 +765,11 @@ ul{list-style:none; margin:0; padding:0;}
   .nav-item svg{width:18px; height:18px;}
   .nav-item:hover{color:var(--text-1); background:var(--glass);}
   .nav-item.active{background:rgba(var(--accent-rgb),0.12);}
-  /* the sticky header parks under the nav instead of colliding with it */
-  .topbar{top:var(--nav-top-h);}
+  /* the sticky header parks under the nav instead of colliding with it --
+     but only on a page that *has* the nav. The wizard drops it, and an
+     unconditional offset there pushes the header down over a shell with no
+     matching padding, so the page starts out already underneath it. */
+  .shell:has(.bottom-nav) .topbar{top:var(--nav-top-h);}
 }
 
 /* ==========================================================================
@@ -780,6 +826,49 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
      the header onto a second line or shoving the actions off the edge. */
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
+/* ==========================================================================
+   Admin scope — "am I in the panel, or just browsing?"
+   --------------------------------------------------------------------------
+   The admin screens reuse the member-facing primitives on purpose
+   (.settings-page, .setting-row, the challenge list's .seg and .search-bar),
+   so nothing *inside* the page tells an operator which mode they are in. The
+   answer goes in the topbar, which is sticky and therefore on screen at every
+   scroll position of every admin page: the action slot's glyph, and the
+   colour of the page's own name in the trail.
+
+   Both are still, not pulsing. A marker that moves forever is read once and
+   then filtered out by the eye, and it would have to be switched off under
+   prefers-reduced-motion -- which is to say it would be missing for the
+   readers least able to spare it. Persistence does the work instead.
+
+   --admin is chrome only. It never paints a card, a pill or a swatch, so a
+   roster row's status (--st-*) and category (--cat-*) colours keep meaning
+   exactly what they mean on every other screen.
+   ========================================================================== */
+
+/* The shield that replaces the bell. Tinted rather than merely coloured: at
+   18px a glyph swap alone is a difference you have to look for, and the whole
+   job of this control is being noticed without being looked for. */
+.icon-btn.admin-mark{
+  background:rgba(var(--admin-rgb),0.12);
+  border-color:rgba(var(--admin-rgb),0.38);
+  color:var(--admin);
+}
+.icon-btn.admin-mark:hover{
+  background:rgba(var(--admin-rgb),0.20);
+  color:var(--admin);
+}
+
+/* ...and the page's own name beside it. Only the *current* crumb takes the
+   hue -- the trail behind it may well run back through member-facing pages,
+   and colouring those would say they were part of the panel. The glow is the
+   --glow-text pattern in the admin hue: enough to catch the eye on arrival,
+   not enough to compete with the shield. */
+body[data-admin-scope] .crumb.current{
+  color:var(--admin);
+  text-shadow:0 0 14px rgba(var(--admin-rgb),0.28);
+}
+
 .crumb-sep{flex-shrink:0; display:grid; place-items:center; color:var(--text-3); opacity:.55;}
 .crumb-sep svg{width:11px; height:11px;}
 
@@ -838,6 +927,14 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 .field-input:has(textarea){align-items:stretch;}
 .field-input input::placeholder{color:var(--text-3);}
 .field-toggle{cursor:pointer; color:var(--text-3);}
+/* One line under a sheet or wizard field saying what the choice means --
+   same type scale as a settings row's .sr-hint, since it does the same job.
+   A choice whose consequence is not on screen is a choice made blind. */
+.field-note{margin:6px 2px 0; font-size:11.5px; color:var(--text-3); line-height:1.7;}
+/* The operator roster's «ناشناس» mark. Not a colour of its own: it is
+   neither a status nor a category, and those two channels never share a
+   surface -- weight and ink are enough to make it scannable. */
+.anon-mark{color:var(--text-2); font-weight:600;}
 
 /* --- avatar picker (signup) ---
    A 40-tile grid would push the submit button off-screen, so the grid scrolls
@@ -892,6 +989,86 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 }
 .divider::before, .divider::after{content:""; flex:1; height:1px; background:var(--border);}
 
+/* --- SMS one-time code ---
+   Two steps on one card rather than two screens: the second step has to keep
+   naming the number the code went to, and the commonest failure in this flow
+   is a typo in that number -- a member who has navigated away from it cannot
+   check. `.otp-target` is therefore a line, not a heading, with the correction
+   right next to it.
+
+   Everything here is neutral. Colour in this app carries status and category
+   and nothing else (CLAUDE.md, "Colour carries two channels"), and a login
+   screen is neither; the accent is spent only on the one control the member is
+   meant to press, exactly as `.btn-primary` already does. */
+.otp-target{
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  flex-wrap:wrap; margin:0 0 18px; font-size:12.5px; color:var(--text-3);
+}
+.otp-target b{color:var(--text-1); font-weight:700; direction:ltr; unicode-bidi:isolate;}
+.otp-target button{
+  border:none; background:transparent; padding:2px 4px; cursor:pointer;
+  font-family:inherit; font-size:12.5px; font-weight:700; color:var(--fayrouzeh);
+}
+
+/* The boxes run left-to-right inside an RTL page because a number does:
+   the first digit of the code the member reads in the SMS has to be the box
+   their cursor starts in, or every paste and every autofill lands reversed. */
+.otp-code{
+  display:grid; grid-template-columns:repeat(6, 1fr); gap:8px;
+  direction:ltr; margin-bottom:16px;
+}
+.otp-digit{
+  width:100%; aspect-ratio:1/1.15; text-align:center;
+  background:var(--fill-1); border:1px solid var(--border);
+  border-radius:var(--radius-sm); color:var(--text-1);
+  font-family:inherit; font-size:20px; font-weight:800;
+  outline:none; padding:0; min-width:0;
+  transition:border-color .15s var(--ease), background .15s var(--ease);
+}
+.otp-digit:focus{border-color:var(--fayrouzeh); background:var(--fill-2);}
+.otp-digit.filled{border-color:var(--fayrouzeh-dim);}
+/* Chrome/Safari draw spinners on a numeric field, which would put two tiny
+   arrows inside a 44px box that is only ever typed into. */
+.otp-digit::-webkit-outer-spin-button, .otp-digit::-webkit-inner-spin-button{
+  -webkit-appearance:none; margin:0;
+}
+.otp-digit{-moz-appearance:textfield; appearance:textfield;}
+
+/* The countdown is the *whole* control until it reaches zero: offering a
+   resend button that answers 429 would be a control that lies. */
+.otp-resend{
+  text-align:center; margin-top:14px; font-size:12.5px; color:var(--text-3);
+}
+.otp-resend button{
+  border:none; background:transparent; cursor:pointer; padding:4px;
+  font-family:inherit; font-size:12.5px; font-weight:700; color:var(--fayrouzeh);
+}
+.otp-resend button[disabled]{color:var(--text-3); cursor:default; font-weight:600;}
+
+/* Errors are inline and persistent, not a toast: a toast that fades takes the
+   only explanation of a refusal with it, and this is the one screen a member
+   cannot navigate past to go and re-read it. `--mohr` is the app's existing
+   refusal colour. */
+.auth-error{
+  display:none; margin:0 0 14px; padding:10px 12px;
+  border-radius:var(--radius-sm); font-size:12.5px; line-height:1.7;
+  background:rgba(var(--mohr-rgb), .12); color:var(--mohr);
+  border:1px solid rgba(var(--mohr-rgb), .28);
+}
+.auth-error.show{display:block;}
+
+/* The other way in. It is a link under the card rather than a third tab,
+   because signing in by SMS is the path essentially everybody takes and a
+   pair of equally-weighted tabs would ask a question most members have no
+   reason to answer. */
+.auth-alt{text-align:center; margin-top:16px;}
+.auth-alt button{
+  border:none; background:transparent; cursor:pointer; padding:6px;
+  font-family:inherit; font-size:12.5px; font-weight:700; color:var(--text-2);
+  display:inline-flex; align-items:center; gap:6px;
+}
+.auth-alt button svg{width:15px; height:15px;}
+
 /* ==========================================================================
    Explore (global challenge list)
    ========================================================================== */
@@ -929,6 +1106,9 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
    Three mutually exclusive states, so a segmented control rather than more
    chips: chips read as an additive multi-select next to the category row. */
 .seg-row{padding:0 20px 14px;}
+/* A row that carries an explainer becomes a row: the dot sits beside the
+   segmented control it explains, not under it. */
+.seg-row:has(> .explain-dot){display:flex; align-items:center;}
 .seg{
   display:flex; gap:4px; background:var(--glass); border:1px solid var(--border);
   border-radius:999px; padding:3px;
@@ -1015,12 +1195,65 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 /* ==========================================================================
    Challenge detail
    ========================================================================== */
+/* The hero's pane fades out from the top centre: solid where the icon and
+   the title sit, dissolving to a ~8% ghost at the side and bottom edges, so
+   the card reads as a wash of glass the page comes *out* of rather than as a
+   rectangle stuck onto it. The falloff is the same emanating shape as the
+   category glow above it, one radius wider, so the two agree.
+
+   It is a mask on a pane *layer*, not on the element: masking .detail-hero
+   itself would fade the title and the numbers with it. So the element hands
+   its .glass paint over to ::after -- background, hairline, sheen and the
+   backdrop blur together, since a blur that outlived the pane would stay as a
+   visible smudge past the edge where there is no longer any glass to blur.
+   The outer drop shadow goes: a pane whose own edge is a quarter opaque
+   cannot cast a hard shadow onto the page. Where mask-image is unsupported the layer
+   simply paints whole, which is the flat card this replaced.
+   ::after is behind the content (z-index:-1, contained by the isolate) and
+   behind ::before, so the category wash still reads on top of it. */
 .detail-hero{
   margin:0 20px 18px; padding:26px 20px; text-align:center; position:relative; overflow:hidden;
+  isolation:isolate;
+  --hero-fade:radial-gradient(68% 96% at 50% 0%,
+    #000 0%, #000 30%, rgba(0,0,0,0.78) 56%, rgba(0,0,0,0.45) 80%, rgba(0,0,0,0.25) 100%);
+  /* The rim: one hairline whose *brightness* varies down the card instead of
+     one uniform bright outline. It opens on --glass-sheen (the "lit edge of
+     glass" token) and has settled onto the ordinary --border hairline within
+     the first fifth of the height -- so the light reads as a reflection
+     arriving from above and catching the top edge, then sliding off down the
+     sides, rather than as a drawn frame. The line itself is 1px everywhere;
+     nothing about it is thick. */
+  --hero-rim:linear-gradient(to bottom,
+    var(--glass-sheen) 0%, var(--glass-sheen) 3%, var(--border) 20%, var(--border) 100%);
+}
+/* the .glass paint is moved to ::after below; the border stays as transparent
+   ink so the element keeps the exact box it had */
+.detail-hero.glass{
+  background:none; border-color:transparent; box-shadow:none;
+  backdrop-filter:none; -webkit-backdrop-filter:none;
+}
+.detail-hero.glass::after{
+  content:""; position:absolute; inset:0; z-index:-1; pointer-events:none;
+  border-radius:inherit;
+  /* the classic two-background ring: the pane paints to the padding box, the
+     rim gradient to the border box, so a 1px transparent border *is* the line.
+     A gradient cannot be drawn with box-shadow, and the alternative -- a stack
+     of identical rings compounding one faint alpha -- is what made the edge
+     read as a hard frame instead of a reflection. */
+  border:1px solid transparent;
+  background:
+    linear-gradient(var(--glass), var(--glass)) padding-box,
+    var(--hero-rim) border-box;
+  backdrop-filter:blur(20px) saturate(140%);
+  -webkit-backdrop-filter:blur(20px) saturate(140%);
+  -webkit-mask-image:var(--hero-fade);
+  mask-image:var(--hero-fade);
 }
 .detail-hero::before{
-  content:""; position:absolute; inset:0;
+  content:""; position:absolute; inset:0; border-radius:inherit;
   background:radial-gradient(60% 80% at 50% -10%, rgba(var(--accent-rgb),0.18), transparent 70%);
+  -webkit-mask-image:var(--hero-fade);
+  mask-image:var(--hero-fade);
 }
 .detail-icon{
   width:56px; height:56px; border-radius:16px; margin:0 auto 14px;
@@ -1036,8 +1269,14 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
   display:grid; grid-template-columns:repeat(3,1fr);
   margin:16px 0 0; position:relative; z-index:1;
 }
-.detail-stats div{text-align:center; border-inline-start:1px solid var(--border);}
-.detail-stats div:first-child{border-inline-start:none;}
+/* The stats sit in the pane's faded tail, so their dividers fade with it --
+   a hairline at full strength there would draw the edge the card is busy
+   dissolving. Same colour token, laid down as a gradient instead of a border. */
+.detail-stats div{text-align:center; position:relative;}
+.detail-stats div + div::before{
+  content:""; position:absolute; inset-block:0; inset-inline-start:0; width:1px;
+  background:linear-gradient(to bottom, var(--border), transparent);
+}
 .detail-stats b{display:block; font-size:16px; font-weight:800;}
 .detail-stats span{font-size:11px; color:var(--text-3);}
 .detail-stats .gold b{color:var(--gold); display:flex; align-items:center; justify-content:center; gap:4px;}
@@ -1110,7 +1349,6 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 .tl-action.solid{width:100%; border-radius:var(--radius-sm); padding:10px; margin-top:10px;}
 
 .tl-empty{padding:22px 14px; text-align:center; font-size:12.5px; color:var(--text-3);}
-.tl-more{font-size:11px; color:var(--text-3); margin:9px 2px 0; text-align:center;}
 
 /* --- history: recurring_quota period rows ---
    A quota has no per-day slot of its own, so the period is the unit. */
@@ -1172,6 +1410,13 @@ a.crumb:focus-visible{outline:2px solid var(--fayrouzeh); outline-offset:2px; bo
 }
 .sheet-head h3{font-size:15.5px; font-weight:800; margin:0;}
 .sheet-body{display:flex; flex-direction:column; gap:14px; margin:0;}
+/* A sheet's own read-only paragraph: what the reader has to have in front of
+   them before they press the button. Body-scale rather than `.field-note`'s
+   hint scale, because this *is* the sheet's content and not an aside on a
+   control; `is-danger` tints it with the ink a destructive label already
+   wears, so the colour says nothing new. */
+.sheet-note{margin:0; font-size:12.5px; line-height:1.9; color:var(--text-2);}
+.sheet-note.is-danger{color:var(--danger-text);}
 .sheet-actions{display:flex; gap:10px; margin-top:18px;}
 .sheet-actions button{flex:1;}
 .sheet-actions .primary{
@@ -1273,6 +1518,24 @@ button.profile-avatar .edit-badge{background:var(--fayrouzeh); color:var(--on-ac
 .profile-info .fact dd.is-empty{color:var(--text-3); font-weight:500;}
 .profile-info .info-note{font-size:11.5px; color:var(--text-3); line-height:1.7; margin:8px 2px 0;}
 
+/* An operator reading someone else's profile. The tint is the accent's --
+   this is the app speaking about who you are right now, which is the accent
+   channel, not a status and not a category, so neither of those two hues may
+   appear here. It is a tinted fill over `--accent-rgb` rather than a second
+   copy of a colour, so both themes are covered by the token they already
+   ship. */
+.profile-note{padding:0 20px; margin:0 0 14px;}
+.profile-note span{
+  display:block; padding:10px 14px; border-radius:14px;
+  background:rgba(var(--accent-rgb),.10);
+  font-size:11.5px; line-height:1.8; color:var(--text-2);
+}
+/* The role row on a profile: the settings screen's own group primitive,
+   given this page's horizontal padding. It borrows `.setting-group` rather
+   than growing a look of its own -- a labelled row showing its current value
+   is exactly what that control already is. */
+.profile-admin{padding:0 20px 18px;}
+
 .menu-list{display:flex; flex-direction:column; gap:10px; padding:0 20px;}
 .menu-item{
   display:flex; align-items:center; gap:12px; padding:14px 16px; cursor:pointer;
@@ -1323,6 +1586,54 @@ a.setting-row, .setting-row[role="button"]{cursor:pointer;}
 /* the options sit under the row's own text, so the label reads as the
    question and the control as its answer */
 .setting-row .seg{margin-top:12px;}
+/* The switch -- the settings screen's yes/no control (notification kinds
+   today). A real `<input type=checkbox>` does the work: it is focusable,
+   keyboard-operable and announced without a line of JS, and the whole
+   `.sr-head` is its `<label>`, so tapping anywhere on the row flips it. The
+   input is hidden from sight but never from the accessibility tree or the
+   tab order -- `opacity:0` over the track rather than `display:none`, which
+   would take it out of both.
+
+   `--fayrouzeh` (the primary accent) for on, `--track` for off, and the knob's travel is mirrored by
+   `dir` on purpose: in RTL "on" reads to the left, and using a logical
+   `inset-inline-start` for the knob makes that fall out of the direction
+   rather than out of a second rule. Colour is not the only mark -- the knob
+   moves, which is what carries the state where colour cannot. */
+.switch{position:relative; flex-shrink:0; width:44px; height:26px;}
+.switch input{
+  position:absolute; inset:0; width:100%; height:100%;
+  margin:0; opacity:0; cursor:pointer; z-index:1;
+}
+.switch-track{
+  display:block; position:relative; width:100%; height:100%; border-radius:999px;
+  background:var(--track); border:1px solid var(--border);
+  transition:background .18s var(--ease), border-color .18s var(--ease);
+}
+.switch-knob{
+  position:absolute; top:3px; inset-inline-start:3px;
+  width:18px; height:18px; border-radius:50%;
+  background:var(--bg-1); box-shadow:0 1px 3px rgba(0,0,0,.28);
+  transition:translate .18s var(--ease), background .18s var(--ease);
+}
+.switch input:checked + .switch-track{
+  background:var(--fayrouzeh); border-color:transparent;
+  box-shadow:var(--glow-accent);
+}
+.switch input:checked + .switch-track .switch-knob{
+  translate:calc(18px * var(--switch-dir, 1)) 0;
+  background:var(--on-accent);
+}
+[dir="rtl"] .switch{--switch-dir:-1;}
+.switch input:focus-visible + .switch-track{
+  outline:2px solid var(--fayrouzeh); outline-offset:2px;
+}
+/* Mid-flight: the row is showing what the server has not confirmed yet, so
+   it says so rather than looking settled. */
+.switch.is-saving{opacity:.55;}
+/* The notification rows are labels wrapping a control, so the label must lay
+   out like the `.sr-head` it replaces and must not inherit the pointer-less
+   look of a static row. */
+label.sr-head{cursor:pointer; width:100%;}
 .settings-note{font-size:11.5px; color:var(--text-3); margin:2px 2px 0; text-align:center;}
 
 /* --- Admin panel (app/templates/admin/index.html) ---
@@ -1355,6 +1666,28 @@ a.setting-row, .setting-row[role="button"]{cursor:pointer;}
 }
 .role-pill.is-admin{background:rgba(var(--accent-rgb),.14); color:var(--fayrouzeh);}
 
+/* «در انتظار تایید» — a member who is in the group but not yet approved for
+   its standing challenges. It takes --gold, which already means "worth
+   noticing" on the streak tiles, rather than --mohr: waiting for an approval
+   is not an error, and the red one would read as a fault in the member.
+   Drawn only while it is true (the row hides it otherwise), because a pill
+   on every settled row is thirty pills saying nothing. */
+.trust-pill{
+  flex-shrink:0; padding:3px 9px; border-radius:999px;
+  font-size:10.5px; font-weight:700;
+  background:rgba(var(--gold-rgb),0.16); color:var(--gold);
+  border:1px solid rgba(var(--gold-rgb),0.32);
+}
+.trust-pill[hidden]{display:none;}
+
+/* The approval queue on the manage screen shares the request queue's row:
+   an avatar, two lines and one button, so the two queues read as two of the
+   same thing rather than two designs. */
+.trust-row .mr-avatar{
+  width:36px; height:36px; border-radius:50%; background:var(--bg-1);
+  object-fit:cover; flex-shrink:0;
+}
+
 /* The roster's search box and role segment are the challenge list's own
    controls, reused verbatim so the app has one way to filter a list rather
    than two. Both were built for a full-bleed page and carry the 20px page
@@ -1380,6 +1713,77 @@ a.setting-row, .setting-row[role="button"]{cursor:pointer;}
   color:var(--cat, var(--fayrouzeh));
 }
 .admin-cat svg{width:17px; height:17px;}
+/* The panel's three counts are links into the lists they count, so they take
+   the shared press feedback and a hover lift like every other tappable card.
+   `text-decoration:none` and `color:inherit` are on `.setting-row`, not
+   here, so they are restated for these. */
+a.admin-stat{text-decoration:none; color:inherit;}
+
+/* The participants drill-down on a moderation row. A second line rather than
+   a fourth item in `.sr-head`: a 34px tile, a two-line title, a status pill
+   and a chevron already fill the row's width on a phone, and squeezing a
+   fifth control in is how the title starts truncating. The hairline is what
+   makes it read as its own target instead of a sentence someone wrote. */
+.sr-foot{margin-top:10px; padding-top:10px; border-top:1px solid var(--border);}
+.admin-members-link{
+  display:flex; align-items:center; gap:7px;
+  font-size:12px; font-weight:600; color:var(--fayrouzeh);
+  text-decoration:none;
+}
+.admin-members-link svg{width:15px; height:15px;}
+/* The chevron is pushed to the far end so the link spans the row and the
+   whole line is the target, not just the words. */
+.admin-members-link .sr-chev{margin-inline-start:auto; color:inherit;}
+/* A read-only row: nothing to open, so it must not offer a pointer or the
+   press squeeze the actionable rows use (see admin/_participant_rows.html
+   for why removal is not a moderation power). */
+.admin-participant{cursor:default;}
+
+/* ==========================================================================
+   Notifications  (/views/notifications/)
+   ==========================================================================
+   The feed reuses the settings screen's primitives (.settings-page,
+   .setting-group, .setting-row) rather than owning a layout: it is the same
+   shape of question -- a column of rows, each a label, a line of detail and a
+   mark -- and a third variant of that column would be a third thing to keep
+   in step with the other two.
+
+   Colour here means exactly one thing: **unread**. A notification is neither
+   a status nor a category, so it takes neither of those two channels' hues
+   (see the colour rules at the top of this file); the accent is spent on the
+   one distinction the list is actually scanned for, and it is spelled out by
+   the «تازه» pill as well, because colour alone may not carry a meaning. */
+.notif-list{display:flex; flex-direction:column; gap:10px;}
+/* A neutral tile by default -- the glyph says *what kind* of event this was,
+   which is a label, not a signal. It lights up only while the row is unread,
+   so the accent enters and leaves with the one meaning it has here. */
+.notif-icon{
+  width:34px; height:34px; border-radius:12px; flex-shrink:0;
+  display:grid; place-items:center;
+  background:var(--fill-1); color:var(--text-2);
+  transition:background .2s var(--ease), color .2s var(--ease);
+}
+.notif-icon svg{width:17px; height:17px;}
+/* Three marks for one state, none of them load-bearing alone: a warmer
+   border, the lit tile, and the pill that says the word. */
+.notif-row.is-unread{border-color:rgba(var(--accent-rgb),.34);}
+.notif-row.is-unread .notif-icon{
+  background:rgba(var(--accent-rgb),.14); color:var(--fayrouzeh);
+}
+.notif-row.is-unread .sr-label{font-weight:700;}
+.notif-new{
+  font-size:10.5px; font-weight:700; padding:3px 8px; border-radius:999px;
+  background:rgba(var(--accent-rgb),.14); color:var(--fayrouzeh); flex-shrink:0;
+}
+/* When it happened, under the sentence rather than beside it: the row already
+   carries a tile, two lines of text, a pill and a chevron, and a fifth item
+   in `.sr-head` is what starts truncating the sentence on a phone. */
+.notif-time{font-size:11px; color:var(--text-3); margin-top:2px;}
+/* A row whose kind names no challenge has nowhere to go, so it must not
+   offer a pointer or the press squeeze the tappable rows use. */
+.notif-row.is-static{cursor:default;}
+/* An empty feed is the good case, not a failure -- it gets room to say so. */
+.notif-feed .empty{padding:44px 24px;}
 /* .status-pill paints itself from --st, which on the public list comes from
    the card. Here the pill stands alone, so it carries its own. */
 .status-pill.st-active{--st:var(--st-active);}
@@ -1745,7 +2149,9 @@ a.setting-row, .setting-row[role="button"]{cursor:pointer;}
 .detail-tabs{
   /* the topbar is sticky too (z-index 25), so this has to stop *below* it
      rather than slide underneath. Its height depends on how the challenge
-     title wraps, so the page script measures it into --topbar-h. */
+     title wraps, and on desktop it parks under the top nav rather than at 0
+     -- so the page script measures where its bottom edge lands (parked
+     offset + height) into --topbar-h. */
   position:sticky; top:var(--topbar-h, 0px); z-index:20;
   display:flex; gap:6px; margin:0 20px 14px; padding:4px;
   border-radius:999px;
@@ -1788,7 +2194,18 @@ a.setting-row, .setting-row[role="button"]{cursor:pointer;}
 .ring{width:100%; height:100%; transform:rotate(-90deg);}
 .ring circle{fill:none; stroke-width:5;}
 .ring-track{stroke:var(--track);}
-.ring-fill{stroke:var(--fayrouzeh); stroke-linecap:round;}
+/* one wedge per state -- butt caps so adjoining segments meet with no seam,
+   same four colours as .lg-dot / .occ so the ring, the legend and the strip
+   never disagree about what a colour means */
+.ring-seg{stroke-linecap:butt;}
+.ring-seg.completed{stroke:var(--fayrouzeh);}
+/* --border-strong, not the dot's --fill-mute: that token is a hair off
+   --track in light, so as a stroke the wedge would vanish into the ring it
+   is meant to be a share of. The dot gets away with it by drawing an inset
+   outline, which a stroke has no way to carry. */
+.ring-seg.skipped{stroke:var(--border-strong);}
+.ring-seg.missed{stroke:rgba(var(--mohr-rgb),0.62);}
+.ring-seg.pending{stroke:rgba(var(--gold-rgb),0.55);}
 .ring-center{
   position:absolute; inset:0; display:grid; place-content:center;
   text-align:center; line-height:1.25;
@@ -1812,6 +2229,17 @@ a.setting-row, .setting-row[role="button"]{cursor:pointer;}
 .lg-dot.skip{background:var(--fill-mute); box-shadow:inset 0 0 0 1px var(--border-strong);}
 .lg-dot.miss{background:rgba(var(--mohr-rgb),0.62);}
 .lg-dot.wait{background:rgba(var(--gold-rgb),0.55);}
+/* calendar-only, and both mirror how the cell itself is drawn: "پیش رو" is an
+   outline because nothing has been claimed about it yet, and a challenge
+   milestone is a dot in the ink rather than a hue of its own */
+.lg-dot.soon{background:transparent; box-shadow:inset 0 0 0 1.5px rgba(var(--accent-rgb),0.45);}
+.lg-dot.mark{
+  background:none; width:9px; height:9px; position:relative;
+}
+.lg-dot.mark::after{
+  content:""; position:absolute; inset:0; margin:auto;
+  width:4px; height:4px; border-radius:50%; background:var(--text-2);
+}
 
 .mine-empty{
   padding:20px 14px; text-align:center; border-radius:var(--radius-md);
@@ -1833,6 +2261,85 @@ a.setting-row, .setting-row[role="button"]{cursor:pointer;}
   font-size:10.5px; color:var(--text-3);
 }
 .occ-key span{display:inline-flex; align-items:center; gap:5px;}
+
+.sub-head-row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+.sub-head-row .sub-head{margin:14px 0 8px;}
+/* .cc-btn is flex:1 because it normally shares a row of actions; beside a
+   heading it has to be exactly as wide as its own label instead */
+.cc-btn.tiny{
+  flex:none; padding:5px 10px; font-size:11px; border-radius:999px;
+  color:var(--text-2);
+}
+.cc-btn.tiny svg{width:12px; height:12px;}
+
+/* --- the history calendar ---
+   The whole run on the days it happened. Structurally the date picker's own
+   month grid (.jp-nav / .jp-weekdays / .jp-grid / .jp-cell are reused as-is,
+   so the two calendars in the app are laid out by one set of rules); what is
+   added here is a cell's *state* colour and the day pane underneath. */
+.hist-cal{margin-top:10px; padding:12px; border-radius:var(--radius-md);}
+.hist-cal .jp-nav{margin-bottom:10px;}
+.hist-cal .jp-nav-btn:disabled{opacity:.25; cursor:not-allowed;}
+.hist-cal .jp-nav-btn:disabled:hover{background:transparent;}
+
+/* Same four colours as .lg-dot and .occ -- the ring, the strip and the
+   calendar are three views of one tally and may not disagree about what a
+   colour means. The number stays legible on top, so each fill carries its
+   own ink rather than inheriting the cell's. */
+.cal-cell.has-completed{background:var(--fayrouzeh); color:var(--on-accent); font-weight:700;}
+.cal-cell.has-skipped{background:var(--border-strong); color:var(--text-1);}
+.cal-cell.has-missed{background:rgba(var(--mohr-rgb),0.62); color:var(--on-accent); font-weight:700;}
+.cal-cell.has-pending{background:rgba(var(--gold-rgb),0.55); color:var(--on-gold); font-weight:700;}
+/* a nobat the cadence still has coming: outlined, never filled. Same call
+   .hm-cell.is-future makes on the home grid -- a day that has not happened is
+   not a day that was missed, and only a fill may claim an outcome. */
+.cal-cell.has-upcoming{
+  background:transparent; color:var(--text-2);
+  box-shadow:inset 0 0 0 1.5px rgba(var(--accent-rgb),0.45);
+}
+/* a day this challenge never asked anything of: drawn so the month keeps its
+   shape, but recessed -- it is not a day that was missed */
+.cal-cell.is-blank{background:transparent; color:var(--text-3); opacity:.55;}
+
+/* A challenge milestone -- start of membership, first/last session, the
+   deadline. It is neither a status nor a category, so it may not take a hue
+   from either channel: the dot is the cell's own ink, and the day pane names
+   it. Sits over .is-blank's dimming so a milestone on an empty day still
+   reads. */
+/* .jp-cell is unpositioned -- the picker never needed to hang anything off a
+   day; the marker dot does */
+.cal-cell{position:relative;}
+.cal-cell.has-mark{opacity:1;}
+.cal-cell.has-mark::after{
+  content:""; position:absolute; inset-inline-start:50%;
+  transform:translateX(-50%); bottom:3px;
+  width:4px; height:4px; border-radius:50%; background:currentColor;
+}
+.cal-cell.has-mark.is-blank{color:var(--text-2);}
+.cal-cell.is-selected{
+  outline:2px solid var(--text-1); outline-offset:1px;
+}
+.hist-cal .cal-key{margin-top:10px;}
+
+/* the answer to tapping a day, in the month's own card */
+.cal-day{
+  margin-top:12px; padding-top:11px;
+  border-top:1px solid var(--border);
+}
+.cal-day-head{font-size:12px; font-weight:700; margin-bottom:6px;}
+.cal-day-empty{margin:0; font-size:11.5px; color:var(--text-3);}
+/* a challenge milestone in the day pane -- quieter than an occurrence row,
+   because it is context for the day rather than something to act on */
+.cal-mark{
+  display:flex; align-items:center; gap:7px; padding:6px 0;
+  font-size:11.5px; font-weight:600; color:var(--text-2);
+}
+.cal-mark svg{width:13px; height:13px; flex:none; color:var(--text-3);}
+.cal-mark + .tl-row{border-top:1px solid var(--border);}
+/* the timeline's row, minus the date -- the heading above already said it */
+.cal-day .tl-row{padding:8px 0;}
+.cal-day .tl-row + .tl-row{border-top:1px solid var(--border);}
+.cal-note{margin-top:3px; font-size:11px; color:var(--text-3);}
 
 /* the personal fact list is its own card here; the plan card's copy is
    already inside one */
@@ -2147,4 +2654,444 @@ a.setting-row, .setting-row[role="button"]{cursor:pointer;}
   .tour-veil, .tour-pop{animation:none;}
   .tour-ring{animation:none;}
   .tour-dots i{transition:none;}
+}
+
+
+/* ==========================================================================
+   Leaderboard
+   ==========================================================================
+   One challenge's standings. Built entirely out of tokens that already
+   exist — no new colour is introduced here, and none is hardcoded.
+
+   Colour on this screen means one thing: *rank*. It borrows `--gold`, which
+   already means "achievement" everywhere else in the app (the streak tiles,
+   the record tile), and it borrows neither the `--st-*` status hues nor the
+   six `--cat-*` category ones — see the two-channel rule in CLAUDE.md. The
+   only category colour on the page is on the header card, where it names the
+   challenge rather than a person's position.
+
+   The podium is three rows, not a separate block: a raised trio above a list
+   is a second layout to keep in sync and re-reads the same three people
+   twice. `[data-podium]` just tints the rank badge of the top three, so a
+   tie that puts four people at rank 1 simply tints four badges instead of
+   breaking a fixed three-slot frame. */
+
+.lb-page{padding:4px 0 24px;}
+
+/* --- whose board this is --- */
+.lb-head{
+  display:flex; align-items:center; gap:12px;
+  margin:0 20px 14px; padding:13px 14px;
+  text-decoration:none; color:inherit;
+}
+.lb-head-icon{
+  width:38px; height:38px; border-radius:13px; flex-shrink:0;
+  display:grid; place-items:center;
+  background:color-mix(in srgb, var(--cat, var(--fayrouzeh)) 16%, transparent);
+  color:var(--cat, var(--fayrouzeh));
+}
+.lb-head-icon svg{width:19px; height:19px;}
+.lb-head-text{min-width:0; flex:1;}
+.lb-head-text b{
+  display:block; font-size:14px; font-weight:700; line-height:1.5;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.lb-head-text span{display:block; font-size:11.5px; color:var(--text-3); margin-top:2px;}
+
+/* --- «رتبه تو» --- */
+/* The one figure a member opened this page for, above the list rather than
+   only inside it. The rank is the largest thing on the screen on purpose:
+   everything else here is context for it. */
+.lb-mine{
+  margin:0 20px 14px; padding:14px;
+  display:grid; grid-template-columns:auto 1fr; gap:14px; align-items:center;
+}
+.lb-mine-rank{
+  text-align:center; padding:10px 14px; border-radius:var(--radius-md);
+  background:rgba(var(--gold-rgb),0.12);
+  border:1px solid rgba(var(--gold-rgb),0.28);
+}
+.lb-mine-rank b{
+  display:block; font-size:30px; font-weight:800; line-height:1;
+  color:var(--gold);
+}
+.lb-mine-rank span{display:block; font-size:10.5px; color:var(--text-3); margin-top:5px;}
+.lb-mine-figs{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
+.lb-mine-figs div{text-align:center;}
+.lb-mine-figs b{
+  display:block; font-size:16px; font-weight:800; line-height:1.2;
+  white-space:nowrap;
+}
+.lb-mine-figs span{display:block; font-size:10px; color:var(--text-3); margin-top:3px;}
+.lb-mine-figs .gold b{
+  color:var(--gold); display:flex; align-items:center; justify-content:center; gap:4px;
+}
+.lb-mine-figs .gold b svg{width:13px; height:13px;}
+/* Spans both columns: it acts on the list below, not on the card it sits in. */
+.lb-mine .cc-btn{grid-column:1 / -1; justify-self:start;}
+
+/* --- the standings --- */
+.lb-list{display:flex; flex-direction:column; gap:8px; padding:0 20px;}
+.lb-row{
+  display:flex; align-items:center; gap:11px;
+  padding:10px 12px; border-radius:var(--radius-md);
+  --press-scale:.985;
+}
+.lb-rank{
+  min-width:30px; text-align:center; flex-shrink:0;
+  font-size:15px; font-weight:800; color:var(--text-3);
+  font-variant-numeric:tabular-nums;
+}
+/* Gold for first, and a quieter step down for second and third — the same
+   hue at lower strength rather than three different colours, so the podium
+   reads as one idea instead of three unrelated marks. */
+.lb-row[data-podium] .lb-rank{
+  color:var(--gold);
+  border-radius:10px; padding:4px 0;
+}
+.lb-row[data-podium="1"] .lb-rank{background:rgba(var(--gold-rgb),0.20);}
+.lb-row[data-podium="2"] .lb-rank{background:rgba(var(--gold-rgb),0.12);}
+.lb-row[data-podium="3"] .lb-rank{background:rgba(var(--gold-rgb),0.07);}
+
+/* Opaque neutral behind every avatar: several catalogue styles ship a
+   transparent ground, so whatever sits behind the <img> becomes part of the
+   picture (CLAUDE.md, Avatars). */
+.lb-av{
+  width:36px; height:36px; border-radius:50%; overflow:hidden; flex-shrink:0;
+  background:var(--bg-1); display:block;
+}
+.lb-av img{width:100%; height:100%; object-fit:cover; display:block;}
+
+.lb-who{min-width:0; flex:1;}
+.lb-who b{
+  display:flex; align-items:center; gap:6px;
+  font-size:13.5px; font-weight:700; line-height:1.5;
+  overflow:hidden; white-space:nowrap;
+}
+.lb-you{
+  flex-shrink:0; font-size:10px; font-weight:700; padding:1px 7px;
+  border-radius:999px; background:var(--fayrouzeh); color:var(--on-accent);
+}
+.lb-other{display:block; font-size:11px; color:var(--text-3); margin-top:2px;}
+
+.lb-score{text-align:center; flex-shrink:0; min-width:46px;}
+.lb-score b{display:block; font-size:17px; font-weight:800; line-height:1.15;}
+.lb-score span{display:block; font-size:10px; color:var(--text-3); margin-top:2px;}
+
+/* Your own row, marked by its edge rather than by a fill: the list is
+   scanned top to bottom and a filled row would out-shout the podium it sits
+   below, which is the one thing this screen is actually about. */
+.lb-row.is-you{
+  border-color:rgba(var(--accent-rgb),0.45);
+  box-shadow:var(--shadow-soft), inset 2px 0 0 var(--fayrouzeh);
+}
+/* «جای من» replays this on every tap — the row may already be on screen, in
+   which case scrolling to it is invisible and the flash is the whole answer. */
+.lb-row.is-found{animation:lbFound 1.1s ease-out;}
+@keyframes lbFound{
+  0%{background:rgba(var(--accent-rgb),0.18);}
+  100%{background:var(--glass);}
+}
+
+/* --- the way in, on challenge-detail's «من» panel --- */
+.lb-entry{
+  display:flex; align-items:center; gap:12px;
+  margin-bottom:12px; padding:12px 13px;
+  text-decoration:none; color:inherit;
+  --press-scale:.985;
+}
+.lb-entry-icon{
+  width:36px; height:36px; border-radius:12px; flex-shrink:0;
+  display:grid; place-items:center;
+  background:rgba(var(--gold-rgb),0.14); color:var(--gold);
+}
+.lb-entry-icon svg{width:18px; height:18px;}
+.lb-entry-text{min-width:0; flex:1;}
+.lb-entry-text b{display:block; font-size:13.5px; font-weight:700; line-height:1.5;}
+.lb-entry-text span{display:block; font-size:11px; color:var(--text-3); margin-top:2px;}
+
+/* --- «نمایش تو»: با نام / ناشناس (challenge-detail, panel «من») ---
+   A two-state answer, so the app's own `.seg` rather than a switch: both
+   states are named on screen and the active one is the highlighted one, in
+   one compact row instead of a settings row with two lines of hint. The
+   explanation lives in the row's `title` and in the toast the change
+   raises. Borrows no new colour -- the accent is the same "this is the
+   selected option" it means on every other `.seg` in the app. */
+.ident-switch{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  margin-bottom:12px; padding:8px 12px;
+}
+.ident-label{font-size:12.5px; font-weight:600; color:var(--text-2); flex-shrink:0;}
+.ident-switch .seg{flex:0 0 auto; background:var(--fill-1); border-color:transparent;}
+.ident-switch .seg-btn{flex:0 0 auto; padding:6px 12px; font-size:11.5px; --press-scale:.94;}
+
+@media (prefers-reduced-motion:reduce){
+  .lb-row.is-found{animation:none;}
+}
+
+/* The leaderboard's ordering control is anchors rather than buttons (see
+   challenge/leaderboard.html: switching the sort re-ranks the summary card
+   too, so it is a navigation and not client state). `.seg-btn` was written
+   for <button>, which carries neither of these. */
+a.seg-btn{text-decoration:none;}
+a.seg-btn.active{color:var(--on-accent);}
+
+/* ==========================================================================
+   Groups — app/templates/group/*
+   ==========================================================================
+   A group borrows the app's existing primitives rather than growing a look
+   of its own: the settings screen's `.setting-group`/`.setting-row` for
+   every list somebody administers, challenge-detail's `.detail-hero` and
+   `.detail-tabs` for the group page, and `.cc-tag` for every label.
+
+   **Colour means nothing new here.** Status owns the `--st-*` hues and
+   category owns the six `--cat-*` ones (see "Colour carries two channels"),
+   and a group is neither -- so a group's identity is carried by its emblem,
+   which is a picture from the one avatar catalogue, and by nothing else.
+   The only colour this section spends is the accent, on the two things that
+   are genuinely states: an invite link that still works, and the ink on a
+   mandatory challenge's own tag. */
+
+/* --- the group card (group/_group_cards.html) --- */
+.group-list{display:flex; flex-direction:column; gap:10px; padding:0 20px 12px;}
+.group-card{
+  display:flex; align-items:center; gap:12px; padding:12px 14px;
+  border-radius:var(--radius-md); text-decoration:none; color:inherit;
+}
+/* An opaque ground under the picture, for the reason `.profile-avatar` has
+   one: several catalogue styles ship a transparent SVG, so whatever sits
+   behind the <img> becomes part of the emblem. A translucent --fill-* token
+   would let the page through. */
+.gc-emblem, .gh-emblem{
+  border-radius:14px; background:var(--bg-1); flex-shrink:0;
+  display:grid; place-items:center; overflow:hidden;
+}
+.gc-emblem{width:44px; height:44px;}
+.gc-emblem img{width:44px; height:44px; display:block;}
+.gc-body{min-width:0; flex:1;}
+.gc-body h3{margin:0; font-size:14px; font-weight:700; line-height:1.5;}
+.gc-body p{
+  margin:3px 0 0; display:flex; align-items:center; gap:5px; flex-wrap:wrap;
+  font-size:11.5px; color:var(--text-3);
+}
+.gc-body p svg{width:13px; height:13px;}
+.gc-chev{width:16px; height:16px; color:var(--text-3); flex-shrink:0;}
+.empty .empty-hint{margin-top:10px; font-size:12px; color:var(--text-3);}
+
+/* --- the group page's hero --- */
+.group-hero{text-align:center;}
+.gh-emblem{width:72px; height:72px; margin:0 auto 10px;}
+.gh-emblem img{width:72px; height:72px; display:block;}
+
+/* --- the group chip on a challenge card / the detail hero ---
+   A tag, not a colour: see the section note above. It reads as tappable
+   because it is, and it keeps `.cc-tag`'s own metrics so a row of chips
+   stays one row of chips. */
+.cc-group{margin:4px 0 0 !important; display:flex; gap:6px; flex-wrap:wrap;}
+.group-chip{
+  cursor:pointer; text-decoration:none; color:var(--text-2);
+  background:var(--fill-1); border-color:var(--border);
+}
+.group-chip:hover{background:var(--fill-2);}
+.cc-tag.warn{color:var(--gold); border-color:rgba(var(--gold-rgb),0.4);
+  background:rgba(var(--gold-rgb),0.12);}
+
+/* --- roster rows (group/_member_rows.html, group/manage.html) --- */
+.member-row .mr-avatar, .request-row .mr-avatar{
+  width:36px; height:36px; border-radius:11px; flex-shrink:0;
+  background:var(--bg-1); object-fit:cover;
+}
+.mr-you{font-size:11px; color:var(--text-3); font-weight:500;}
+.mr-action{flex-shrink:0;}
+.rr-actions{display:flex; gap:6px; flex-shrink:0;}
+.cc-btn.sm{flex:0 0 auto; padding:6px 12px; font-size:11.5px;}
+
+/* The decided-request pill. Neutral in both states on purpose: colour in
+   this app means status (--st-*) or category (--cat-*), a request is
+   neither, and painting «ردشده» in the danger red would read as an error
+   when it is only an answer somebody gave. The word carries it, which is
+   the rule everywhere else too. */
+.req-pill{
+  flex-shrink:0; padding:3px 9px; border-radius:999px;
+  font-size:10.5px; font-weight:700;
+  background:var(--fill-1); color:var(--text-3); border:1px solid var(--border);
+}
+
+/* --- invite links ---
+   The pill is the link's *derived* state (`invite_state`), so it always
+   says what the link actually does. Only "active" earns the accent: the
+   other three are all versions of "this does nothing now", and giving each
+   its own hue would invent three distinctions nobody acts on differently. */
+.invite-pill{
+  flex-shrink:0; padding:3px 9px; border-radius:999px;
+  font-size:10.5px; font-weight:700;
+  background:var(--fill-1); color:var(--text-3); border:1px solid var(--border);
+}
+.invite-pill.is-active{
+  background:rgba(var(--accent-rgb),0.14); color:var(--fayrouzeh);
+  border-color:rgba(var(--accent-rgb),0.34);
+}
+.invite-row .mi-icon{
+  width:36px; height:36px; border-radius:11px; flex-shrink:0;
+  display:grid; place-items:center;
+  background:rgba(var(--accent-rgb),0.1); color:var(--fayrouzeh);
+}
+.invite-row .mi-icon svg{width:17px; height:17px;}
+.setting-row.danger-row .sr-label{color:var(--danger-text);}
+/* The exit rows live inside a tab panel rather than on a settings screen,
+   so they bring their own top gap instead of the page's. */
+.group-exit{margin-top:14px;}
+
+/* --- the invite landing (group/invite.html) --- */
+.invite-card{
+  margin:24px 20px; padding:28px 22px 22px; border-radius:var(--radius-lg);
+  text-align:center;
+}
+.invite-eyebrow{margin:0 0 4px; font-size:12px; color:var(--text-3);}
+.invite-card h1{margin:0 0 12px; font-size:20px; font-weight:800;}
+.invite-card .detail-tags{justify-content:center;}
+.invite-desc{margin:14px 0 0; font-size:12.5px; line-height:2; color:var(--text-2);}
+.invite-note{margin:16px 0 18px; font-size:12px; line-height:2; color:var(--text-3);}
+.cc-btn.block{flex:none; width:100%; padding:12px; font-size:13.5px;}
+.cc-btn.primary{
+  background:var(--fayrouzeh); color:var(--on-accent); border-color:transparent;
+  box-shadow:var(--glow-accent);
+}
+.cc-btn.primary:hover{filter:brightness(1.05);}
+
+/* --- the create wizard's group extras --- */
+.wizard-group{display:flex; align-items:center; gap:10px;}
+.wg-emblem{border-radius:9px; background:var(--bg-1); flex-shrink:0;}
+.member-pick{
+  display:flex; flex-direction:column; gap:6px; max-height:240px; overflow-y:auto;
+  padding:4px; border:1px solid var(--border); border-radius:var(--radius-sm);
+  background:var(--fill-1);
+}
+.mp-item{
+  display:flex; align-items:center; gap:9px; padding:7px 9px;
+  border-radius:var(--radius-sm); cursor:pointer; font-size:12.5px;
+}
+.mp-item:hover{background:var(--fill-2);}
+.mp-item img{width:28px; height:28px; border-radius:9px; background:var(--bg-1);}
+.mp-item input{accent-color:var(--fayrouzeh); width:16px; height:16px; flex-shrink:0;}
+
+/* A mandatory group challenge has no "leave" -- the CTA says why instead of
+   offering a control that answers 403. Muted rather than accented: it is a
+   statement, not an action. */
+.btn-primary.is-locked{
+  background:var(--fill-1); color:var(--text-3); box-shadow:none;
+  border:1px solid var(--border); cursor:default;
+}
+
+/* One press animation for everything tappable, tuned per component (see
+   "Press feedback"): a group card is the size of a challenge card, so it
+   sinks by the same amount. */
+.group-card{--press-scale:.985;}
+
+/* An empty state *inside* a group of settings rows, not a whole page: the
+   sections above and below it stay in view, so it is padded like the admin
+   panel's own (`.admin-members .empty`) rather than like a page's. */
+.settings-page .setting-group > .empty{padding:28px 24px;}
+.settings-page .setting-group > .empty svg{width:34px; height:34px; margin-bottom:8px;}
+
+/* ==========================================================================
+   راهنمای درجا — the in-place explainer (app/explainers.py, initExplainers())
+   --------------------------------------------------------------------------
+   A screen full of derived figures needs explaining, and a screen explained
+   line by line is a screen nobody reads. So the explanation costs the resting
+   layout one 17px dot: quiet enough to scan past, close enough to the thing
+   it describes that it never has to be searched for.
+
+   The dot is deliberately *not* accented at rest -- an accent means "act on
+   this", and help is never the primary action on any screen here. It takes
+   the accent only while its popover is open, which is also the only moment
+   the colour means something: this is the one that is talking.
+   ========================================================================== */
+.explain-dot{
+  flex:none; display:inline-flex; align-items:center; justify-content:center;
+  width:17px; height:17px; padding:0; margin-inline-start:6px;
+  vertical-align:middle; cursor:pointer;
+  border-radius:999px; border:1px solid var(--border-strong);
+  background:var(--fill-1); color:var(--text-3);
+  font-family:inherit; font-size:10.5px; font-weight:700; line-height:1;
+  transition:color .16s var(--ease), background .16s var(--ease),
+             border-color .16s var(--ease);
+  /* it is small, so the squeeze has to be deep enough to be felt at all */
+  --press-scale:.84;
+}
+.explain-dot:hover{color:var(--fayrouzeh); border-color:rgba(var(--accent-rgb),0.45);}
+.explain-dot[aria-expanded="true"]{
+  background:rgba(var(--accent-rgb),0.14);
+  border-color:rgba(var(--accent-rgb),0.5);
+  color:var(--fayrouzeh);
+}
+/* The dot rides beside a heading or a label, so a host that *has* one becomes
+   a row -- scoped with :has() rather than by listing the hosts, so adding a
+   dot somewhere new needs no rule of its own. Where :has() is unsupported the
+   heading stays a block and the dot simply sits inline after its text, which
+   is the same reading order and one degraded alignment. */
+:is(h1,h2,h3,h4,.field-label,.sr-title,.stat-label,.fact-label,.field label):has(> .explain-dot){
+  display:inline-flex; align-items:center;
+}
+/* A tile's caption is 10px and centred, so the dot has to shrink with it --
+   at full size it would out-weigh the label it belongs to. */
+.mine-tile span:has(> .explain-dot){
+  display:flex; align-items:center; justify-content:center;
+}
+.mine-tile .explain-dot{width:14px; height:14px; font-size:9px; margin-inline-start:4px;}
+
+/* --- the popover ---------------------------------------------------------
+   Positioned by JS in viewport coordinates (fixed), because the dot can sit
+   inside a scrolling card, a sticky header or a sheet, and an absolutely
+   positioned pane would be clipped by the first ancestor with overflow.
+   Opaque like .sheet-panel, and for the second reason too: the arrow overlaps
+   this background by half its width, and a translucent pane shows the seam. */
+.explain-pop{
+  position:fixed; z-index:80; visibility:hidden;
+  width:max-content; max-width:min(300px, calc(100vw - 24px));
+  padding:13px 15px; border-radius:var(--radius-md);
+  background:var(--bg-1); border:1px solid var(--border-strong);
+  box-shadow:var(--shadow-lift);
+  text-align:start; white-space:normal;
+  /* The open state is carried by these two properties, not by a keyframe:
+     the pane is measured and placed the frame it becomes visible, and an
+     animation that has not started yet (a backgrounded tab, a paused
+     compositor) would leave it sitting at its 0% opacity. A transition has no
+     such state -- the resting value is the one in `.is-open`. */
+  opacity:0; transform:translateY(-4px);
+  transition:opacity .16s var(--ease), transform .16s var(--ease);
+}
+.explain-pop.is-open{visibility:visible; opacity:1; transform:none;}
+.explain-pop h4{
+  margin:0 0 6px; font-size:12.5px; font-weight:800; color:var(--text-1);
+}
+.explain-pop p{margin:0; font-size:12px; line-height:1.9; color:var(--text-2);}
+/* Named states read as a key, not as prose: one line each, the name in ink
+   and the meaning behind it stepped back. */
+.explain-pop ul{
+  list-style:none; margin:9px 0 0; padding:9px 0 0;
+  border-top:1px solid var(--border-strong);
+  display:flex; flex-direction:column; gap:6px;
+}
+.explain-pop li{font-size:12px; line-height:1.75; color:var(--text-3);}
+.explain-pop li b{color:var(--text-1); font-weight:700;}
+/* A rotated square carrying two of the pane's own borders; JS places it and
+   sets [data-side] so the right two edges are the ones that show. */
+.explain-arrow{
+  position:absolute; width:11px; height:11px; transform:rotate(45deg);
+  background:var(--bg-1); border:1px solid var(--border-strong);
+}
+/* Physical sides, not logical ones: the square is rotated 45deg, so which two
+   edges form the visible tip is a fact about the rotation and does not flip
+   with the writing direction the way border-inline-* would. */
+.explain-pop[data-side="bottom"] .explain-arrow{
+  top:-6px; border-right:none; border-bottom:none;
+}
+.explain-pop[data-side="top"] .explain-arrow{
+  bottom:-6px; border-left:none; border-top:none;
+}
+/* Reduced motion keeps the fade and drops the travel -- the same trade the
+   press feedback makes. */
+@media (prefers-reduced-motion:reduce){
+  .explain-pop{transform:none; transition:opacity .16s var(--ease);}
 }

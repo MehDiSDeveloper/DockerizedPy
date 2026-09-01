@@ -1,0 +1,460 @@
+{% extends "layout.html" %}
+
+{#- The group page: three questions, three panels -- exactly the shape
+    challenge-detail uses, and for the same reason. «چالش‌ها» is what is
+    running here, «اعضا» is who is here, «درباره» is what this is. The
+    selected panel lives in the URL hash, so a link somebody shares lands
+    where they shared it from.
+
+    Only «چالش‌ها» pages. Two lazily-paged lists on one screen would fight
+    over one URL and neither would stay linkable (CLAUDE.md's argument for
+    the moderation roster being its own page), so «اعضا» shows a screenful
+    and hands off to /views/groups/{id}/members. -#}
+
+{% block topbar_leading %}
+<a href="/views/groups/" class="back-btn" data-back aria-label="بازگشت"><span
+    data-icon="chevronRight"></span></a>
+{% endblock %}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="{{ group.name }}">
+  <span class="crumb current" aria-current="page">{{ group.name }}</span>
+</nav>
+{% endblock %}
+
+{% block topbar_action %}
+<div class="topbar-actions">
+  {#- The manage button is the *only* entrance to the management screen, and
+      it renders for whoever holds the permission. The route 404s a member
+      who guesses the URL, so the two agree without either trusting the
+      other. The badge is the count of people waiting for an answer -- the
+      one thing on that screen that is time-sensitive. -#}
+  {% if can_manage %}
+  <a href="/views/groups/{{ group.id }}/manage" class="icon-btn" aria-label="مدیریت گروه">
+    <span data-icon="settings"></span>
+    {% if pending_count %}<span class="icon-badge">{{ pending_count }}</span>{% endif %}
+  </a>
+  {% endif %}
+  {{ super() }}
+</div>
+{% endblock %}
+
+{% block content %}
+
+<div class="detail-hero glass group-hero">
+  <div class="gh-emblem"><img src="{{ group.emblem | avatar_url }}" alt="" width="64" height="64"></div>
+  <div class="detail-tags">
+    <span class="cc-tag"><span data-icon="{{ group_kind_icons.get(group.kind, 'catOther') }}"></span>{{ group_kind_labels.get(group.kind, 'گروه') }}</span>
+    {#- What *you* are here. Shown to everyone, including plain members: a
+        group where you cannot tell whether you may act is a group where you
+        try and are refused. -#}
+    <span class="cc-tag {{ 'accent' if my_role in ('owner', 'admin') else '' }}">{{ group_role_labels.get(my_role, 'عضو') }}</span>
+  </div>
+  <h1>{{ group.name }}</h1>
+  <div class="detail-stats">
+    <div><b>{{ member_count }}</b><span>عضو</span></div>
+    <div><b>{{ challenges | length }}{{ '+' if has_more else '' }}</b><span>چالش</span></div>
+    <div><b data-jalali="{{ group.created_at.isoformat() }}"
+        data-jalali-format="numeric">{{ group.created_at.strftime('%Y-%m-%d') }}</b><span>ساخته شد</span></div>
+  </div>
+</div>
+
+<div class="detail-tabs" role="tablist" aria-label="بخش‌های این گروه">
+  <button type="button" class="dtab" role="tab" id="tab-challenges" data-panel="challenges"
+    aria-controls="panel-challenges" aria-selected="true">
+    <span data-icon="list"></span>چالش‌ها
+  </button>
+  <button type="button" class="dtab" role="tab" id="tab-members" data-panel="members"
+    aria-controls="panel-members" aria-selected="false">
+    <span data-icon="users"></span>اعضا
+  </button>
+  <button type="button" class="dtab" role="tab" id="tab-about" data-panel="about"
+    aria-controls="panel-about" aria-selected="false">
+    <span data-icon="info"></span>درباره
+  </button>
+</div>
+
+{# ========================= پنل: چالش‌ها ========================= #}
+<div class="tab-panel" id="panel-challenges" role="tabpanel" aria-labelledby="tab-challenges"
+  tabindex="-1">
+
+  {#- The same search box and status segment the app-wide challenge list
+      wears, over the same query (`fetch_challenge_page`, narrowed by
+      `group_id`) -- so a status means one thing and a search matches one set
+      of rows everywhere in the app. -#}
+  <div class="search-bar">
+    <span data-icon="search"></span>
+    <input type="text" id="gcSearch" placeholder="جستجو در چالش‌های گروه..." value="{{ query }}" />
+  </div>
+
+  <div class="seg-row">
+    <div class="seg" id="gcStatusSeg" role="tablist" aria-label="فیلتر وضعیت چالش">
+      <button class="seg-btn{{ ' active' if active_status == 'all' }}" data-status="all"
+        role="tab" aria-selected="{{ 'true' if active_status == 'all' else 'false' }}">همه</button>
+      {% for code, meta in status_options.items() %}
+      <button class="seg-btn st-{{ code }}{{ ' active' if active_status == code }}"
+        data-status="{{ code }}" role="tab"
+        aria-selected="{{ 'true' if active_status == code else 'false' }}"><span
+          data-icon="{{ meta.icon }}"></span>{{ meta.label }}</button>
+      {% endfor %}
+    </div>
+    {#- Inside a group the pressing question about this list is not what the
+        statuses mean -- that is explained where the control was introduced,
+        on the app-wide list -- but how far these challenges reach. -#}
+    {{ explain("group-challenge-visibility") }}
+  </div>
+
+  <div class="challenge-list" id="gcList" data-page-size="{{ page_size }}"
+    data-initial-count="{{ challenges|length }}" data-has-more="{{ 'true' if has_more else 'false' }}">
+    {% with hide_group_chip = true %}{% include "challenge/_challenge_cards.html" %}{% endwith %}
+  </div>
+
+  {#- The empty state differs by reader, because the next step does: an
+      administrator can put a challenge here, and a member can only wait for
+      one. A message that tells somebody to do what they cannot is worse than
+      no message. -#}
+  <div class="empty" id="gcEmpty" {{ 'hidden' if challenges }}>
+    <span data-icon="empty"></span>
+    <p id="gcEmptyText">{% if can_create_challenge %}هنوز چالشی در این گروه گذاشته نشده.
+      اولین چالش را تو بساز.{% else %}هنوز چالشی در این گروه گذاشته نشده. وقتی مدیران گروه چالشی
+      بگذارند، همین‌جا می‌بینی.{% endif %}</p>
+  </div>
+
+  <div class="scroll-sentinel" id="gcSentinel" aria-hidden="true"></div>
+  <div class="list-loading" id="gcLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
+</div>
+
+{# ========================= پنل: اعضا ========================= #}
+<div class="tab-panel" id="panel-members" role="tabpanel" aria-labelledby="tab-members"
+  tabindex="-1" hidden>
+  <div class="settings-page">
+    <section class="setting-group">
+      <div class="section-head">
+        <h2>{{ member_count }} عضو{{ explain("group-roles") }}</h2>
+        {% if member_count > members_preview %}
+        <a class="cc-tag" href="/views/groups/{{ group.id }}/members">همهٔ اعضا</a>
+        {% endif %}
+      </div>
+      {#- A screenful, not a page -- the paged, searchable answer is at its
+          own URL. Rendered by the roster's own row template so the two
+          screens cannot come to show a member differently; the action
+          controls are off here, because acting on somebody belongs on the
+          screen that is *about* the roster. -#}
+      {% with can_manage = false, can_manage_admins = false %}
+      {% include "group/_member_rows.html" %}
+      {% endwith %}
+    </section>
+  </div>
+</div>
+
+{# ========================= پنل: درباره ========================= #}
+<div class="tab-panel" id="panel-about" role="tabpanel" aria-labelledby="tab-about" tabindex="-1"
+  hidden>
+  {% if group.description %}
+  <section class="detail-section glass">
+    <h2>دربارهٔ این گروه</h2>
+    <p class="detail-text">{{ group.description }}</p>
+  </section>
+  {% endif %}
+
+  <section class="detail-section glass">
+    <h2>جزئیات</h2>
+    <dl class="fact-list">
+      <div class="fact"><dt>نوع</dt><dd>{{ group_kind_labels.get(group.kind, 'گروه') }}</dd></div>
+      <div class="fact"><dt>تعداد اعضا</dt><dd>{{ member_count }}</dd></div>
+      <div class="fact"><dt>نقش تو</dt><dd>{{ group_role_labels.get(my_role, 'عضو') }}</dd></div>
+      <div class="fact"><dt>ساخته شد</dt><dd data-jalali="{{ group.created_at.isoformat() }}"
+          data-jalali-format="day-month-year">{{ group.created_at.strftime('%Y-%m-%d') }}</dd></div>
+    </dl>
+    {#- Said plainly, on the panel that explains what this place is: a group
+        challenge is not on the public list, and a member's own numbers are
+        not something running the group buys access to. Both are true of the
+        code (`group_scope_filter`, and no route anywhere that hands an
+        administrator a member's progress) -- this is where a member gets to
+        read them. -#}
+    <p class="info-note">چالش‌های این گروه فقط برای اعضای همین گروه دیده می‌شود و در فهرست
+      عمومی چالش‌ها نمی‌آید. مدیران گروه به آمار جمعی چالش‌ها دسترسی دارند، نه به پروندهٔ
+      شخصی اعضا.</p>
+  </section>
+
+  {#- Leaving, on the panel that explains what this place is -- the one panel
+      every member can read and the one they are on when they ask whether
+      they still want to be here. The two rows are the two different acts and
+      are said as such: the first keeps you in the group, the second does
+      not, and each row's own hint says what it costs *you* rather than what
+      it does to the database. Both are `.danger-row` because both destroy
+      something of the member's own -- the settings screen's primitive, like
+      the manage screen's delete.
+
+      What the server would refuse, the template does not draw: the owner has
+      no leave row at all, and is told the one thing that would let them have
+      one. Drawing it and answering 409 would be a control that lies, which
+      is the same call the resend countdown makes on the login screen. -#}
+  <section class="settings-page group-exit">
+    <section class="setting-group">
+      <h2>{{ 'خروج' if my_role != 'owner' else 'مالکیت' }}</h2>
+
+      {% if my_optional or my_mandatory %}
+      <div class="setting-row glass danger-row" role="button" tabindex="0" id="grLeaveChallenges">
+        <div class="sr-head">
+          <div class="sr-text">
+            <span class="sr-label">انصراف از چالش‌های گروه</span>
+            <span class="sr-hint">از همهٔ چالش‌های این گروه یک‌جا انصراف می‌دهی و عضو گروه
+              می‌مانی. سابقهٔ ثبت‌شده‌ات در آن چالش‌ها پاک می‌شود.</span>
+          </div>
+          <span class="sr-value">{{ my_optional | length + my_mandatory | length }} چالش</span>
+          <span class="sr-chev" data-icon="chevronLeft"></span>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if my_role == 'owner' %}
+      <div class="setting-row glass">
+        <div class="sr-head">
+          <div class="sr-text">
+            <span class="sr-label">مالک گروه هستی</span>
+            <span class="sr-hint">تا وقتی گروه را به یکی از اعضا واگذار نکرده‌ای نمی‌توانی از
+              آن خارج شوی — گروهی بدون مالک کسی را ندارد که دعوت کند یا درخواست‌ها را پاسخ
+              دهد.</span>
+          </div>
+        </div>
+      </div>
+      <a href="/views/groups/{{ group.id }}/manage" class="setting-row glass">
+        <div class="sr-head">
+          <div class="sr-text">
+            <span class="sr-label">واگذاری گروه</span>
+            <span class="sr-hint">در صفحهٔ مدیریت گروه.</span>
+          </div>
+          <span class="sr-chev" data-icon="chevronLeft"></span>
+        </div>
+      </a>
+      {% else %}
+      <div class="setting-row glass danger-row" role="button" tabindex="0" id="grLeaveGroup">
+        <div class="sr-head">
+          <div class="sr-text">
+            <span class="sr-label">خروج از گروه</span>
+            <span class="sr-hint">{% if my_optional or my_mandatory %}با خروج، از همهٔ
+              چالش‌های این گروه هم انصراف ثبت می‌شود.{% else %}دیگر چالش‌های این گروه را
+              نمی‌بینی.{% endif %} برای برگشتن به لینک دعوت تازه نیاز داری.</span>
+          </div>
+          <span class="sr-chev" data-icon="chevronLeft"></span>
+        </div>
+      </div>
+      {% endif %}
+    </section>
+  </section>
+</div>
+
+{% if can_create_challenge %}
+<a href="/views/challenges/create?group={{ group.id }}" class="fab" aria-label="ساخت چالش در این گروه">
+  <span data-icon="plus"></span>
+</a>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    // ---- tabs (same contract as challenge-detail: hash-backed, replaceState)
+    const tabs = Array.from(document.querySelectorAll(".dtab"));
+    const tabBar = document.querySelector(".detail-tabs");
+
+    function selectTab(name, { focus = false, remember = true } = {}) {
+      const target = tabs.find((t) => t.dataset.panel === name);
+      if (!target) return false;
+      tabs.forEach((t) => {
+        const on = t === target;
+        t.setAttribute("aria-selected", on ? "true" : "false");
+        t.tabIndex = on ? 0 : -1;
+        document.getElementById("panel-" + t.dataset.panel).hidden = !on;
+      });
+      if (focus) target.focus();
+      if (remember) history.replaceState(null, "", "#" + name);
+      return true;
+    }
+    tabs.forEach((t) => t.addEventListener("click", () => selectTab(t.dataset.panel)));
+    tabBar.addEventListener("keydown", (e) => {
+      const i = tabs.indexOf(document.activeElement);
+      if (i < 0) return;
+      // RTL: the tabs run right-to-left, so ArrowLeft is "next".
+      let next = null;
+      if (e.key === "ArrowLeft") next = (i + 1) % tabs.length;
+      else if (e.key === "ArrowRight") next = (i - 1 + tabs.length) % tabs.length;
+      else if (e.key === "Home") next = 0;
+      else if (e.key === "End") next = tabs.length - 1;
+      if (next === null) return;
+      e.preventDefault();
+      selectTab(tabs[next].dataset.panel, { focus: true });
+    });
+    selectTab(decodeURIComponent(location.hash.slice(1)), { remember: false }) ||
+      selectTab(tabs[0].dataset.panel, { remember: false });
+
+    // ---- the group's challenge list
+    const listEl = document.getElementById("gcList");
+    const emptyEl = document.getElementById("gcEmpty");
+    const search = document.getElementById("gcSearch");
+    const statusSeg = document.getElementById("gcStatusSeg");
+    const state = {
+      status: {{ (active_status or "all") | tojson }},
+      q: search.value.trim(),
+    };
+
+    function params() {
+      const p = new URLSearchParams();
+      if (state.status !== "all") p.set("status", state.status);
+      if (state.q) p.set("q", state.q);
+      return p;
+    }
+
+    const scroller = createInfiniteScroller({
+      container: listEl,
+      sentinel: document.getElementById("gcSentinel"),
+      loadingEl: document.getElementById("gcLoading"),
+      emptyEl: emptyEl,
+      pageSize: Number(listEl.dataset.pageSize) || 20,
+      initialOffset: Number(listEl.dataset.initialCount) || 0,
+      initialHasMore: listEl.dataset.hasMore === "true",
+      buildUrl: (offset, limit) => {
+        const p = params();
+        p.set("offset", offset);
+        p.set("limit", limit);
+        return `/views/groups/{{ group.id }}/challenges/fragment?${p.toString()}`;
+      },
+      onEmpty: () => { emptyEl.hidden = false; },
+    });
+
+    function apply() {
+      emptyEl.hidden = true;
+      // The filters live in the query string *and* the panel in the hash, so
+      // a filtered group page stays a link somebody can send.
+      const qs = params().toString();
+      history.replaceState(null, "", (qs ? `?${qs}` : window.location.pathname) + location.hash);
+      scroller.reset();
+    }
+
+    const statusBtns = Array.from(statusSeg.querySelectorAll(".seg-btn"));
+    statusBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.dataset.status === state.status) return;
+        state.status = btn.dataset.status;
+        statusBtns.forEach((b) => {
+          const on = b.dataset.status === state.status;
+          b.classList.toggle("active", on);
+          b.setAttribute("aria-selected", on ? "true" : "false");
+        });
+        apply();
+      });
+    });
+
+    search.addEventListener("input", debounce(() => {
+      state.q = search.value.trim();
+      apply();
+    }, 300));
+
+    // ---- leaving ---------------------------------------------------------
+    // The two acts the «درباره» panel offers, and the reason they are sheets
+    // rather than `confirm()`: both are irreversible in the one way that
+    // matters to a member -- what they logged in those challenges goes with
+    // the enrollment -- and a confirm() cannot name which challenges those
+    // are. So each sheet says the count, then the difference the group's own
+    // rules make (a mandatory challenge stays if you stay), and only then
+    // offers the button.
+    const OPTIONAL = {{ my_optional | tojson }};
+    const MANDATORY = {{ my_mandatory | tojson }};
+
+    function countLine(titles) {
+      if (titles.length <= 3) return titles.map((t) => `«${t}»`).join("، ");
+      return `${titles.length} چالش`;
+    }
+
+    const leaveChallengesRow = document.getElementById("grLeaveChallenges");
+    if (leaveChallengesRow) {
+      leaveChallengesRow.addEventListener("click", () => {
+        const notes = [{
+          type: "note",
+          text: OPTIONAL.length
+            ? `از ${countLine(OPTIONAL)} انصراف می‌دهی. سابقهٔ ثبت‌شده‌ات پاک می‌شود و برگشت‌پذیر نیست.`
+            : "چالشی نیست که بتوانی همین حالا از آن انصراف بدهی.",
+          tone: OPTIONAL.length ? "danger" : undefined,
+        }];
+        // Named, not silently skipped: a member who presses "همه" and finds
+        // two challenges still there has to be told why, and told where the
+        // door for them is -- which is the row right underneath this one.
+        if (MANDATORY.length) {
+          notes.push({
+            type: "note",
+            text: `${countLine(MANDATORY)} اجباری است و تا وقتی عضو این گروهی باقی می‌ماند. رها کردنش فقط با خروج از گروه ممکن است.`,
+          });
+        }
+        notes.push({
+          type: "note",
+          text: "عضو گروه می‌مانی و چالش‌های تازهٔ گروه همچنان به تو می‌رسد.",
+        });
+        createSheet({
+          title: "انصراف از چالش‌های گروه",
+          fields: notes,
+          confirmLabel: "بی‌خیال",
+          onConfirm: async () => true,
+          danger: OPTIONAL.length ? {
+            label: "انصراف از همه",
+            onClick: async () => {
+              const { ok, data } = await apiFetch(`/groups/{{ group.id }}/enrollments`, {
+                method: "DELETE",
+              });
+              if (!ok) {
+                showToast("خطا: " + ((data && data.detail) || "انجام نشد"));
+                return false;
+              }
+              // The list, the hero's challenge count and this row's own count
+              // all move at once -- reload rather than patch three derived
+              // figures by hand, the same call every check-in makes.
+              window.location.reload();
+              return true;
+            },
+          } : undefined,
+        });
+      });
+    }
+
+    const leaveGroupRow = document.getElementById("grLeaveGroup");
+    if (leaveGroupRow) {
+      leaveGroupRow.addEventListener("click", () => {
+        const total = OPTIONAL.length + MANDATORY.length;
+        const notes = [{
+          type: "note",
+          text: total
+            ? `با خروج از گروه، از ${total} چالش این گروه هم انصراف ثبت می‌شود — چالش‌های اجباری هم — و هرچه در آن‌ها ثبت کرده‌ای پاک می‌شود.`
+            : "از گروه خارج می‌شوی. چالشی در این گروه نداری که از آن انصراف ثبت شود.",
+          tone: total ? "danger" : undefined,
+        }, {
+          type: "note",
+          text: "بعد از خروج، چالش‌های این گروه را نمی‌بینی و برای برگشتن به لینک دعوت تازه نیاز داری.",
+        }];
+        createSheet({
+          title: "خروج از گروه",
+          fields: notes,
+          confirmLabel: "بی‌خیال",
+          onConfirm: async () => true,
+          danger: {
+            label: "خروج از گروه",
+            onClick: async () => {
+              const { ok, data } = await apiFetch(
+                `/groups/{{ group.id }}/members/{{ current_user_id }}`,
+                { method: "DELETE" }
+              );
+              if (!ok) {
+                showToast("خطا: " + ((data && data.detail) || "خروج انجام نشد"));
+                return false;
+              }
+              // Not a reload: this page is a 404 to them now.
+              window.location.href = "/views/groups/";
+              return true;
+            },
+          },
+        });
+      });
+    }
+  });
+</script>
+{% endblock %}

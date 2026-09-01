@@ -1,0 +1,196 @@
+{% extends "layout.html" %}
+
+{#- The group's roster: searched, paged, and readable by everyone in the
+    group. A group roster is not what `profile_visibility_filter` withholds
+    -- these people are in a room together -- but a row still carries only a
+    name, a picture and a role, and is deliberately **not a link**: reaching
+    somebody's profile from a list they appear on is the second step, and
+    CLAUDE.md keeps that with `profile_visibility_filter` alone. The same
+    rule the leaderboard follows.
+
+    The role/removal controls render only for whoever holds the permission,
+    and the routes they call check it again -- the template decides what to
+    draw, never who may act. -#}
+
+{% block topbar_leading %}
+<a href="/views/groups/{{ group.id }}" class="back-btn" data-back aria-label="بازگشت"><span
+    data-icon="chevronRight"></span></a>
+{% endblock %}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="اعضا">
+  <span class="crumb current" aria-current="page">اعضا</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <p class="hero-eyebrow">{{ group.name }}</p>
+  <h1 class="hero-title">{{ member_count }} عضو</h1>
+</section>
+
+<div class="settings-page admin-members">
+  <div class="search-bar">
+    <span data-icon="search"></span>
+    <input type="text" id="gmSearch" placeholder="جستجوی عضو..." value="{{ query }}" />
+  </div>
+
+  <section class="setting-group">
+    <div id="gmList" data-page-size="{{ page_size }}" data-initial-count="{{ members|length }}"
+      data-has-more="{{ 'true' if has_more else 'false' }}">
+      {% include "group/_member_rows.html" %}
+    </div>
+    <div class="empty" id="gmEmpty" {{ 'hidden' if members }}>
+      <span data-icon="empty"></span>
+      <p id="gmEmptyText">عضوی با این مشخصات پیدا نشد.</p>
+    </div>
+    <div class="scroll-sentinel" id="gmSentinel" aria-hidden="true"></div>
+    <div class="list-loading" id="gmLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const listEl = document.getElementById("gmList");
+    const emptyEl = document.getElementById("gmEmpty");
+    const search = document.getElementById("gmSearch");
+    const GROUP_ID = {{ group.id }};
+    const CAN_MANAGE = {{ 'true' if can_manage else 'false' }};
+    const CAN_MANAGE_ADMINS = {{ 'true' if can_manage_admins else 'false' }};
+    const ROLE_LABELS = {{ group_role_labels | tojson }};
+
+    const scroller = createInfiniteScroller({
+      container: listEl,
+      sentinel: document.getElementById("gmSentinel"),
+      loadingEl: document.getElementById("gmLoading"),
+      emptyEl: emptyEl,
+      pageSize: Number(listEl.dataset.pageSize) || 20,
+      initialOffset: Number(listEl.dataset.initialCount) || 0,
+      initialHasMore: listEl.dataset.hasMore === "true",
+      buildUrl: (offset, limit) => {
+        const p = new URLSearchParams({ offset, limit });
+        if (search.value.trim()) p.set("q", search.value.trim());
+        return `/views/groups/${GROUP_ID}/members/fragment?${p.toString()}`;
+      },
+      onEmpty: () => { emptyEl.hidden = false; },
+    });
+
+    search.addEventListener("input", debounce(() => {
+      emptyEl.hidden = true;
+      const q = search.value.trim();
+      history.replaceState(null, "", q ? `?q=${encodeURIComponent(q)}` : window.location.pathname);
+      scroller.reset();
+    }, 300));
+
+    // One delegated listener on the list, not a handler per row: rows that
+    // arrive on page two have to work too, and a page-level array of members
+    // cannot describe them -- which is why each row carries its own
+    // data-member-* attributes (the admin roster's rule, same reason).
+    listEl.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-member-menu]");
+      if (!btn) return;
+      const row = btn.closest(".member-row");
+      const id = Number(row.dataset.memberId);
+      const name = row.dataset.memberName;
+      const role = row.dataset.memberRole;
+      const trusted = row.dataset.memberTrusted === "true";
+
+      const fields = [];
+      // The second approval, offered wherever a member is already being
+      // acted on. It is a separate write from the role -- two questions,
+      // two routes -- and the sheet sends only the one that changed.
+      if (CAN_MANAGE && role !== "owner") {
+        fields.push({
+          name: "trusted",
+          label: "چالش‌های گروه",
+          type: "chips",
+          value: trusted ? "yes" : "no",
+          options: [
+            { value: "no", label: "در انتظار تایید", icon: "clock" },
+            { value: "yes", label: "تاییدشده", icon: "check" },
+          ],
+          hint: "تا وقتی تایید نشده، فقط چالش‌هایی که خودت او را در آن‌ها انتخاب کنی به او می‌رسد.",
+        });
+      }
+      if (CAN_MANAGE_ADMINS) {
+        fields.push({
+          name: "role",
+          label: "نقش در گروه",
+          type: "chips",
+          value: role,
+          options: [
+            { value: "member", label: ROLE_LABELS.member, icon: "user" },
+            { value: "admin", label: ROLE_LABELS.admin, icon: "shield" },
+          ],
+          hint: "مدیر می‌تواند دعوت کند، درخواست‌ها را پاسخ دهد و برای گروه چالش بگذارد.",
+        });
+      }
+
+      createSheet({
+        title: name,
+        confirmLabel: "ذخیره",
+        fields,
+        danger: CAN_MANAGE ? {
+          label: "حذف از گروه",
+          onClick: async () => {
+            if (!confirm(`${name} از گروه حذف شود؟`)) return false;
+            const { ok, data } = await apiFetch(`/groups/${GROUP_ID}/members/${id}`, {
+              method: "DELETE",
+            });
+            if (!ok) {
+              showToast("خطا: " + ((data && data.detail) || "حذف نشد"));
+              return false;
+            }
+            // The scroller pages by offset over rows the *server* returned,
+            // so a removal has to be declared or the next page skips
+            // somebody (CLAUDE.md, the roster's own note).
+            row.remove();
+            scroller.notifyRemoved(1);
+            showToast("عضو حذف شد");
+            return true;
+          },
+        } : undefined,
+        onConfirm: async (values) => {
+          if (CAN_MANAGE && values.trusted && (values.trusted === "yes") !== trusted) {
+            const want = values.trusted === "yes";
+            const { ok, data } = await apiFetch(
+              `/groups/${GROUP_ID}/members/${id}/trust`,
+              { method: want ? "POST" : "DELETE" }
+            );
+            if (!ok) {
+              showToast("خطا: " + ((data && data.detail) || "ذخیره نشد"));
+              return false;
+            }
+            // Repainted from the server's answer, like the role pill below.
+            row.dataset.memberTrusted = data.is_trusted ? "true" : "false";
+            row.querySelector("[data-trust-pill]").hidden = !!data.is_trusted;
+            showToast(data.is_trusted
+              ? `${name} به چالش‌های گروه راه یافت`
+              : "دسترسی به چالش‌های گروه برداشته شد");
+          }
+          if (!CAN_MANAGE_ADMINS || !values.role || values.role === role) return true;
+          const { ok, data } = await apiFetch(`/groups/${GROUP_ID}/members/${id}`, {
+            method: "PATCH",
+            body: { role: values.role },
+          });
+          if (!ok) {
+            showToast("خطا: " + ((data && data.detail) || "ذخیره نشد"));
+            return false;
+          }
+          // Repainted from the response, never from what was submitted: the
+          // server decides, and a refusal must not leave the pill lying.
+          row.dataset.memberRole = data.role;
+          const pill = row.querySelector("[data-role-pill]");
+          pill.textContent = ROLE_LABELS[data.role] || data.role;
+          pill.classList.toggle("is-admin", data.role !== "member");
+          showToast("نقش به‌روز شد");
+          return true;
+        },
+      });
+    });
+  });
+</script>
+{% endblock %}

@@ -28,85 +28,171 @@
     </div>
 
     <div class="auth-card glass">
-      <div class="auth-tabs">
-        <button class="auth-tab active" data-tab="login">ورود</button>
-        <button class="auth-tab" data-tab="register">ثبت‌نام</button>
-      </div>
 
-      <!-- login form -->
-      <form id="loginForm">
-        <div class="field">
-          <label>ایمیل</label>
-          <div class="field-input">
-            <span data-icon="mail"></span>
-            <input type="email" id="loginEmail" placeholder="you@example.com" required />
-          </div>
-        </div>
-        <div class="field">
-          <label>رمز عبور</label>
-          <div class="field-input">
-            <span data-icon="lock"></span>
-            <input type="password" id="loginPass" placeholder="••••••••" required />
-            <span class="field-toggle" data-icon="eye" data-toggle="loginPass"></span>
-          </div>
-        </div>
-        <button type="submit" class="btn-primary">ورود به حساب <span data-icon="chevronLeft"></span></button>
-      </form>
+      {#- ============================================================
+          SMS sign-in, the default path.
 
-      <!-- register form -->
-      <form id="registerForm" style="display:none;">
-        <div class="field">
-          <label>نام و نام خانوادگی</label>
-          <div class="field-input">
-            <span data-icon="user"></span>
-            <input type="text" id="regName" placeholder="مهدی رضایی" required />
+          One flow for signing up *and* signing in, matching the single
+          `/auth/otp/*` pair behind it: nobody is asked to know in advance
+          whether they already have an account, and the screen has no branch
+          that could reveal the answer. That is why there is no «ثبت‌نام»
+          tab here at all -- the tabs below belong to the older
+          email/password path, which is kept for the accounts that have one.
+          ============================================================ -#}
+      <div id="otpPanel">
+        <p class="auth-error" id="otpError" role="alert" aria-live="polite"></p>
+
+        <!-- step 1: which number -->
+        <form id="otpPhoneForm">
+          <div class="field">
+            <label for="otpMobile">شماره موبایل</label>
+            <div class="field-input">
+              <span data-icon="phone"></span>
+              {#- `type="tel"` + `inputmode="numeric"` gets the numeric keypad
+                  on both platforms; `dir="ltr"` because a phone number reads
+                  left-to-right even on an RTL page, and without it the
+                  leading zero jumps to the wrong end while typing. Farsi
+                  digits are accepted -- `app/phone.py` folds them -- so the
+                  field deliberately does not block them. -#}
+              <input type="tel" id="otpMobile" name="mobile" dir="ltr"
+                     inputmode="numeric" autocomplete="tel"
+                     placeholder="09121234567" maxlength="20" required />
+            </div>
+            <p class="field-note">کد ورود رو با پیامک برات می‌فرستیم. رمز عبوری لازم نیست.</p>
           </div>
-        </div>
-        <div class="field">
-          <label>ایمیل</label>
-          <div class="field-input">
-            <span data-icon="mail"></span>
-            <input type="email" id="regEmail" placeholder="you@example.com" required />
-          </div>
-        </div>
-        <div class="field">
-          <label>رمز عبور</label>
-          <div class="field-input">
-            <span data-icon="lock"></span>
-            <input type="password" id="regPass" placeholder="حداقل ۸ کاراکتر" required />
-            <span class="field-toggle" data-icon="eye" data-toggle="regPass"></span>
-          </div>
-        </div>
-        <div class="field">
-          <label>تکرار رمز عبور</label>
-          <div class="field-input">
-            <span data-icon="lock"></span>
-            <input type="password" id="regConfirmPass" placeholder="حداقل ۸ کاراکتر" required />
-            <span class="field-toggle" data-icon="eye" data-toggle="regConfirmPass"></span>
-          </div>
-        </div>
-        {#- Avatar picking sits *after* the credentials on purpose: it is the
-            one optional field on this form, and putting a 40-tile grid above
-            the password would read as a required step. Skipping it leaves
-            `avatar` null, which renders the shadowed-head placeholder -- the
-            same thing every pre-existing account shows. -#}
-        <div class="field">
-          <label>آواتار <span class="field-hint">(اختیاری)</span></label>
-          <div class="avatar-pick" id="avatarPick" role="radiogroup" aria-label="انتخاب آواتار">
-            {% for avatar in avatars %}
-            <button type="button" class="ap-item" role="radio" aria-checked="false"
-                    data-avatar="{{ avatar }}" aria-label="آواتار {{ loop.index }}">
-              <img src="{{ avatar | avatar_url }}" alt="" loading="lazy" width="52" height="52">
-            </button>
+          <button type="submit" class="btn-primary" id="otpSendBtn">
+            ارسال کد ورود <span data-icon="chevronLeft"></span>
+          </button>
+        </form>
+
+        <!-- step 2: the code -->
+        <form id="otpCodeForm" style="display:none;">
+          <p class="otp-target">
+            کد به <b id="otpTarget" dir="ltr"></b> فرستاده شد
+            <button type="button" id="otpChange">تغییر شماره</button>
+          </p>
+
+          {#- Six boxes rather than one field: it makes the expected length
+              visible without a sentence saying so, and `maxlength="1"` per box
+              means a fat-fingered seventh digit is dropped rather than
+              silently truncating the code on submit. `autocomplete=
+              "one-time-code"` on the first box is what lets iOS offer the code
+              straight off the notification; the paste handler below spreads a
+              pasted or autofilled string across the rest. -#}
+          <div class="otp-code" id="otpCode" dir="ltr">
+            {% for i in range(6) %}
+            <input class="otp-digit" type="text" inputmode="numeric" maxlength="1"
+                   aria-label="رقم {{ i + 1 }} از کد" enterkeyhint="done"
+                   {% if loop.first %}autocomplete="one-time-code"{% else %}autocomplete="off"{% endif %} />
             {% endfor %}
           </div>
+
+          <button type="submit" class="btn-primary" id="otpVerifyBtn">
+            ورود <span data-icon="chevronLeft"></span>
+          </button>
+
+          <p class="otp-resend" id="otpResend">
+            <button type="button" id="otpResendBtn" disabled></button>
+          </p>
+        </form>
+      </div>
+
+      {#- ============================================================
+          Email + password, for the accounts that already have one.
+          Unchanged behaviour -- both forms still post to the same JSON
+          endpoints they always did.
+          ============================================================ -#}
+      <div id="passwordPanel" style="display:none;">
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-tab="login">ورود</button>
+          <button class="auth-tab" data-tab="register">ثبت‌نام</button>
         </div>
-        <button type="submit" class="btn-primary">ساخت حساب کاربری <span data-icon="chevronLeft"></span></button>
-      </form>
+
+        <!-- login form -->
+        <form id="loginForm">
+          <div class="field">
+            <label>ایمیل</label>
+            <div class="field-input">
+              <span data-icon="mail"></span>
+              <input type="email" id="loginEmail" placeholder="you@example.com" required />
+            </div>
+          </div>
+          <div class="field">
+            <label>رمز عبور</label>
+            <div class="field-input">
+              <span data-icon="lock"></span>
+              <input type="password" id="loginPass" placeholder="••••••••" required />
+              <span class="field-toggle" data-icon="eye" data-toggle="loginPass"></span>
+            </div>
+          </div>
+          <button type="submit" class="btn-primary">ورود به حساب <span data-icon="chevronLeft"></span></button>
+        </form>
+
+        <!-- register form -->
+        <form id="registerForm" style="display:none;">
+          <div class="field">
+            <label>نام و نام خانوادگی</label>
+            <div class="field-input">
+              <span data-icon="user"></span>
+              <input type="text" id="regName" placeholder="مهدی رضایی" required />
+            </div>
+          </div>
+          <div class="field">
+            <label>ایمیل</label>
+            <div class="field-input">
+              <span data-icon="mail"></span>
+              <input type="email" id="regEmail" placeholder="you@example.com" required />
+            </div>
+          </div>
+          <div class="field">
+            <label>رمز عبور</label>
+            <div class="field-input">
+              <span data-icon="lock"></span>
+              <input type="password" id="regPass" placeholder="حداقل ۸ کاراکتر" required />
+              <span class="field-toggle" data-icon="eye" data-toggle="regPass"></span>
+            </div>
+          </div>
+          <div class="field">
+            <label>تکرار رمز عبور</label>
+            <div class="field-input">
+              <span data-icon="lock"></span>
+              <input type="password" id="regConfirmPass" placeholder="حداقل ۸ کاراکتر" required />
+              <span class="field-toggle" data-icon="eye" data-toggle="regConfirmPass"></span>
+            </div>
+          </div>
+          {#- Avatar picking sits *after* the credentials on purpose: it is the
+              one optional field on this form, and putting a 40-tile grid above
+              the password would read as a required step. Skipping it leaves
+              `avatar` null, which renders the shadowed-head placeholder -- the
+              same thing every pre-existing account shows. -#}
+          <div class="field">
+            <label>آواتار <span class="field-hint">(اختیاری)</span></label>
+            <div class="avatar-pick" id="avatarPick" role="radiogroup" aria-label="انتخاب آواتار">
+              {% for avatar in avatars %}
+              <button type="button" class="ap-item" role="radio" aria-checked="false"
+                      data-avatar="{{ avatar }}" aria-label="آواتار {{ loop.index }}">
+                <img src="{{ avatar | avatar_url }}" alt="" loading="lazy" width="52" height="52">
+              </button>
+              {% endfor %}
+            </div>
+          </div>
+          <button type="submit" class="btn-primary">ساخت حساب کاربری <span data-icon="chevronLeft"></span></button>
+        </form>
+
+        <p class="auth-foot" id="authFoot">
+          حساب نداری؟ <a href="#" data-switch="register">بساز</a>
+        </p>
+      </div>
+
     </div>
 
-    <p class="auth-foot" id="authFoot">
-      حساب نداری؟ <a href="#" data-switch="register">بساز</a>
+    {#- A link under the card, not a third tab: SMS is the path essentially
+        everybody takes, and two equally-weighted options would ask a question
+        most members have no reason to answer. -#}
+    <p class="auth-alt">
+      <button type="button" id="authAltBtn">
+        <span data-icon="lock"></span><span id="authAltLabel">ورود با ایمیل و رمز عبور</span>
+      </button>
     </p>
 
   </div>
@@ -115,6 +201,228 @@
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
 <script>
   const nextUrl = {{ next|tojson }};
+
+  // ---- shared -------------------------------------------------------------
+
+  const otpError = document.getElementById("otpError");
+  function showError(message) {
+    otpError.textContent = message;
+    otpError.classList.add("show");
+  }
+  function clearError() {
+    otpError.textContent = "";
+    otpError.classList.remove("show");
+  }
+
+  // Every refusal on this page comes back as `{detail: "<Farsi sentence>"}`
+  // from the JSON API -- `app/otp.py` owns the wording, so nothing here
+  // restates it. A 422 is the schema's own message and is not a sentence a
+  // member should read, so those get the one generic line instead.
+  async function refusalMessage(res, fallback) {
+    if (res.status === 422) return fallback;
+    const body = await res.json().catch(() => ({}));
+    return typeof body.detail === "string" ? body.detail : fallback;
+  }
+
+  // ---- OTP: step 1, the number -------------------------------------------
+
+  const otpPhoneForm = document.getElementById("otpPhoneForm");
+  const otpCodeForm = document.getElementById("otpCodeForm");
+  const otpMobile = document.getElementById("otpMobile");
+  const otpSendBtn = document.getElementById("otpSendBtn");
+  const otpVerifyBtn = document.getElementById("otpVerifyBtn");
+  const otpTarget = document.getElementById("otpTarget");
+  const otpResendBtn = document.getElementById("otpResendBtn");
+  const digits = [...document.querySelectorAll(".otp-digit")];
+
+  let resendTimer = null;
+
+  async function requestCode() {
+    clearError();
+    otpSendBtn.disabled = true;
+    otpResendBtn.disabled = true;
+    try {
+      const res = await fetch("/auth/otp/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mobile: otpMobile.value }),
+      });
+      if (!res.ok) {
+        showError(await refusalMessage(res, "شماره موبایل معتبر نیست."));
+        return false;
+      }
+      const data = await res.json();
+      otpTarget.textContent = data.mobile_masked;
+      startResendCountdown(data.resend_after);
+      return true;
+    } catch (err) {
+      showError("ارتباط با سرور برقرار نشد. اتصالت رو بررسی کن.");
+      return false;
+    } finally {
+      otpSendBtn.disabled = false;
+    }
+  }
+
+  otpPhoneForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (await requestCode()) {
+      otpPhoneForm.style.display = "none";
+      otpCodeForm.style.display = "block";
+      digits[0].focus();
+    }
+  });
+
+  // ---- OTP: step 2, the code ---------------------------------------------
+
+  // The server refuses a resend before its cooldown, so offering the button
+  // early would be a control that answers 429. It stays disabled and counts
+  // instead -- the wait is the information.
+  function startResendCountdown(seconds) {
+    clearInterval(resendTimer);
+    let left = seconds;
+    const paint = () => {
+      if (left <= 0) {
+        clearInterval(resendTimer);
+        otpResendBtn.disabled = false;
+        otpResendBtn.textContent = "ارسال دوباره کد";
+        return;
+      }
+      otpResendBtn.disabled = true;
+      otpResendBtn.textContent = `ارسال دوباره تا ${left.toLocaleString("fa-IR")} ثانیه دیگه`;
+      left -= 1;
+    };
+    paint();
+    resendTimer = setInterval(paint, 1000);
+  }
+
+  otpResendBtn.addEventListener("click", async () => {
+    clearDigits();
+    await requestCode();
+    digits[0].focus();
+  });
+
+  document.getElementById("otpChange").addEventListener("click", () => {
+    clearInterval(resendTimer);
+    clearDigits();
+    clearError();
+    otpCodeForm.style.display = "none";
+    otpPhoneForm.style.display = "block";
+    otpMobile.focus();
+    otpMobile.select();
+  });
+
+  // Farsi digits are folded here as well as on the server: the boxes are
+  // `maxlength="1"`, so an unfolded ۵ would occupy a box and read as filled
+  // while meaning nothing to `Number.isInteger` below.
+  const FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩";
+  function toAscii(text) {
+    return [...text].map(ch => {
+      const i = FA_DIGITS.indexOf(ch);
+      return i === -1 ? ch : String(i % 10);
+    }).join("");
+  }
+
+  function clearDigits() {
+    digits.forEach(d => { d.value = ""; d.classList.remove("filled"); });
+  }
+
+  function collectCode() {
+    return digits.map(d => d.value).join("");
+  }
+
+  digits.forEach((box, index) => {
+    box.addEventListener("input", () => {
+      // One handler covers typing, pasting and platform autofill: all three
+      // arrive as an `input` event, and autofill in particular drops the whole
+      // code into whichever box was focused. Spreading it from here means
+      // there is no second code path that could get the order wrong.
+      const typed = toAscii(box.value).replace(/\D/g, "");
+      if (!typed) { box.value = ""; box.classList.remove("filled"); return; }
+
+      [...typed].forEach((digit, offset) => {
+        const target = digits[index + offset];
+        if (target) { target.value = digit; target.classList.add("filled"); }
+      });
+
+      const landed = Math.min(index + typed.length, digits.length - 1);
+      digits[landed].focus();
+
+      // Submitting the moment the last digit lands is the whole point of a
+      // six-box field: the member has nothing left to decide, and asking them
+      // to reach for a button after the code is complete is a step that only
+      // ever costs time.
+      if (collectCode().length === digits.length) otpCodeForm.requestSubmit();
+    });
+
+    box.addEventListener("keydown", (e) => {
+      if (e.key === "Backspace" && !box.value && index > 0) {
+        // Backspace on an empty box steps back and clears -- otherwise
+        // correcting a typo two boxes ago needs the mouse.
+        e.preventDefault();
+        digits[index - 1].value = "";
+        digits[index - 1].classList.remove("filled");
+        digits[index - 1].focus();
+      }
+      if (e.key === "ArrowLeft" && index > 0) digits[index - 1].focus();
+      if (e.key === "ArrowRight" && index < digits.length - 1) digits[index + 1].focus();
+    });
+
+    box.addEventListener("focus", () => box.select());
+  });
+
+  otpCodeForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const code = collectCode();
+    if (code.length !== digits.length) {
+      showError("کد ۶ رقمیه.");
+      return;
+    }
+    clearError();
+    otpVerifyBtn.disabled = true;
+    try {
+      const res = await fetch("/auth/otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mobile: otpMobile.value, code }),
+      });
+      if (!res.ok) {
+        showError(await refusalMessage(res, "کد واردشده درست نیست."));
+        clearDigits();
+        digits[0].focus();
+        return;
+      }
+      const data = await res.json();
+      // A brand-new account has a placeholder name and no picture, so the
+      // first stop is the profile -- once, and only for the visit that
+      // created it. Anyone signing back in goes where they were headed.
+      window.location.href = data.is_new_account
+        ? `/views/users/${data.user.id}`
+        : nextUrl;
+    } catch (err) {
+      showError("ارتباط با سرور برقرار نشد. اتصالت رو بررسی کن.");
+    } finally {
+      otpVerifyBtn.disabled = false;
+    }
+  });
+
+  // ---- the other way in ---------------------------------------------------
+
+  const otpPanel = document.getElementById("otpPanel");
+  const passwordPanel = document.getElementById("passwordPanel");
+  const authAltLabel = document.getElementById("authAltLabel");
+
+  document.getElementById("authAltBtn").addEventListener("click", () => {
+    const showingPassword = passwordPanel.style.display !== "none";
+    clearError();
+    otpPanel.style.display = showingPassword ? "block" : "none";
+    passwordPanel.style.display = showingPassword ? "none" : "block";
+    authAltLabel.textContent = showingPassword
+      ? "ورود با ایمیل و رمز عبور"
+      : "ورود با پیامک";
+    if (showingPassword) otpMobile.focus();
+  });
+
+  // ---- email + password (unchanged) --------------------------------------
 
   const tabs = document.querySelectorAll(".auth-tab");
   const loginForm = document.getElementById("loginForm");

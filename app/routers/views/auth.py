@@ -6,9 +6,11 @@ from fastapi.templating import Jinja2Templates
 from app.auth import get_optional_user_id
 from app.avatars import AVATAR_IDS, register_avatar_filters
 from app.config import BASE_DIR
+from app.explainers import register_explainer_filters
 
 router = APIRouter(prefix="/views/auth", tags=["auth-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_explainer_filters(templates.env)
 register_avatar_filters(templates.env)
 
 

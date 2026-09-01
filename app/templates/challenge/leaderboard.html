@@ -1,0 +1,158 @@
+{% extends "layout.html" %}
+
+{#- One challenge's standings — the motivational half of "who else is in
+    this".
+
+    A page of its own rather than a fourth tab on challenge-detail, for the
+    reason the moderation roster is one: it is ordered and lazily paged, and
+    a list that pages cannot live inside a panel that is only ever a
+    screenful. Reached from the «من» panel, which is where a participant is
+    already reading their own numbers.
+
+    Built from the parts the app already has — the `.seg` ordering control
+    the challenge list and the moderation roster share, `createSheet`-free
+    rows, `createInfiniteScroller()`, the state mirrored into the query
+    string so a board is a link someone can send. What it deliberately does
+    not have is a search box: a leaderboard is read from the top, and looking
+    somebody up by name is a roster question this screen does not answer.
+
+    Colour: rank is an achievement, so the podium borrows `--gold`, which
+    already means exactly that on this app (the streak tiles). It borrows
+    neither the status hues nor the category ones — see CLAUDE.md on the two
+    colour channels. -#}
+
+{% block topbar_leading %}
+<a href="/views/challenges/{{ challenge.id }}" class="back-btn" data-back data-back-optional
+  aria-label="بازگشت"><span data-icon="chevronRight"></span></a>
+{% endblock %}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="رتبه‌بندی">
+  <span class="crumb current" aria-current="page">رتبه‌بندی</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="lb-page">
+
+  {#- Whose board this is. A standings list with no challenge named on it is
+      unreadable the moment it is shared, and the link back is the same
+      reasoning the participant roster's header row follows. -#}
+  <a href="/views/challenges/{{ challenge.id }}" class="lb-head glass"
+    data-cat="{{ challenge.category | category_slug }}">
+    <span class="lb-head-icon"><span data-icon="{{ challenge.category | category_icon }}"></span></span>
+    <div class="lb-head-text">
+      <b>{{ challenge.title }}</b>
+      <span>{{ total }} شرکت‌کننده</span>
+    </div>
+    <span class="sr-chev" data-icon="chevronLeft"></span>
+  </a>
+
+  {% if standing %}
+  {#- «رتبه تو», above the list rather than only inside it. A member sitting
+      at position 47 would otherwise have to scroll to learn they are at
+      position 47, which is the one number they opened this page for. It is
+      the same query the rows are ranked by (`leaderboard_rank`), so the card
+      and the row it points at cannot disagree. -#}
+  <div class="lb-mine glass">
+    <div class="lb-mine-rank">
+      <b>{{ standing.rank }}</b>
+      <span>رتبهٔ تو</span>
+    </div>
+    <div class="lb-mine-figs">
+      <div><b>{{ standing.completions }}</b><span>ثبت</span></div>
+      <div class="gold"><b><span data-icon="flame"></span>{{ standing.streak }}</b><span>رشته</span></div>
+      <div><b>{{ total }}</b><span>شرکت‌کننده</span></div>
+    </div>
+    <button type="button" class="cc-btn ghost tiny" id="lbFindMe">
+      <span data-icon="target"></span>جای من
+    </button>
+  </div>
+  {% endif %}
+
+  {#- Two orderings, on-screen rather than behind a filter sheet: there are
+      two of them, so hiding them would cost a tap and buy nothing, and an
+      ordering that can be left on invisibly is one the reader silently
+      mis-reads the board under. Same `.seg` control the challenge list and
+      the moderation roster wear.
+
+      They are **links, not buttons**, and that is the whole sort mechanism:
+      switching the ordering re-ranks everyone, including the «رتبه تو» card
+      above — and hand-patching derived figures in JS is exactly how they
+      drift apart, the same reason every check-in on challenge-detail ends in
+      a reload. A navigation re-renders the card and the rows from one
+      server-side answer, and costs no client state at all. -#}
+  <div class="seg-row">
+    <nav class="seg" aria-label="ترتیب رتبه‌بندی">
+      {% for opt in sort_options %}
+      <a class="seg-btn{{ ' active' if active_sort == opt.value }}"
+        href="?sort={{ opt.value }}"
+        {% if active_sort == opt.value %}aria-current="page"{% endif %}><span
+          data-icon="{{ opt.icon }}"></span>{{ opt.label }}</a>
+      {% endfor %}
+    </nav>
+    {#- Beside the ordering, because that is where the two questions the board
+        raises are asked: what is being counted, and what happens to a tie.
+        This replaced a standing paragraph at the foot of the page -- which
+        said less, and said it where nobody scrolling a ranked list reads. -#}
+    {{ explain("leaderboard") }}
+  </div>
+
+  <div class="lb-list" id="lbList" data-page-size="{{ page_size }}"
+    data-initial-count="{{ rows|length }}" data-has-more="{{ 'true' if has_more else 'false' }}">
+    {% include "challenge/_leaderboard_rows.html" %}
+  </div>
+  <div class="empty" id="lbEmpty" {{ 'hidden' if rows }}>
+    <span data-icon="empty"></span>
+    <p>هنوز کسی در این چالش نوبتی ثبت نکرده.</p>
+  </div>
+  <div class="scroll-sentinel" id="lbSentinel" aria-hidden="true"></div>
+  <div class="list-loading" id="lbLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const listEl = document.getElementById("lbList");
+    const emptyEl = document.getElementById("lbEmpty");
+    const challengeId = {{ challenge.id | tojson }};
+    const sort = {{ active_sort | tojson }};
+
+    createInfiniteScroller({
+      container: listEl,
+      sentinel: document.getElementById("lbSentinel"),
+      loadingEl: document.getElementById("lbLoading"),
+      emptyEl: emptyEl,
+      pageSize: Number(listEl.dataset.pageSize) || 20,
+      initialOffset: Number(listEl.dataset.initialCount) || 0,
+      initialHasMore: listEl.dataset.hasMore === "true",
+      buildUrl: (offset, limit) => {
+        const params = new URLSearchParams({ sort, offset, limit });
+        return `/views/challenges/${challengeId}/leaderboard/fragment?${params.toString()}`;
+      },
+    });
+
+    // «جای من» scrolls to the viewer's own row when it has already been
+    // loaded, and otherwise says so rather than silently doing nothing --
+    // the row may still be forty pages down.
+    const findMe = document.getElementById("lbFindMe");
+    if (findMe) {
+      findMe.addEventListener("click", () => {
+        const row = listEl.querySelector(".lb-row.is-you");
+        if (!row) {
+          showToast("کمی پایین‌تر برو تا ردیف تو بارگذاری شود.");
+          return;
+        }
+        row.scrollIntoView({ behavior: "smooth", block: "center" });
+        row.classList.remove("is-found");
+        // reflow, so the highlight replays on a second tap
+        void row.offsetWidth;
+        row.classList.add("is-found");
+      });
+    }
+  });
+</script>
+{% endblock %}

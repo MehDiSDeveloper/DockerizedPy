@@ -1,0 +1,52 @@
+{#- One notification per row -- the infinite-scroll fragment for the feed.
+
+    Included for the first server-rendered page by `notification/index.html`
+    and re-served bare by `GET /views/notifications/fragment` for every page
+    after it, exactly like `admin/_member_rows.html`. It must therefore stay
+    free of anything but the rows: no wrapper, no empty state, no counter --
+    `createInfiniteScroller()` counts this file's top-level children to
+    advance its offset, so one stray element silently skips a notification.
+
+    Nothing here is worded in this file. The three filters come from
+    `app/notifications.py`, which is the only place a stored event becomes
+    Farsi -- the same rule `category_icon` follows, and the reason no
+    sentence is ever written to a row.
+
+    The row is a link when it has somewhere to go and a plain block when it
+    does not, which is why the body is a macro rather than copied into two
+    branches: a notification whose challenge was deleted is cascaded away, so
+    the `{% else %}` is reached only by a kind that names no challenge at all
+    -- but a dead <a href="#"> for those would be a control that lies. -#}
+
+{% macro notif_body(n) %}
+<div class="sr-head">
+  {#- A neutral tile, deliberately: a notification is neither a status nor a
+      category, and those two channels own every hue in the app (CLAUDE.md).
+      The one colour on this screen is the «تازه» pill, so accent here means
+      "unread" and nothing else. -#}
+  <span class="notif-icon"><span data-icon="{{ n | notification_icon }}"></span></span>
+  <div class="sr-text">
+    <span class="sr-label">{{ n | notification_title }}</span>
+    <span class="sr-hint">{{ n | notification_text }}</span>
+    {#- An instant, so it carries no `data-jalali-tz` and renderDates() reads
+        it in APP_TIMEZONE -- a notification is app-level, not scoped to an
+        enrollment's own zone the way a Today window is. The ISO text is the
+        element's content too, so the pre-JS fallback is a real date. -#}
+    <span class="notif-time" data-jalali="{{ n.created_at.isoformat() }}"
+      data-jalali-format="datetime">{{ n.created_at.isoformat() }}</span>
+  </div>
+  {#- Unread is spelled out, not just tinted -- the same rule the status pill
+      follows: colour alone cannot carry a meaning. -#}
+  {% if not n.read_at %}<span class="notif-new">تازه</span>{% endif %}
+  {% if n.challenge %}<span class="sr-chev" data-icon="chevronLeft"></span>{% endif %}
+</div>
+{% endmacro %}
+
+{% for n in notifications %}
+{% if n.challenge %}
+<a class="setting-row glass notif-row{{ ' is-unread' if not n.read_at }}"
+  href="/views/challenges/{{ n.challenge.id }}">{{ notif_body(n) }}</a>
+{% else %}
+<div class="setting-row glass notif-row is-static{{ ' is-unread' if not n.read_at }}">{{ notif_body(n) }}</div>
+{% endif %}
+{% endfor %}

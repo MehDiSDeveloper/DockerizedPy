@@ -8,13 +8,21 @@ from app.auth import get_page_user
 from app.avatars import AVATAR_IDS, avatar_url, register_avatar_filters
 from app.config import BASE_DIR
 from app.database import get_db
+from app.explainers import register_explainer_filters
 from app.models.enrollment import Enrollment, EnrollmentStatus
 from app.models.user import User
-from app.permissions import is_admin
+from app.permissions import Perm, can, is_admin
+from app.phone import national_mobile
 from app.routers.user import profile_visibility_filter
+
+# The Farsi for `UserRole`, taken from the panel rather than restated here:
+# the role pill on the roster and the role row on this page name the same
+# two values, and two copies of that map is one rename away from disagreeing.
+from app.routers.views.admin import ROLE_LABELS
 
 router = APIRouter(prefix="/views/users", tags=["user-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_explainer_filters(templates.env)
 register_avatar_filters(templates.env)
 
 
@@ -25,29 +33,36 @@ async def user_detail(
     viewer: User = Depends(get_page_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Your own profile. Anyone else's is a 404.
+    """Your own profile -- or, for an operator, any member's. Otherwise a 404.
 
     The rule is ``profile_visibility_filter`` in ``routers/user.py``, shared
     with the JSON ``GET /users/{id}`` so the page and the API it mirrors can
-    never disagree -- see that docstring for why own-only is the right rule
-    for today's app.
+    never disagree. Widening reach for admins was an edit to *that function*
+    and nothing here: this route composes the same clause it always did.
 
-    404 rather than 403: the path id is a bare sequential integer, so a 403
-    would tell a walker of ``1..n`` exactly which ids are real members, which
-    is the entire prize. An id the viewer may not see is indistinguishable
-    from one that does not exist. (Being *signed out* is still the 303 to
-    login that ``get_page_user`` raises -- authentication and authorization
-    fail differently on purpose.)
+    404 rather than 403 for a member: the path id is a bare sequential
+    integer, so a 403 would tell a walker of ``1..n`` exactly which ids are
+    real members, which is the entire prize. An id the viewer may not see is
+    indistinguishable from one that does not exist. (Being *signed out* is
+    still the 303 to login that ``get_page_user`` raises -- authentication
+    and authorization fail differently on purpose.)
 
-    ``is_own_profile`` is therefore always true here, but it stays: the
-    template branches on it for the owner-only affordances, and it is the
-    flag a looser rule would start flipping.
+    Three flags reach the template, and each answers a different question:
+
+    * ``is_own_profile`` -- is this me? Gates the things that are only ever
+      mine: logout, settings, the history link, the admin-panel row.
+    * ``can_administer`` -- am I here as an operator? Adds the banner that
+      says so and the role row, and is false on my own profile even though I
+      hold the permission, because "administering myself" is not a thing this
+      screen should offer (the server refuses self-demotion anyway).
+    * ``can_edit`` -- may I change what this page shows? The union of the
+      two, and the only one the editing affordances read, so the sheets and
+      the ``PATCH /users/{id}`` behind them stay one code path rather than
+      an owner copy and an operator copy.
     """
     current_user_id = viewer.id
     result = await db.execute(
-        select(User).where(
-            User.id == user_id, profile_visibility_filter(current_user_id)
-        )
+        select(User).where(User.id == user_id, profile_visibility_filter(viewer))
     )
     db_user = result.scalar_one_or_none()
 
@@ -75,6 +90,10 @@ async def user_detail(
         )
     ).scalar_one()
     is_own_profile = current_user_id == user_id
+    # Reaching this row already proved the *viewer* half of the permission;
+    # this asks the editing half, which is granted together but checked
+    # separately so the two stay independently revocable in `permissions.py`.
+    can_administer = not is_own_profile and can(viewer, Perm.USER_EDIT_ANY)
 
     return templates.TemplateResponse(
         "user/profile.html",
@@ -85,6 +104,19 @@ async def user_detail(
             "stat_active": stat_active,
             "stat_done": stat_done,
             "is_own_profile": is_own_profile,
+            "can_administer": can_administer,
+            "can_edit": is_own_profile or can_administer,
+            "role_labels": ROLE_LABELS,
+            # The verified number this account signs in with, in the form
+            # Iranians read (`app.phone.national_mobile`) rather than the
+            # canonical `+98…` it is stored as -- storage stays canonical and
+            # presentation converts, the same split Jalali dates already make.
+            # `None` for every account that signs in with a password, which is
+            # why the row is conditional rather than rendering «ثبت نشده»:
+            # this one is a credential, and there is no box to fill it in.
+            "login_mobile": (
+                national_mobile(db_user.mobile) if db_user.mobile else None
+            ),
             # The whole catalogue, id + path, for the "change picture" sheet.
             # Built here rather than in the template so the picker never has
             # to know where avatar files live -- `avatar_url` stays the one

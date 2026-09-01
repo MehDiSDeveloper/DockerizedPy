@@ -39,6 +39,73 @@ class LifecycleStatus(str, enum.Enum):
     ARCHIVED = "archived"
 
 
+class IdentityMode(str, enum.Enum):
+    """How participants of one challenge are shown to each other.
+
+    A property of the *challenge*, not of the app: "چالش ترک سیگار" and
+    "چالش ۱۰ هزار قدم" are not the same social contract, and the person who
+    opens one is the person who knows which it is. The mode is fixed at
+    creation and locked once anyone else joins (see
+    ``app/routers/challenge.py``) -- unmasking people who joined on the
+    promise of anonymity is a promise broken retroactively, and it is exactly
+    the change a column with no lock invites.
+
+    ``MEMBER_CHOICE`` is the only mode that consults the joiner; the other
+    two answer for everyone. ``app.identity.resolve_anonymity`` is the one
+    place that resolution happens, so the stored per-enrollment flag can
+    never disagree with the policy that produced it.
+
+    **The owner is never anonymous.** Anonymity here is about *participation*
+    -- authorship is a separate thing, and a challenge whose content nobody
+    is accountable for is a moderation problem, not a privacy feature. The
+    creator's auto-enrolment is therefore always written named, and
+    challenge-detail keeps naming them as «سازنده» in every mode.
+    """
+
+    NAMED = "named"
+    ANONYMOUS = "anonymous"
+    MEMBER_CHOICE = "member_choice"
+
+
+class GroupAudience(str, enum.Enum):
+    """Who inside the group a group challenge is for.
+
+    Two values, not three. "یک نفر خاص" is not a third kind of audience --
+    it is ``SELECTED`` with one person picked, and modelling it separately
+    would mean a third branch every reader has to handle for a case that
+    behaves identically to the second.
+
+    ``ALL`` is the one that carries a *standing* meaning rather than a
+    one-off act: it is re-read when somebody new joins the group, so a
+    challenge for everyone stays a challenge for everyone. ``SELECTED``
+    names nobody by itself -- the enrollment rows are the list, which is
+    what lets an administrator add and remove people afterwards with the
+    machinery that already exists.
+    """
+
+    ALL = "all"
+    SELECTED = "selected"
+
+
+class ParticipationMode(str, enum.Enum):
+    """Whether a group member may walk away from a group challenge.
+
+    The whole difference is one refusal in ``unenroll``: a mandatory
+    challenge cannot be left *while you are still in the group that set
+    it*. Leaving or being removed from the group lifts the lock -- the
+    obligation belongs to the membership, not to the person -- and the
+    enrollment and everything logged against it survive, for the same
+    reason a challenge others have joined cannot be hard-deleted.
+
+    Meaningless on a challenge with no ``group_id``, and stored anyway:
+    a nullable "sometimes this column means something" is worse than a
+    default that is simply never consulted.
+    """
+
+    OPTIONAL = "optional"
+    MANDATORY = "mandatory"
+
+
 class CadenceKind(str, enum.Enum):
     ONCE = "once"
     SCHEDULE = "schedule"
@@ -62,6 +129,13 @@ class Challenge(AuditBase):
     cadence_kind = Column(String(32), nullable=False, default=CadenceKind.ONCE.value)
     cadence = Column(JSONVariant, nullable=False, default=dict)
     visibility = Column(String(16), nullable=False, default=Visibility.PUBLIC.value)
+    # Who the participants are to each other -- see `IdentityMode`. Default
+    # `named`, so every row written before this column existed, and every
+    # challenge created without thinking about it, keeps the old behaviour.
+    identity_mode = Column(
+        String(16), nullable=False, default=IdentityMode.NAMED.value,
+        server_default=IdentityMode.NAMED.value,
+    )
     lifecycle_status = Column(
         String(16), nullable=False, default=LifecycleStatus.ACTIVE.value
     )
@@ -69,9 +143,42 @@ class Challenge(AuditBase):
     goal_unit = Column(String(32), nullable=True)
     legacy_cadence = Column(JSONVariant, nullable=True)
 
+    # The group this challenge belongs to, or NULL for a personal one --
+    # which is every challenge that existed before this column, so nothing
+    # needs backfilling and nothing changes for a member with no groups.
+    #
+    # **A scalar FK, on purpose, and it is also the extension point.** One
+    # challenge belonging to several groups is a real future ask, and the
+    # move is a join table plus an edit to `group_scope_filter` and
+    # `group_ids_for` -- because every read in the app reaches a group
+    # challenge through those two functions and nothing else compares this
+    # column by hand.
+    #
+    # It is settable at creation and never after: `ChallengeUpdate` does not
+    # carry it. Moving a challenge between groups would retroactively change
+    # who has been able to see it, which is the same objection that locks
+    # `identity_mode` once other people have joined.
+    group_id = Column(Integer, ForeignKey("Groups.id"), nullable=True, index=True)
+
+    # Who inside that group it is for, and whether they may leave. Both carry
+    # a default so `sync_sqlite_schema` can add them to a populated table
+    # (CLAUDE.md, Configuration), and both are simply not consulted when
+    # `group_id` is NULL.
+    group_audience = Column(
+        String(16), nullable=False,
+        default=GroupAudience.SELECTED.value,
+        server_default=GroupAudience.SELECTED.value,
+    )
+    participation_mode = Column(
+        String(16), nullable=False,
+        default=ParticipationMode.OPTIONAL.value,
+        server_default=ParticipationMode.OPTIONAL.value,
+    )
+
     owner = relationship(
         "User", foreign_keys=[owner_id], back_populates="owned_challenges"
     )
+    group = relationship("Group", back_populates="challenges")
     participants = relationship("User", secondary="Enrollments", viewonly=True)
     # Cascades are required, not an optimisation: every child FK here is
     # NOT NULL (ChallengeStats.challenge_id is even the PK), so SQLAlchemy's
@@ -90,4 +197,12 @@ class Challenge(AuditBase):
     )
     checkins = relationship(
         "CheckIn", back_populates="challenge", cascade="all, delete-orphan"
+    )
+    # Cascaded for a different reason than the three above: `challenge_id` on
+    # a notification is *nullable*, so nothing would break without this -- the
+    # rows would simply survive, pointing at a challenge that no longer
+    # exists, and render as a sentence about nothing that opens a 404. A
+    # notification is only meaningful while its subject is, so it goes with it.
+    notifications = relationship(
+        "Notification", back_populates="challenge", cascade="all, delete-orphan"
     )

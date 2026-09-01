@@ -15,10 +15,18 @@ from app.auth import get_current_user_id, get_optional_user_id, get_page_user
 from app.avatars import register_avatar_filters
 from app.config import BASE_DIR
 from app.database import get_db
+from app.explainers import register_explainer_filters
+from app.groups import is_group_member, leaving_is_allowed, register_group_filters
 from app.icons import register_icon_filters
+from app.identity import (
+    asks_the_joiner,
+    participant_display,
+    register_identity_filters,
+)
 from app.models.challenge import Challenge, ChallengeCategory
 from app.models.checkin import CheckIn
 from app.models.enrollment import ChallengeRole, Enrollment
+from app.models.group import GroupMembership
 from app.models.stats import ChallengeStats
 from app.models.user import User
 from app.occurrences import (
@@ -33,7 +41,7 @@ from app.occurrences import (
     upcoming_occurrences,
     week_start,
 )
-from app.permissions import challenge_role
+from app.permissions import Perm, can, challenge_role
 from app.routers.challenge import (
     DEFAULT_PAGE_SIZE,
     DEFAULT_TIMEZONE,
@@ -43,9 +51,28 @@ from app.routers.challenge import (
     challenge_status,
     challenge_visibility_filter,
     fetch_challenge_page,
+    resolve_group_for_create,
     resolve_timezone,
+    seed_group_participants,
 )
 from app.routers.checkin import occurrence_local_date, parse_cadence
+from app.routers.enrollment import (
+    DEFAULT_LEADERBOARD_PAGE_SIZE,
+    LEADERBOARD_COMPLETIONS,
+    LEADERBOARD_SORTS,
+    LEADERBOARD_STREAK,
+    MAX_LEADERBOARD_PAGE_SIZE,
+    assign_ranks,
+    fetch_leaderboard_page,
+    leaderboard_rank,
+    leaderboard_standing,
+)
+from app.routers.group import (
+    fetch_group_member_page,
+    load_group,
+    member_rows,
+)
+from app.routers.user import MAX_MEMBER_PAGE_SIZE
 from app.schemas.cadence import (
     CadenceUnion,
     OnceCadence,
@@ -57,13 +84,10 @@ from app.schemas.challenge import ChallengeCreate
 
 logger = logging.getLogger(__name__)
 
-# How many occurrences the challenge-detail history timeline shows before
-# collapsing the rest behind a "show older" note.
-HISTORY_LIMIT = 12
-
-# How many occurrences the compact history strip above the timeline plots.
-# It is a shape, not a log -- one square per occurrence, no labels -- so it
-# can carry ~3x what the readable timeline does in a fraction of the height.
+# How many occurrences the compact history strip plots. It is a shape, not a
+# log -- one square per occurrence, no labels. The readable history is not
+# capped alongside it: the calendar beside the strip pages through the whole
+# run a month at a time, so there is no "show older" cut-off to pick.
 HISTORY_STRIP_LIMIT = 30
 
 # How many past periods (weeks/months) the recurring_quota history strip
@@ -73,6 +97,12 @@ QUOTA_PERIODS_BACK = 5
 # How many upcoming occurrences the cadence plan card previews, and how far
 # ahead the "how often is this" density line looks.
 UPCOMING_LIMIT = 4
+
+# How many upcoming occurrences the history calendar plots. Not a preview
+# like UPCOMING_LIMIT -- the calendar is meant to be the whole shape of the
+# challenge, so it takes everything `upcoming_occurrences` will give before
+# its own MAX_LOOKAHEAD_DAYS horizon cuts it off.
+CALENDAR_UPCOMING_LIMIT = 400
 DENSITY_WINDOW_DAYS = 30
 
 # 0 = Saturday .. 6 = Friday -- the Iranian indexing used everywhere in this
@@ -86,7 +116,7 @@ WEEKDAY_NAMES = ("شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", 
 CADENCE_LABELS = {
     "once": "یک‌باره",
     "schedule": "زمان‌بندی‌شده",
-    "recurring_days": "تکرار روزانه",
+    "recurring_days": "روزهای مشخص",
     "recurring_quota": "سهمیه‌ای",
 }
 
@@ -94,6 +124,29 @@ VISIBILITY_LABELS = {
     "public": "عمومی",
     "unlisted": "فقط با لینک",
     "private": "خصوصی",
+}
+
+# How each identity mode reads on this page. Per-surface Farsi labelling,
+# same pattern as VISIBILITY_LABELS above (D7): the create wizard builds its
+# pills client-side and keeps its own copy, exactly as it does for cadence.
+# `hint` is the one line the join sheet prints under the question -- «ناشناس»
+# is a promise, and a promise nobody spelled out is a promise nobody trusts.
+IDENTITY_LABELS = {
+    "named": "با نام",
+    "anonymous": "ناشناس",
+    "member_choice": "به انتخاب هر عضو",
+}
+
+IDENTITY_HINTS = {
+    "named": "همهٔ اعضا با نام و آواتار خودشان دیده می‌شوند.",
+    "anonymous": "هیچ عضوی نام یا آواتارش را نمی‌بیند؛ فقط شمارش‌ها دیده می‌شود.",
+    "member_choice": "هر عضو موقع پیوستن خودش انتخاب می‌کند.",
+}
+
+IDENTITY_ICONS = {
+    "named": "users",
+    "anonymous": "mask",
+    "member_choice": "help",
 }
 
 LIFECYCLE_LABELS = {
@@ -112,8 +165,27 @@ STATUS_META = {
     "finished": {"label": "تمام شده", "icon": "seal"},
 }
 
+# How the leaderboard can be ordered, and what each ordering is called.
+# Per-surface Farsi labelling, same pattern as CADENCE_LABELS above (D7).
+# Two options and no more: «velocity» is a discovery sort and «تازه‌ترین» is
+# not a ranking, so neither belongs on a board whose whole subject is who is
+# ahead.
+LEADERBOARD_SORT_LABELS = {
+    LEADERBOARD_COMPLETIONS: "بیشترین ثبت",
+    LEADERBOARD_STREAK: "بلندترین رشته",
+}
+
+LEADERBOARD_SORT_ICONS = {
+    LEADERBOARD_COMPLETIONS: "check",
+    LEADERBOARD_STREAK: "flame",
+}
+
+LEADERBOARD_SORT_PATTERN = "^({})$".format("|".join(LEADERBOARD_SORTS))
+
+
 router = APIRouter(prefix="/views/challenges", tags=["challenge-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_explainer_filters(templates.env)
 
 
 def _clean_number(value) -> str:
@@ -132,19 +204,59 @@ templates.env.filters["challenge_status"] = challenge_status
 templates.env.globals["status_meta"] = STATUS_META
 register_icon_filters(templates.env)
 register_avatar_filters(templates.env)
+register_identity_filters(templates.env)
+# The card's group chip names the group's kind. The Farsi maps live in
+# `app/groups.py` because more than one views router renders them, and they
+# arrive here through the same registration contract `register_icon_filters`
+# has -- as globals rather than context keys, so none of the three routes
+# that render a card can forget to pass them.
+register_group_filters(templates.env)
 
 
 @router.get("/create")
 async def create_challenge_form(
-    request: Request, db_user: User = Depends(get_page_user)
+    request: Request,
+    db_user: User = Depends(get_page_user),
+    db: AsyncSession = Depends(get_db),
+    group: int | None = Query(default=None),
 ):
-    current_user_id = db_user.id
+    """The wizard. **Unchanged for somebody creating a personal challenge.**
+
+    That is the constraint this route is written to: `?group=` is absent for
+    every existing entrance (the challenge list's «+», the home dashboard),
+    so the extra questions -- who in the group this is for, and whether it is
+    optional -- do not exist on that path. A group challenge is created from
+    inside its group, which is also what makes «چالش از همان ابتدا ذیل گروه
+    ساخته شود» true by construction rather than by a validation rule.
+
+    The permission is checked *here*, not only at the POST: offering a wizard
+    that will be refused on the last tap is worse than not offering it. It is
+    checked at the POST as well, because a rendered form is not a permission.
+    """
+    group_obj = None
+    group_members = []
+    if group is not None:
+        group_obj, membership = await load_group(db, group, db_user)
+        if not can(
+            db_user, Perm.GROUP_CREATE_CHALLENGE, group=group_obj, membership=membership
+        ):
+            raise HTTPException(
+                status_code=403, detail="Not allowed to create a challenge here"
+            )
+        roster, _ = await fetch_group_member_page(
+            db, group_id=group, offset=0, limit=MAX_MEMBER_PAGE_SIZE
+        )
+        group_members = [
+            row.model_dump() for row in member_rows(roster) if row.user_id != db_user.id
+        ]
     return templates.TemplateResponse(
         "challenge/create-challenge.html",
         {
             "title": "ساخت چالش جدید",
             "request": request,
-            "current_user_id": current_user_id,
+            "current_user_id": db_user.id,
+            "group": group_obj,
+            "group_members": group_members,
         },
     )
 
@@ -157,7 +269,16 @@ async def create_challenge(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        data = challenge.model_dump(exclude={"cadence", "timezone"})
+        # The same two helpers the JSON API calls, rather than a second copy
+        # of the rules: CLAUDE.md already flags this duplicated create path
+        # as the place an edit gets applied to one half only, and a missing
+        # permission check is the worst possible thing to leave behind here.
+        current_user = (
+            await db.execute(select(User).where(User.id == current_user_id))
+        ).scalar_one()
+        group = await resolve_group_for_create(db, challenge.group_id, current_user)
+
+        data = challenge.model_dump(exclude={"cadence", "timezone", "member_ids"})
         db_challenge = Challenge(**data)
         db_challenge.cadence_kind = challenge.cadence.kind
         db_challenge.cadence = challenge.cadence.model_dump(mode="json")
@@ -178,6 +299,16 @@ async def create_challenge(
         )
         db.add(enrollment)
         db.add(ChallengeStats(challenge_id=db_challenge.id, participant_count=1))
+        await db.flush()
+
+        await seed_group_participants(
+            db,
+            challenge=db_challenge,
+            group=group,
+            member_ids=challenge.member_ids,
+            actor_user_id=current_user_id,
+            timezone=tz,
+        )
 
         # Read the id before commit expires the instance -- the caller is a
         # fetch() in create-challenge.html, so it wants JSON, not a redirect
@@ -219,7 +350,10 @@ async def challenge_list(
         sort="velocity",
         mine=mine,
         status=status,
-        options=(selectinload(Challenge.enrollments),),
+        # `Challenge.group` is loaded for the card's group chip: the session
+        # is async, so a lazy load during rendering surfaces as
+        # MissingGreenlet rather than as a query error (CLAUDE.md).
+        options=(selectinload(Challenge.enrollments), selectinload(Challenge.group)),
     )
     return templates.TemplateResponse(
         "challenge/challenge-list.html",
@@ -266,7 +400,7 @@ async def challenge_list_fragment(
         sort="velocity",
         mine=mine,
         status=status,
-        options=(selectinload(Challenge.enrollments),),
+        options=(selectinload(Challenge.enrollments), selectinload(Challenge.group)),
     )
     response = templates.TemplateResponse(
         "challenge/_challenge_cards.html",
@@ -441,11 +575,60 @@ def build_cadence_plan(
     return plan
 
 
+def build_calendar_marks(
+    challenge: Challenge,
+    cadence: CadenceUnion,
+    *,
+    enrollment: Enrollment,
+    tz: str,
+) -> dict[str, list[dict]]:
+    """The challenge's own milestones, by the day they land on.
+
+    Occurrences are what the *member* did; these are what the *challenge*
+    does, and a calendar that shows only the former cannot explain why the
+    occurrences start where they do or stop where they stop.
+
+    Deliberately derived from exactly the fields `challenge_status` reads --
+    `due_date`, `cadence.end_date`, `cadence.datetimes[0]` -- plus the
+    enrollment's own start. A `Challenge` has no start column, so there is no
+    challenge-wide "start" to show for a cadence that does not carry one, and
+    inventing one (created_at, say) would put a date on the calendar that no
+    other surface agrees with.
+    """
+    marks: dict[str, list[dict]] = {}
+
+    def add(day: date, kind: str, label: str) -> None:
+        marks.setdefault(day.isoformat(), []).append({"kind": kind, "label": label})
+
+    # Always present, and the reason this member's history begins where it
+    # does -- occurrences before it simply do not exist for them.
+    add(enrollment.start_date, "member_start", "شروع عضویت من")
+
+    if isinstance(cadence, ScheduleCadence) and cadence.datetimes:
+        zone = ZoneInfo(tz)
+        dates = sorted(dt.astimezone(zone).date() for dt in cadence.datetimes)
+        add(dates[0], "challenge_start", "اولین جلسه")
+        if dates[-1] != dates[0]:
+            add(dates[-1], "challenge_end", "آخرین جلسه")
+
+    end_date = getattr(cadence, "end_date", None)
+    if end_date is not None:
+        add(end_date.date(), "cadence_end", "پایان تکرار")
+
+    # Two different endings and both are real: the cadence stops producing
+    # occurrences on one, the challenge itself is over on the other.
+    if challenge.due_date is not None:
+        add(challenge.due_date.date(), "due", "مهلت چالش")
+
+    return marks
+
+
 async def build_history_timeline(
     db: AsyncSession,
     enrollment: Enrollment,
     cadence: CadenceUnion,
     now_utc: datetime,
+    challenge: Challenge,
 ) -> dict:
     """Occurrence-shaped history: one entry per real occurrence, newest
     first -- deliberately NOT one per calendar day. A "every Tuesday"
@@ -468,9 +651,9 @@ async def build_history_timeline(
             return row.occurrence_local_date
         return occurrence_local_date(cadence, key, enrollment.timezone, now_utc)
 
-    # Every key gets its derived state once, up front: the timeline shows only
-    # the most recent HISTORY_LIMIT of them, but the donut and the strip above
-    # it describe the whole enrollment, and "missed" is derived -- never
+    # Every key gets its derived state once, up front: the strip plots only
+    # the most recent HISTORY_STRIP_LIMIT of them, but the donut and the
+    # calendar describe the whole enrollment, and "missed" is derived -- never
     # stored -- so it cannot be counted off the CheckIns rows alone.
     states = {
         key: derive_state(
@@ -503,7 +686,7 @@ async def build_history_timeline(
 
     today_key = None
     items = []
-    for key in keys[:HISTORY_LIMIT]:
+    for key in keys:
         row = by_key.get(key)
         state = states[key]
         local_date = date_for(key)
@@ -555,11 +738,92 @@ async def build_history_timeline(
         "period_total": len(week_keys),
         "period_label": "این هفته",
     }
+    # The same entries the timeline used, bucketed by the day they fall on --
+    # a calendar cell is a *day*, and a day can hold more than one occurrence
+    # (a `schedule` cadence may list two sessions on one date), so the value
+    # is a list rather than a single entry. Oldest-first inside a day, since
+    # that is the order they happened in.
+    by_date: dict[str, list[dict]] = {}
+    for entry in reversed(items):
+        by_date.setdefault(entry["date"].isoformat(), []).append(
+            {
+                "key": entry["key"],
+                "state": entry["state"],
+                "amount": _clean_number(entry["amount"]),
+                "note": entry["note"] or "",
+                "checkin_id": entry["checkin_id"],
+                "writable": entry["writable"],
+                "editable": entry["editable"],
+            }
+        )
+
+    # What the cadence still has coming. Nothing here is actionable -- an
+    # occurrence cannot be recorded before it opens -- so these carry no
+    # writable/editable flags and are drawn as an outline rather than a fill:
+    # a day that has not happened is not a day that was missed, the same call
+    # the home heatmap's `is-future` cells make.
+    upcoming = upcoming_occurrences(
+        cadence,
+        start_date=enrollment.start_date,
+        tz=enrollment.timezone,
+        now_utc=now_utc,
+        limit=CALENDAR_UPCOMING_LIMIT,
+    )
+    # A cadence goes on generating occurrences forever; the challenge does
+    # not. `challenge_status` calls it finished once `due_date` or
+    # `cadence.end_date` passes, so plotting nobat beyond whichever comes
+    # first would have the calendar promising a year of them for a challenge
+    # the rest of the page already calls over.
+    horizon = min(
+        (
+            d.date()
+            for d in (challenge.due_date, getattr(cadence, "end_date", None))
+            if d is not None
+        ),
+        default=None,
+    )
+    for occ in upcoming:
+        if horizon is not None and occ.local_date > horizon:
+            continue
+        iso = occ.local_date.isoformat()
+        # `upcoming_occurrences` counts today's still-open occurrence as
+        # upcoming; the history above already has that one, with its actions.
+        if iso in by_date and any(e["key"] == occ.key for e in by_date[iso]):
+            continue
+        by_date.setdefault(iso, []).append(
+            {
+                "key": occ.key,
+                "state": "upcoming",
+                "amount": "",
+                "note": "",
+                "checkin_id": None,
+                "writable": False,
+                "editable": False,
+            }
+        )
+
+    marks = build_calendar_marks(
+        challenge, cadence, enrollment=enrollment, tz=enrollment.timezone
+    )
+
+    # The window the arrows may page through: every day the calendar has
+    # anything to say about. Derived from the content rather than from
+    # enrollment-start..today, or a challenge whose deadline or last session
+    # sits outside that range would have a milestone the member cannot reach.
+    spans = list(by_date) + list(marks) + [today.isoformat()]
+
+    calendar = {
+        "days": by_date,
+        "marks": marks,
+        "start": min(spans),
+        "end": max(spans),
+        "today": today.isoformat(),
+    }
+
     return {
-        "items": items,
         "summary": summary,
-        "has_more": len(keys) > HISTORY_LIMIT,
         "strip": strip,
+        "calendar": calendar,
         "today_key": today_key,
     }
 
@@ -701,6 +965,7 @@ async def challenge_detail(
         select(Challenge)
         .options(
             selectinload(Challenge.owner),
+            selectinload(Challenge.group),
             selectinload(Challenge.enrollments).selectinload(Enrollment.user),
         )
         .where(
@@ -788,12 +1053,12 @@ async def challenge_detail(
 
     # Personal history -- only the logged-in user's own enrollment has any.
     # recurring_quota is grouped into period rows (a quota has no per-day
-    # slot of its own); every other cadence gets the occurrence timeline.
-    timeline = []
+    # slot of its own, so it has no cell on a calendar either); every other
+    # cadence gets the day-shaped history calendar.
     quota_rows = []
     history_strip = []
+    history_calendar = None
     history_summary = None
-    has_more_history = False
     my_stats = None
     # The occurrence the sticky CTA offers to record. An enrolled visitor's
     # primary action on this page is checking in, not leaving -- but only when
@@ -808,13 +1073,43 @@ async def challenge_detail(
             quota_rows = history["rows"]
         else:
             history = await build_history_timeline(
-                db, my_enrollment, cadence, now_utc
+                db, my_enrollment, cadence, now_utc, db_challenge
             )
-            timeline = history["items"]
-            has_more_history = history["has_more"]
             history_strip = history["strip"]
+            history_calendar = history["calendar"]
         history_summary = history["summary"]
         today_key = history["today_key"]
+
+    # --- the group this challenge belongs to, if any ---------------------
+    # Three answers the page needs and one is not derivable from the others:
+    # whether the viewer administers the group (the participants screen),
+    # whether they may leave (`leaving_is_allowed` -- asked here so the button
+    # and the route it calls agree), and whether the anonymity switch applies.
+    group_can_manage = False
+    can_leave = True
+    if db_challenge.group_id is not None:
+        still_in_group = await is_group_member(
+            db, db_challenge.group_id, current_user_id
+        ) if current_user_id is not None else False
+        can_leave = leaving_is_allowed(db_challenge, still_in_group)
+        if still_in_group:
+            group_membership = (
+                await db.execute(
+                    select(GroupMembership).where(
+                        GroupMembership.group_id == db_challenge.group_id,
+                        GroupMembership.user_id == current_user_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            viewer = (
+                await db.execute(select(User).where(User.id == current_user_id))
+            ).scalar_one_or_none()
+            group_can_manage = can(
+                viewer,
+                Perm.GROUP_MANAGE_MEMBERS,
+                group=db_challenge.group,
+                membership=group_membership,
+            )
 
     return templates.TemplateResponse(
         "challenge/challenge-detail.html",
@@ -835,7 +1130,41 @@ async def challenge_detail(
             "my_stats": my_stats,
             "is_enrolled": is_enrolled,
             "is_owner": is_owner,
+            "group_can_manage": group_can_manage,
+            "can_leave": can_leave,
+            # Whether this member may change their own answer, and what it
+            # currently is. `asks_the_joiner` rather than an enum comparison
+            # here, so the switch and `resolve_anonymity` cannot drift.
+            "can_set_anonymity": is_enrolled
+            and asks_the_joiner(db_challenge.identity_mode),
+            "my_is_anonymous": bool(my_enrollment.is_anonymous)
+            if my_enrollment
+            else False,
             "can_delete": is_owner and not has_other_participants,
+            # The same count as `can_delete`, named separately because it
+            # answers a different question and could stop agreeing: hard
+            # delete protects other people's logged history, this protects
+            # the deal they joined under (see `locked_fields` in
+            # routers/challenge.py). The sheet offers only what the API would
+            # accept, so it drops the field rather than showing one that 409s.
+            "can_edit_identity": is_owner and not has_other_participants,
+            "identity_label": IDENTITY_LABELS.get(
+                db_challenge.identity_mode, db_challenge.identity_mode
+            ),
+            "identity_hint": IDENTITY_HINTS.get(db_challenge.identity_mode, ""),
+            # The join button only needs to know whether joining is a
+            # question; asking through `asks_the_joiner` keeps the template
+            # from restating the enum comparison `resolve_anonymity` owns.
+            "identity_asks_joiner": asks_the_joiner(db_challenge.identity_mode),
+            "identity_options": [
+                {
+                    "value": value,
+                    "label": label,
+                    "hint": IDENTITY_HINTS[value],
+                    "icon": IDENTITY_ICONS[value],
+                }
+                for value, label in IDENTITY_LABELS.items()
+            ],
             "visibility_options": VISIBILITY_LABELS,
             "lifecycle_options": LIFECYCLE_LABELS,
             "participant_count": participant_count,
@@ -844,10 +1173,9 @@ async def challenge_detail(
             "progress_pct": progress_pct,
             "my_streak": my_enrollment.current_streak if my_enrollment else None,
             "my_longest_streak": my_enrollment.longest_streak if my_enrollment else None,
-            "timeline": timeline,
-            "has_more_history": has_more_history,
             "quota_rows": quota_rows,
             "history_strip": history_strip,
+            "history_calendar": history_calendar,
             "history_summary": history_summary,
             "today_key": today_key,
             "goal_unit": db_challenge.goal_unit,
@@ -855,3 +1183,226 @@ async def challenge_detail(
             "active_nav": "challenges",
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# The leaderboard
+# ---------------------------------------------------------------------------
+#
+# One challenge's participants, ranked. It is a page of its own rather than a
+# fourth tab on challenge-detail for the reason the moderation roster is one:
+# it is ordered and lazily paged, and a list that pages cannot live inside a
+# panel that is only ever a screenful.
+#
+# **It does not widen `profile_visibility_filter`, and that is deliberate.**
+# The board prints a name and a picture, and links to nothing -- so the one
+# rule that decides whether a member may open another member's profile is
+# untouched, and making the standings readable stays a single step. Reaching
+# a profile from here is a second step, and it belongs to that one function
+# whenever it is taken.
+#
+# What it *does* is answer "who is in this" to a fellow participant, which is
+# why the gate below is membership rather than mere visibility: joining a
+# shared challenge is joining a room, and the people in a room can see each
+# other. Someone who has not joined a public challenge can still read it, its
+# size and its collective progress -- everything except who the other people
+# are.
+
+
+async def _leaderboard_challenge(
+    db: AsyncSession, challenge_id: int, viewer_id: int
+) -> tuple[Challenge, Enrollment | None]:
+    """Load a challenge for a leaderboard read, or refuse -- 404 then 403.
+
+    Two gates in the order that keeps the 404-vs-403 split honest
+    (CLAUDE.md): reachability first, through the same
+    `challenge_visibility_filter` composed into the query that every other
+    challenge read uses, so a private challenge stays a plain "no such row";
+    then membership, which is a **403** because by that point the caller can
+    demonstrably already see the challenge, and a 404 there would hide the
+    one thing they need to be told -- that joining is what opens the board.
+
+    Membership is asked through `challenge_role`, not by comparing ids, so an
+    owner who has unenrolled from their own challenge still reaches it -- the
+    same resolution the manage sheet on challenge-detail is rendered from.
+    """
+    result = await db.execute(
+        select(Challenge)
+        .options(selectinload(Challenge.owner))
+        .where(
+            Challenge.id == challenge_id,
+            challenge_visibility_filter(viewer_id),
+        )
+    )
+    challenge = result.scalar_one_or_none()
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+
+    enrollment = (
+        await db.execute(
+            select(Enrollment).where(
+                Enrollment.challenge_id == challenge_id,
+                Enrollment.user_id == viewer_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if challenge_role(viewer_id, challenge=challenge, enrollment=enrollment) is None:
+        raise HTTPException(
+            status_code=403, detail="Only participants can see the leaderboard"
+        )
+    return challenge, enrollment
+
+
+async def build_leaderboard_rows(
+    db: AsyncSession,
+    *,
+    challenge_id: int,
+    viewer_id: int,
+    sort: str,
+    offset: int,
+    limit: int,
+) -> tuple[list[dict], bool]:
+    """One page of standings, ready to render.
+
+    The query is `fetch_leaderboard_page` in the API router and the ranks are
+    `assign_ranks` beside it; this adds only the two presentation answers --
+    who each row is allowed to look like (`participant_display`, the one
+    place anonymity becomes a name) and which of the two figures is the one
+    being ranked on, so the template never restates the sort.
+    """
+    rows, has_more = await fetch_leaderboard_page(
+        db, challenge_id=challenge_id, sort=sort, offset=offset, limit=limit
+    )
+    if rows:
+        first_rank = await leaderboard_rank(
+            db, challenge_id=challenge_id, sort=sort, score=rows[0]["score"]
+        )
+        assign_ranks(rows, offset=offset, first_rank=first_rank)
+    for row in rows:
+        row["who"] = participant_display(row["enrollment"], viewer_id)
+        # `score` is whatever the active sort ranks by and `other` is the
+        # figure it does not -- resolved here rather than in the template so
+        # a row does not have to re-derive the sort from its own labels.
+        row["other"] = (
+            row["completions"] if sort == LEADERBOARD_STREAK else row["streak"]
+        )
+    return rows, has_more
+
+
+def _leaderboard_context(sort: str) -> dict:
+    """The bits of the page that only depend on which ordering is showing."""
+    return {
+        "active_sort": sort,
+        "sort_options": [
+            {
+                "value": value,
+                "label": label,
+                "icon": LEADERBOARD_SORT_ICONS[value],
+            }
+            for value, label in LEADERBOARD_SORT_LABELS.items()
+        ],
+        # What the ranked column is called in a row, and what the other one
+        # is. Named once here so the fragment -- which has no page context --
+        # renders a row identically to the first page.
+        "score_label": "ثبت" if sort == LEADERBOARD_COMPLETIONS else "روز پیاپی",
+        "other_label": "روز پیاپی" if sort == LEADERBOARD_COMPLETIONS else "ثبت",
+    }
+
+
+@router.get("/{challenge_id}/leaderboard")
+async def challenge_leaderboard(
+    challenge_id: int,
+    request: Request,
+    viewer: User = Depends(get_page_user),
+    db: AsyncSession = Depends(get_db),
+    sort: str = Query(
+        default=LEADERBOARD_COMPLETIONS, pattern=LEADERBOARD_SORT_PATTERN
+    ),
+):
+    """The standings inside one challenge.
+
+    `get_page_user` rather than `get_optional_user_id`: the board is for the
+    people in the room, so a signed-out visitor is an authentication failure
+    (303 to login, carrying `next`) long before it is an authorization one --
+    the same split every other gated page uses.
+
+    The sort is read off the query string and mirrored back into it by the
+    page's own JS, so a board someone is looking at is a link they can send.
+    """
+    challenge, enrollment = await _leaderboard_challenge(db, challenge_id, viewer.id)
+    rows, has_more = await build_leaderboard_rows(
+        db,
+        challenge_id=challenge_id,
+        viewer_id=viewer.id,
+        sort=sort,
+        offset=0,
+        limit=DEFAULT_LEADERBOARD_PAGE_SIZE,
+    )
+    total = int(
+        (
+            await db.execute(
+                select(func.count())
+                .select_from(Enrollment)
+                .where(Enrollment.challenge_id == challenge_id)
+            )
+        ).scalar_one()
+    )
+    # An owner who has unenrolled reaches the board but stands on no row of
+    # it, so the card above it is simply not rendered rather than inventing a
+    # rank for somebody who is not competing.
+    standing = (
+        await leaderboard_standing(db, enrollment, sort)
+        if enrollment is not None
+        else None
+    )
+    return templates.TemplateResponse(
+        "challenge/leaderboard.html",
+        {
+            "title": f"رتبه‌بندی: {challenge.title}",
+            "request": request,
+            "challenge": challenge,
+            "rows": rows,
+            "standing": standing,
+            "total": total,
+            "has_more": has_more,
+            "page_size": DEFAULT_LEADERBOARD_PAGE_SIZE,
+            "current_user_id": viewer.id,
+            "active_nav": "challenges",
+            **_leaderboard_context(sort),
+        },
+    )
+
+
+@router.get("/{challenge_id}/leaderboard/fragment")
+async def challenge_leaderboard_fragment(
+    challenge_id: int,
+    request: Request,
+    current_user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+    sort: str = Query(
+        default=LEADERBOARD_COMPLETIONS, pattern=LEADERBOARD_SORT_PATTERN
+    ),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(
+        default=DEFAULT_LEADERBOARD_PAGE_SIZE, ge=1, le=MAX_LEADERBOARD_PAGE_SIZE
+    ),
+):
+    """The next page of rows. `get_current_user_id` for the reason every
+    `/fragment` in the app takes it: `createInfiniteScroller()` reads a real
+    401 to redirect on, and the 303 the page dependency raises would be
+    followed silently and the login form appended as if it were standings."""
+    await _leaderboard_challenge(db, challenge_id, current_user_id)
+    rows, has_more = await build_leaderboard_rows(
+        db,
+        challenge_id=challenge_id,
+        viewer_id=current_user_id,
+        sort=sort,
+        offset=offset,
+        limit=limit,
+    )
+    response = templates.TemplateResponse(
+        "challenge/_leaderboard_rows.html",
+        {"request": request, "rows": rows, **_leaderboard_context(sort)},
+    )
+    response.headers["X-Has-More"] = "true" if has_more else "false"
+    return response

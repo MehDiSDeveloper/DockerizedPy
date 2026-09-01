@@ -1,0 +1,128 @@
+{% extends "layout.html" %}
+
+{#- One challenge's participant roster -- the drill-down from a row on the
+    moderation list.
+
+    This is the one screen in the app that answers "who is in this". It lives
+    behind the admin gate on purpose: `profile_visibility_filter` is
+    own-only, and a participant list is precisely what that rule withholds
+    from members, which is why challenge-detail renders participant
+    *initials* and never a roster. Making it member-facing means loosening
+    that one function first -- see routers/views/admin.py.
+
+    Built the way every other list here is: the same `.search-bar`, the same
+    `createInfiniteScroller()`, the state mirrored into the query string so a
+    searched roster is linkable. What it does not have is actions -- see
+    admin/_participant_rows.html for why. -#}
+
+{% block topbar_leading %}
+<a href="/views/admin/challenges" class="back-btn" data-back data-back-optional
+  aria-label="بازگشت"><span data-icon="chevronRight"></span></a>
+{% endblock %}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="اعضای چالش">
+  <span class="crumb current" aria-current="page">اعضای چالش</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+  <section class="setting-group admin-members">
+    {#- The challenge is named at the top rather than only in the page
+        title: the roster is meaningless without knowing whose it is, and an
+        operator arrives here from a list of thirty similar rows. The link
+        opens the challenge itself, because moderating something you have
+        not read is how the wrong one gets archived -- the same reasoning as
+        the sheet's «مشاهده چالش» button. -#}
+    <h2>اعضای چالش</h2>
+    <a href="/views/challenges/{{ challenge.id }}" class="setting-row glass">
+      <div class="sr-head">
+        <span class="admin-cat" data-cat="{{ challenge.category | category_slug }}"
+          title="{{ challenge.category.value }}" aria-hidden="true">
+          <span data-icon="{{ challenge.category | category_icon }}"></span>
+        </span>
+        <div class="sr-text">
+          <span class="sr-label">{{ challenge.title }}</span>
+          <span class="sr-hint">{{ challenge.owner.name }} · {{ total }} عضو</span>
+        </div>
+        <span class="sr-chev" data-icon="chevronLeft"></span>
+      </div>
+    </a>
+
+    {#- Name and email, the same two things the member roster searches on,
+        because a support request arrives as one or the other. -#}
+    <div class="search-bar">
+      <span data-icon="search"></span>
+      <input type="text" id="cmSearch" placeholder="جستجوی نام یا ایمیل..." value="{{ query }}"
+        aria-label="جستجوی اعضای چالش" />
+    </div>
+
+    <div class="admin-list" id="cmList" data-page-size="{{ page_size }}"
+      data-initial-count="{{ enrollments|length }}" data-has-more="{{ 'true' if has_more else 'false' }}">
+      {% include "admin/_participant_rows.html" %}
+    </div>
+    <div class="empty" id="cmEmpty" {{ 'hidden' if enrollments }}>
+      <span data-icon="empty"></span>
+      <p id="cmEmptyText">{{ "عضوی با این مشخصات پیدا نشد." if query else "هنوز کسی در این چالش عضو نشده." }}</p>
+    </div>
+    <div class="scroll-sentinel" id="cmSentinel" aria-hidden="true"></div>
+    <div class="list-loading" id="cmLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const search = document.getElementById("cmSearch");
+    const listEl = document.getElementById("cmList");
+    const emptyEl = document.getElementById("cmEmpty");
+    const emptyText = document.getElementById("cmEmptyText");
+    const challengeId = {{ challenge.id | tojson }};
+
+    const state = { q: search.value.trim() };
+
+    function updateEmptyMessage() {
+      emptyText.textContent = state.q
+        ? "عضوی با این مشخصات پیدا نشد."
+        : "هنوز کسی در این چالش عضو نشده.";
+    }
+
+    function queryParams() {
+      const params = new URLSearchParams();
+      if (state.q) params.set("q", state.q);
+      return params;
+    }
+
+    const scroller = createInfiniteScroller({
+      container: listEl,
+      sentinel: document.getElementById("cmSentinel"),
+      loadingEl: document.getElementById("cmLoading"),
+      emptyEl: emptyEl,
+      pageSize: Number(listEl.dataset.pageSize) || 20,
+      initialOffset: Number(listEl.dataset.initialCount) || 0,
+      initialHasMore: listEl.dataset.hasMore === "true",
+      buildUrl: (offset, limit) => {
+        const params = queryParams();
+        params.set("offset", offset);
+        params.set("limit", limit);
+        return `/views/admin/challenges/${challengeId}/members/fragment?${params.toString()}`;
+      },
+      onEmpty: () => {
+        updateEmptyMessage();
+        emptyEl.hidden = false;
+      },
+    });
+
+    search.addEventListener("input", debounce(() => {
+      state.q = search.value.trim();
+      emptyEl.hidden = true;
+      const qs = queryParams().toString();
+      history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+      scroller.reset();
+    }, 300));
+  });
+</script>
+{% endblock %}

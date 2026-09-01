@@ -1,6 +1,15 @@
 import enum
 
-from sqlalchemy import Column, Date, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import relationship
 
 from app.models.audit_base import AuditBase
@@ -56,6 +65,16 @@ class Enrollment(AuditBase):
     # `bootstrap_db.backfill_enrollment_roles`. Read only through
     # `app.permissions`.
     role = Column(String(16), nullable=False, default=ChallengeRole.PARTICIPANT.value)
+    # Whether this member appears to the others without their name -- the
+    # *resolved* answer, not the request that produced it. Written once at
+    # enrolment by `app.identity.resolve_anonymity` from the challenge's
+    # `identity_mode`, which is locked from then on, so the flag and the
+    # policy behind it cannot drift apart. `server_default` because a
+    # NOT NULL column added to a populated table needs one (CLAUDE.md, on
+    # sync_sqlite_schema).
+    is_anonymous = Column(
+        Boolean, nullable=False, default=False, server_default=text("0")
+    )
 
     user = relationship("User", back_populates="enrollments")
     challenge = relationship("Challenge", back_populates="enrollments")

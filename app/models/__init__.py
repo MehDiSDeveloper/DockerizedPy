@@ -3,6 +3,17 @@ from app.models.audit_base import AuditBase
 from app.models.challenge import Challenge
 from app.models.checkin import CheckIn
 from app.models.enrollment import Enrollment
+from app.models.group import (
+    Group,
+    GroupInvite,
+    GroupJoinRequest,
+    GroupKind,
+    GroupMembership,
+    GroupRole,
+    JoinRequestStatus,
+)
+from app.models.notification import Notification, NotificationKind
+from app.models.otp import OtpCode
 from app.models.stats import ChallengeStats
 from app.models.user import User
 
@@ -12,5 +23,15 @@ __all__ = [
     "ChallengeStats",
     "CheckIn",
     "Enrollment",
+    "Group",
+    "GroupInvite",
+    "GroupJoinRequest",
+    "GroupKind",
+    "GroupMembership",
+    "GroupRole",
+    "JoinRequestStatus",
+    "Notification",
+    "NotificationKind",
+    "OtpCode",
     "User",
 ]

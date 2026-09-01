@@ -3,7 +3,7 @@
 {% set cadence_labels = {
   'once': 'یک‌باره',
   'schedule': 'زمان‌بندی‌شده',
-  'recurring_days': 'تکرار روزانه',
+  'recurring_days': 'روزهای مشخص',
   'recurring_quota': 'سهمیه‌ای',
 } %}
 {% for c in challenges %}
@@ -24,6 +24,26 @@
       <h3>{{ c.title }}</h3>
       <span class="status-pill"><span data-icon="{{ status_meta[status].icon }}"></span>{{ status_label }}</span>
     </div>
+    {#- The group a challenge belongs to, at a glance and one tap from its
+        page. A chip rather than a colour: status owns the `--st-*` hues and
+        category owns the `--cat-*` ones, and a third meaning riding on
+        either channel is how a card stops being readable (CLAUDE.md, Colour
+        carries two channels). `hide_group_chip` is set on the group's own
+        page, where every card would wear the same chip and say nothing.
+
+        A plain `<a>` inside the card's own `<a>` is not valid, so it is a
+        span with the group's id on it and one delegated listener below --
+        the same shape the moderation roster's «N عضو» line needed. -#}
+    {% if c.group and not hide_group_chip %}
+    <p class="cc-group">
+      <span class="cc-tag group-chip" role="link" tabindex="0" data-group-chip="{{ c.group.id }}">
+        <span data-icon="{{ group_kind_icons.get(c.group.kind, 'catOther') if group_kind_icons else 'catOther' }}"></span>{{ c.group.name }}
+      </span>
+      {% if c.participation_mode == 'mandatory' %}
+      <span class="cc-tag warn"><span data-icon="lock"></span>اجباری</span>
+      {% endif %}
+    </p>
+    {% endif %}
     <p>
       <span class="cat-name">{{ c.category.value }}</span>
       <span data-icon="users"></span><span>{{ c.enrollments|length }}</span>

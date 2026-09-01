@@ -1,0 +1,29 @@
+{#- One card per group the member is in. The infinite-scroll fragment for
+    /views/groups/, `{% include %}`-ed for the first server-rendered page and
+    re-served bare by /views/groups/fragment -- the contract every list in
+    this app follows.
+
+    A group is not a challenge, so the card does not borrow a challenge's
+    colour channels: no `--st-*` (there is no status to derive) and no
+    `--cat-*` (a group is not a category of thing). What it carries instead
+    is the emblem -- an avatar id from the one catalogue, so the picture and
+    the ground under it are the profile's own primitives -- plus the two
+    facts that tell one group from another in a list: what kind it is, and
+    how many people are in it. -#}
+{% for g in groups %}
+<a href="/views/groups/{{ g.id }}" class="group-card glass">
+  <div class="gc-emblem">
+    <img src="{{ g.emblem | avatar_url }}" alt="" width="44" height="44" loading="lazy">
+  </div>
+  <div class="gc-body">
+    <h3>{{ g.name }}</h3>
+    <p>
+      <span data-icon="{{ group_kind_icons.get(g.kind, 'catOther') }}"></span>
+      <span>{{ group_kind_labels.get(g.kind, 'گروه') }}</span>
+      <span data-icon="users"></span>
+      <span>{{ member_counts.get(g.id, 0) }} عضو</span>
+    </p>
+  </div>
+  <span class="gc-chev" data-icon="chevronLeft"></span>
+</a>
+{% endfor %}

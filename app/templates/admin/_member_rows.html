@@ -8,14 +8,19 @@
     and `createInfiniteScroller()` counts its top-level children to advance
     the offset.
 
-    The row carries everything the role sheet needs as data attributes
-    rather than the page shipping a parallel JSON array: rows arriving on
-    page two would never be in such an array, and keeping one in sync with
-    what has been appended is precisely the drift this avoids. -#}
+    The row is a **link into the member's profile**, not a control that acts
+    in place. It used to open a role sheet; the profile is where that now
+    lives, because the profile is where the evidence is -- the account's
+    details, its age, the two counters -- and administering someone from a
+    list of thirty near-identical rows is how the wrong person gets changed.
+    A row is therefore an ordinary `<a>`: middle-click, long-press and «باز
+    کردن در تب جدید» all work, which is precisely what an operator holding
+    two support requests wants and what a `role="button"` div cannot give.
+    (That the profile route exists for an admin at all is one clause --
+    `profile_visibility_filter` in routers/user.py.) -#}
 {% for member in members %}
-<div class="setting-row glass admin-member" role="button" tabindex="0"
-  data-member-id="{{ member.id }}" data-member-name="{{ member.name }}"
-  data-member-role="{{ member.role }}">
+<a class="setting-row glass admin-member" href="/views/users/{{ member.id }}"
+  data-member-id="{{ member.id }}">
   <div class="sr-head">
     {#- An opaque neutral behind every avatar: several catalogue styles
         ship a transparent ground (see CLAUDE.md on avatars). -#}
@@ -26,8 +31,8 @@
       <span class="sr-hint">{{ member.email or 'بدون ایمیل' }}</span>
     </div>
     <span class="role-pill {{ 'is-admin' if member.role == 'admin' else '' }}"
-      data-role-pill>{{ role_labels.get(member.role, member.role) }}</span>
+      >{{ role_labels.get(member.role, member.role) }}</span>
     <span class="sr-chev" data-icon="chevronLeft"></span>
   </div>
-</div>
+</a>
 {% endfor %}

@@ -28,6 +28,20 @@
     <div class="step" data-step="3"><div class="step-dot">۳</div><span>تایید</span></div>
   </div>
 
+  {#- The group banner, and the *only* visible difference this wizard has for
+      somebody creating a personal challenge: without `?group=` nothing below
+      renders and the flow is exactly what it was. A group challenge is
+      created from inside its group, which is what makes «ذیل گروه ساخته
+      شود» true by construction rather than by a rule somebody could get
+      around. -#}
+  {% if group %}
+  <div class="rule-item glass wizard-group" style="margin:12px 0 0;">
+    <img src="{{ group.emblem | avatar_url }}" alt="" width="28" height="28" class="wg-emblem">
+    <span>این چالش زیر گروه «{{ group.name }}» ساخته می‌شود و فقط برای اعضای همین گروه
+      دیده خواهد شد.</span>
+  </div>
+  {% endif %}
+
   <!-- step 1 -->
   <div class="form-page active" data-page="1">
     <div class="field">
@@ -67,12 +81,62 @@
     </div>
 
     <div class="field" style="margin-top:18px;">
-      <label>قابلیت مشاهده</label>
+      <label>دسترسی دیدن{{ explain("challenge-visibility") }}</label>
       <div class="category-grid" id="visibilityGrid"></div>
     </div>
 
+    {#- Beside «قابلیت مشاهده» because the two answer neighbouring questions
+        -- who may see the challenge, and who the people inside it are to
+        each other -- and a creator deciding one is already thinking about
+        the other. The note under the grid spells the choice out: it is
+        locked as soon as anyone joins. -#}
     <div class="field" style="margin-top:18px;">
-      <label>نوع تکرار</label>
+      <label>هویت اعضا{{ explain("anonymity") }}</label>
+      <div class="category-grid" id="identityGrid"></div>
+      <p class="field-note" id="identityNote"></p>
+    </div>
+
+    {#- Two questions, asked only for a group challenge, and placed next to
+        «قابلیت مشاهده»/«هویت اعضا» because all four are about *who* rather
+        than about what the challenge asks of them.
+
+        The member list is a plain checkbox list rather than a picker sheet:
+        it is the group's own roster, it is already on the page, and «یک نفر
+        خاص» is simply one box ticked -- a third audience option for that
+        case would be a third branch for something that behaves identically
+        to the second. -#}
+    {% if group %}
+    <div class="field" style="margin-top:18px;">
+      <label>این چالش برای کیست؟{{ explain("group-audience") }}</label>
+      <div class="category-grid" id="audienceGrid"></div>
+      <p class="field-note" id="audienceNote"></p>
+    </div>
+
+    <div class="field" id="audienceMembers" style="margin-top:14px; display:none;">
+      <label>اعضای انتخاب‌شده</label>
+      <div class="member-pick">
+        {% for m in group_members %}
+        <label class="mp-item">
+          <input type="checkbox" value="{{ m.user_id }}" data-member-pick>
+          <img src="{{ m.avatar | avatar_url }}" alt="" width="28" height="28">
+          <span>{{ m.name }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      {% if not group_members %}
+      <p class="field-note">هنوز عضو دیگری در گروه نیست. با لینک دعوت کسی را اضافه کن.</p>
+      {% endif %}
+    </div>
+
+    <div class="field" style="margin-top:18px;">
+      <label>شرکت در این چالش{{ explain("participation-mode") }}</label>
+      <div class="category-grid" id="participationGrid"></div>
+      <p class="field-note" id="participationNote"></p>
+    </div>
+    {% endif %}
+
+    <div class="field" style="margin-top:18px;">
+      <label>نوع تکرار{{ explain("cadence-plan") }}</label>
       <div class="category-grid" id="cadenceGrid"></div>
     </div>
 
@@ -177,10 +241,27 @@
         <span class="cc-meta-item" id="reviewCadence">—</span>
       </div>
     </div>
-    <div class="rule-item glass" style="margin-bottom:18px;">
+    <div class="rule-item glass" style="margin-bottom:12px;">
       <span data-icon="info"></span>
       <span id="reviewVisibilityNote">بعد از انتشار، چالش برای همه در فهرست عمومی قابل مشاهده و ثبت‌نامه.</span>
     </div>
+    {#- A second line rather than one longer sentence: «هویت اعضا» is the
+        only choice on this wizard that gets locked the moment someone
+        joins, so it is worth reading on its own before the publish tap. -#}
+    <div class="rule-item glass" style="margin-bottom:{{ '12px' if group else '18px' }};">
+      <span data-icon="users" id="reviewIdentityIcon"></span>
+      <span id="reviewIdentityNote"></span>
+    </div>
+    {#- A line of its own for the group terms, next to the identity one and
+        for the same reason: who is put into this, and whether they may leave,
+        are the two things the people on the other end cannot change
+        afterwards. -#}
+    {% if group %}
+    <div class="rule-item glass" style="margin-bottom:18px;">
+      <span data-icon="building"></span>
+      <span id="reviewGroupNote"></span>
+    </div>
+    {% endif %}
     <div style="display:flex; gap:10px;">
       <button class="btn-primary" style="background:var(--glass); color:var(--text-1); box-shadow:none; border:1px solid var(--border);" data-prev>ویرایش</button>
       <button class="btn-primary" id="publishBtn"><span data-icon="check"></span> انتشار چالش</button>
@@ -233,7 +314,7 @@ grid.querySelectorAll(".category-pill").forEach(pill => {
 // -------------------- visibility --------------------
 const visibilityOptions = [
   { value: "public", label: "عمومی", icon: "eye" },
-  { value: "unlisted", label: "نامرئی", icon: "eyeOff" },
+  { value: "unlisted", label: "فقط با لینک", icon: "eyeOff" },
   { value: "private", label: "خصوصی", icon: "lock" },
 ];
 let selectedVisibility = "public";
@@ -254,11 +335,45 @@ function renderVisibilityGrid() {
 }
 renderVisibilityGrid();
 
+// -------------------- identity mode --------------------
+// Its own copy of the Farsi labels, exactly like `cadenceKindLabels` and the
+// `cats` array below: these pills are built client-side, so the server-side
+// map in routers/views/challenge.py (IDENTITY_LABELS/HINTS) cannot reach
+// them. Adding a mode means editing both.
+const identityOptions = [
+  { value: "named", label: "با نام", icon: "users",
+    note: "همهٔ اعضا با نام و آواتار خودشان دیده می‌شوند." },
+  { value: "anonymous", label: "ناشناس", icon: "mask",
+    note: "هیچ عضوی نام یا آواتار بقیه را نمی‌بیند؛ فقط شمارش‌ها دیده می‌شود." },
+  { value: "member_choice", label: "به انتخاب هر عضو", icon: "help",
+    note: "هر عضو موقع پیوستن خودش انتخاب می‌کند با نام باشد یا ناشناس." },
+];
+let selectedIdentity = "member_choice";
+
+const identityGrid = document.getElementById("identityGrid");
+const identityNote = document.getElementById("identityNote");
+function renderIdentityGrid() {
+  identityGrid.innerHTML = identityOptions.map(o => `
+    <div class="category-pill ${o.value === selectedIdentity ? "active" : ""}" data-identity="${o.value}">
+      ${icons[o.icon]}
+      ${o.label}
+    </div>`).join("");
+  const picked = identityOptions.find(o => o.value === selectedIdentity);
+  identityNote.textContent = `${picked.note} این گزینه تا وقتی کسی عضو نشده قابل تغییر است.`;
+  identityGrid.querySelectorAll(".category-pill").forEach(pill => {
+    pill.addEventListener("click", () => {
+      selectedIdentity = pill.dataset.identity;
+      renderIdentityGrid();
+    });
+  });
+}
+renderIdentityGrid();
+
 // -------------------- cadence kind --------------------
 const cadenceKinds = [
   { value: "once", label: "یک‌باره", icon: "cadenceOnce" },
   { value: "schedule", label: "زمان‌بندی‌شده", icon: "cadenceSchedule" },
-  { value: "recurring_days", label: "روزهای تکراری", icon: "cadenceDays" },
+  { value: "recurring_days", label: "روزهای مشخص", icon: "cadenceDays" },
   { value: "recurring_quota", label: "سهمیه‌ای", icon: "cadenceQuota" },
 ];
 let selectedCadenceKind = "once";
@@ -411,6 +526,70 @@ goalCheckbox.addEventListener("change", () => {
   goalFields.style.display = goalCheckbox.checked ? "" : "none";
 });
 
+// -------------------- group audience & participation --------------------
+// Rendered only for a group challenge. `IN_GROUP` is the one flag every
+// group-specific branch below reads, so the personal path runs exactly the
+// code it ran before.
+const IN_GROUP = {{ 'true' if group else 'false' }};
+const GROUP_ID = {{ group.id if group else 'null' }};
+let selectedAudience = "all";
+let selectedParticipation = "optional";
+
+// The wizard's own copy of the Farsi labels, exactly as it keeps its own
+// copy of the cadence and category ones -- adding a value means editing
+// `app/groups.py` *and* here (CLAUDE.md, D7).
+const audienceOptions = [
+  { value: "all", label: "همهٔ اعضای گروه", icon: "users",
+    note: "هرکسی که الان در گروه است و هرکسی که بعداً بپیوندد، خودکار در این چالش خواهد بود." },
+  { value: "selected", label: "افراد منتخب", icon: "user",
+    note: "فقط کسانی که پایین انتخاب می‌کنی. بعداً هم می‌توانی کسی را اضافه یا کم کنی." },
+];
+const participationOptions = [
+  { value: "optional", label: "اختیاری", icon: "check",
+    note: "عضو می‌تواند هر وقت خواست از این چالش بیرون بیاید." },
+  { value: "mandatory", label: "اجباری", icon: "lock",
+    note: "تا وقتی عضو گروه است نمی‌تواند از این چالش بیرون بیاید. با خروج از گروه این قید برداشته می‌شود." },
+];
+
+function renderPillGrid(gridId, noteId, options, selected, onPick) {
+  const grid = document.getElementById(gridId);
+  if (!grid) return;
+  grid.innerHTML = options.map(o => `
+    <div class="category-pill ${o.value === selected() ? "active" : ""}" data-value="${o.value}">
+      <span data-icon="${o.icon}"></span><span>${o.label}</span>
+    </div>`).join("");
+  const note = document.getElementById(noteId);
+  if (note) {
+    const active = options.find(o => o.value === selected());
+    note.textContent = active ? active.note : "";
+  }
+  grid.querySelectorAll(".category-pill").forEach(pill => {
+    pill.addEventListener("click", () => {
+      onPick(pill.dataset.value);
+      renderPillGrid(gridId, noteId, options, selected, onPick);
+    });
+  });
+  renderIcons(grid);
+}
+
+function renderAudience() {
+  renderPillGrid("audienceGrid", "audienceNote", audienceOptions,
+    () => selectedAudience, (v) => { selectedAudience = v; });
+  const picker = document.getElementById("audienceMembers");
+  if (picker) picker.style.display = selectedAudience === "selected" ? "" : "none";
+}
+
+if (IN_GROUP) {
+  renderAudience();
+  renderPillGrid("participationGrid", "participationNote", participationOptions,
+    () => selectedParticipation, (v) => { selectedParticipation = v; });
+}
+
+function pickedMemberIds() {
+  return Array.from(document.querySelectorAll("[data-member-pick]:checked"))
+    .map(el => Number(el.value));
+}
+
 // -------------------- wizard navigation --------------------
 const steps = document.querySelectorAll(".step");
 const pages = document.querySelectorAll(".form-page");
@@ -421,6 +600,17 @@ const visibilityNotes = {
   public: "بعد از انتشار، چالش برای همه در فهرست عمومی قابل مشاهده و ثبت‌نامه.",
   unlisted: "این چالش در فهرست عمومی نشون داده نمی‌شه، ولی هر کسی با لینکش می‌تونه ببینتش.",
   private: "این چالش فقط برای خودت و افرادی که مستقیم اضافه می‌کنی قابل مشاهده‌ست.",
+};
+
+// Inside a group, "public" means public *to the group* -- membership is a
+// gate on top of the app's ordinary visibility rule, not a replacement for
+// it (see `group_scope_filter`). The wizard says so, because a creator
+// reading «برای همه» on a corporate challenge would reasonably read it as
+// «برای همهٔ اینترنت».
+const groupVisibilityNotes = {
+  public: "همهٔ اعضای گروه این چالش را در فهرست چالش‌هایشان می‌بینند. بیرون از گروه دیده نمی‌شود.",
+  unlisted: "در فهرست دیده نمی‌شود؛ اعضای گروه فقط با لینکش می‌توانند بازش کنند.",
+  private: "فقط خودت و کسانی که به چالش اضافه می‌کنی آن را می‌بینند.",
 };
 
 function goTo(n) {
@@ -438,7 +628,21 @@ function goTo(n) {
     document.getElementById("reviewDesc").textContent = document.getElementById("cDesc").value || "بدون توضیحات";
     document.getElementById("reviewDays").textContent = (document.getElementById("cDays").value || "—") + " روز";
     document.getElementById("reviewCadence").textContent = cadenceKindLabels[selectedCadenceKind] || "—";
-    document.getElementById("reviewVisibilityNote").textContent = visibilityNotes[selectedVisibility];
+    document.getElementById("reviewVisibilityNote").textContent =
+      (IN_GROUP ? groupVisibilityNotes : visibilityNotes)[selectedVisibility];
+    const groupLine = document.getElementById("reviewGroupNote");
+    if (groupLine) {
+      const audience = audienceOptions.find(o => o.value === selectedAudience);
+      const participation = participationOptions.find(o => o.value === selectedParticipation);
+      const count = selectedAudience === "selected" ? pickedMemberIds().length : null;
+      groupLine.textContent = count === null
+        ? `${audience.label} — شرکت ${participation.label}.`
+        : `${count} نفر انتخاب شده — شرکت ${participation.label}.`;
+    }
+    const identity = identityOptions.find(o => o.value === selectedIdentity);
+    document.getElementById("reviewIdentityNote").textContent =
+      `${identity.label}: ${identity.note}`;
+    document.getElementById("reviewIdentityIcon").innerHTML = icons[identity.icon];
   }
 }
 
@@ -544,9 +748,20 @@ document.getElementById("publishBtn").addEventListener("click", async () => {
     rules: document.getElementById("cRules").value.trim() || null,
     category: selectedCat,
     visibility: selectedVisibility,
+    identity_mode: selectedIdentity,
     cadence: buildCadence(),
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   };
+
+  if (IN_GROUP) {
+    payload.group_id = GROUP_ID;
+    payload.group_audience = selectedAudience;
+    payload.participation_mode = selectedParticipation;
+    // Sent only for «افراد منتخب»; the server ignores it for «همه», which it
+    // reads off the group's membership instead so the list cannot be stale
+    // by the time this request lands.
+    payload.member_ids = selectedAudience === "selected" ? pickedMemberIds() : [];
+  }
 
   if (goalCheckbox.checked) {
     payload.goal_amount = Number(document.getElementById("cGoalAmount").value);

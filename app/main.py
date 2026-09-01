@@ -9,11 +9,24 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.auth import LoginRequired, clear_session_cookie
 from app.config import BASE_DIR
-from app.routers import auth, challenge, checkin, enrollment, today, user
+from app.explainers import register_explainer_filters
+from app.routers import (
+    auth,
+    challenge,
+    checkin,
+    enrollment,
+    group,
+    notification,
+    otp,
+    today,
+    user,
+)
 from app.routers.views import admin as admin_views
 from app.routers.views import auth as auth_views
 from app.routers.views import challenge as challenge_views
+from app.routers.views import group as group_views
 from app.routers.views import home as home_views
+from app.routers.views import notification as notification_views
 from app.routers.views import settings as settings_views
 from app.routers.views import today as today_views
 from app.routers.views import user as user_views
@@ -21,6 +34,7 @@ from app.routers.views import user as user_views
 app = FastAPI(title="Challenge Manager API")
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_explainer_filters(templates.env)
 
 
 class RevalidatedStaticFiles(StaticFiles):
@@ -96,16 +110,25 @@ async def root():
 
 
 app.include_router(auth.router)
+app.include_router(otp.router)
 app.include_router(challenge.router)
 app.include_router(user.router)
 app.include_router(enrollment.router)
+app.include_router(group.router)
+# The invite landing is its own prefix: whoever holds a code must not need
+# the group's id, which is the whole reason a code exists.
+app.include_router(group.invite_router)
 app.include_router(checkin.router)
+app.include_router(notification.router)
 app.include_router(today.router)
 
 app.include_router(admin_views.router)
 app.include_router(auth_views.router)
 app.include_router(challenge_views.router)
+app.include_router(group_views.router)
+app.include_router(group_views.invite_router)
 app.include_router(home_views.router)
+app.include_router(notification_views.router)
 app.include_router(settings_views.router)
 app.include_router(today_views.router)
 app.include_router(user_views.router)

@@ -1,0 +1,56 @@
+{#- One participant per row -- the infinite-scroll fragment for a single
+    challenge's roster.
+
+    Included for the first server-rendered page by
+    `admin/challenge_members.html` and re-served bare by
+    `GET /views/admin/challenges/{id}/members/fragment` for every page after
+    it, exactly like `admin/_member_rows.html`. It must therefore stay free
+    of anything but the rows: no wrapper, no empty state, no counter --
+    `createInfiniteScroller()` counts this file's top-level children to
+    advance the offset.
+
+    A row **opens that member's profile**, exactly like a row on the member
+    roster, and for the same reason: the next question an operator has about
+    a name in a list is who it belongs to. That the profile is reachable at
+    all is one clause -- `profile_visibility_filter` in routers/user.py,
+    which an operator passes and a member does not -- so this file simply
+    links, and the route decides.
+
+    What a row carries no action for is the *enrollment*: removing someone
+    from a challenge is not a moderation power the server grants (see
+    app/permissions.py -- an admin gets reach and lifecycle, never
+    authorship), so there is no sheet here and no data attributes for one. -#}
+{% for e in enrollments %}
+<a class="setting-row glass admin-participant" href="/views/users/{{ e.user.id }}">
+  <div class="sr-head">
+    {#- An opaque neutral behind every avatar: several catalogue styles ship
+        a transparent ground (see CLAUDE.md on avatars). -#}
+    {#- The operator sees who is really there, anonymous or not: moderating
+        abuse you cannot attribute is not moderation, and this roster is
+        already the one screen `profile_visibility_filter` withholds from
+        members. The «ناشناس» mark below is what makes that honest -- it
+        tells the operator which expectation they are holding. -#}
+    <span class="admin-av"><img src="{{ e.user.avatar | avatar_url }}" alt=""
+        loading="lazy" width="34" height="34"></span>
+    <div class="sr-text">
+      <span class="sr-label">{{ e.user.name }}</span>
+      {#- Three facts, and each answers a different support question: who
+          they are, when they joined, and whether they are still running.
+          The join date is the enrollment's own `start_date` -- a bare
+          YYYY-MM-DD, so it is a floating local date and `renderDates()`
+          never shifts it between zones (CLAUDE.md). -#}
+      <span class="sr-hint">{{ e.user.email or 'بدون ایمیل' }} ·
+        <span data-jalali="{{ e.start_date }}" data-jalali-format="day-month-year"
+          data-jalali-prefix="از ">{{ e.start_date }}</span> ·
+        {{ enrollment_status_labels.get(e.status, e.status) }}{% if e.is_anonymous %} ·
+        <span class="anon-mark">ناشناس برای بقیه</span>{% endif %}</span>
+    </div>
+    {#- The per-challenge role, which is the whole reason this screen is not
+        just a filtered copy of the member roster: the same person is
+        «مالک» here and «شرکت‌کننده» in everyone else's challenge. -#}
+    <span class="role-pill {{ 'is-admin' if e.role == 'owner' else '' }}"
+      >{{ challenge_role_labels.get(e.role, e.role) }}</span>
+    <span class="sr-chev" data-icon="chevronLeft"></span>
+  </div>
+</a>
+{% endfor %}

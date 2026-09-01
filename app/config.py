@@ -18,6 +18,37 @@ class Settings(BaseSettings):
     database_url: str = DEFAULT_SQLITE_URL
     environment: str = "development"
     secret_key: str = "dev-insecure-secret-change-me"
+    # The account `app.scripts.seed_admin` guarantees on every boot. It exists
+    # because a deploy's database is a *different* database: the first admin
+    # cannot be made through the app (see `app.scripts.set_user_role`), so a
+    # fresh disk would otherwise boot with no way in at all.
+    #
+    # Defaults are empty, which means "seed nothing" -- the deploy that wants
+    # an account sets these in its environment. The password is only ever used
+    # to *create* a missing account; an existing one keeps its own unless
+    # `seed_admin_reset_password` is turned on for a boot.
+    seed_admin_email: str = ""
+    seed_admin_password: str = ""
+    seed_admin_name: str = "مدیر"
+    seed_admin_reset_password: bool = False
+
+    # --- SMS one-time passwords (Kavenegar) ----------------------------
+    # The gateway behind `app/sms.py`. `kavenegar_otp_template` is the name of
+    # an *approved template* on the Kavenegar panel and selects the
+    # `verify/lookup` route, which is the one meant for one-time codes: no
+    # sender line to get approved, delivery to numbers opted out of bulk SMS,
+    # and no night-time window. `kavenegar_sender` + `otp_sms_text` are the
+    # fallback for a deploy that has a line but no template yet.
+    #
+    # All three default to empty, which means "no gateway". In development
+    # that prints the code to the log instead of failing, so the whole OTP
+    # flow runs offline like the rest of the stack; anywhere else it is a
+    # hard error, because a login screen that accepts codes nobody was sent
+    # is worse than one that is plainly down.
+    kavenegar_api_key: str = ""
+    kavenegar_otp_template: str = ""
+    kavenegar_sender: str = ""
+    otp_sms_text: str = "کد ورود به چالش: {code}"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

@@ -27,6 +27,41 @@ def _b64decode(data: str) -> bytes:
     return base64.urlsafe_b64decode(data + padding)
 
 
+#: Prefix of a `password_hash` that no password can ever match.
+#
+# `Users.password_hash` is NOT NULL, and an account created through the OTP
+# flow has no password at all -- there is nothing to store and nothing the
+# member could be asked for. Rather than relaxing the column (which SQLite
+# cannot do in place; see CLAUDE.md's schema-change rule), such an account
+# gets a marker hash: syntactically not a `pbkdf2_sha256$…` string, so
+# `verify_password` rejects it, and random, so two of them are not equal to
+# each other either. This is the same device Django uses, for the same
+# reason.
+UNUSABLE_PASSWORD_PREFIX = "!"
+
+
+def unusable_password_hash() -> str:
+    """A `password_hash` value for an account that has no password.
+
+    Random rather than a constant so the column never carries a value shared
+    by every OTP account -- a shared marker is one buggy comparison away from
+    "these two accounts have the same password".
+    """
+    return UNUSABLE_PASSWORD_PREFIX + secrets.token_urlsafe(24)
+
+
+def has_usable_password(password_hash: str | None) -> bool:
+    """Whether this account can be signed into with a password at all.
+
+    What the login form needs in order to say "this account signs in by SMS"
+    instead of "wrong password", and what a future "set a password" screen
+    would branch on.
+    """
+    return bool(password_hash) and not password_hash.startswith(
+        UNUSABLE_PASSWORD_PREFIX
+    )
+
+
 def hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
     digest = hashlib.pbkdf2_hmac(
@@ -36,6 +71,12 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, password_hash: str) -> bool:
+    # An OTP-only account is refused here before anything is computed. The
+    # parse below would reject the marker anyway (it has no `$`), but failing
+    # on the meaning rather than on the syntax is what keeps that true if the
+    # hash format ever changes.
+    if not has_usable_password(password_hash):
+        return False
     try:
         algorithm, iterations_str, salt_b64, digest_b64 = password_hash.split("$")
         if algorithm != "pbkdf2_sha256":

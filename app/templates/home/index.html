@@ -27,7 +27,7 @@
       ==================================================================== -#}
   <section class="detail-section" data-tour="home-pulse">
     <div class="section-head">
-      <h2>نبض امروز</h2>
+      <h2>نبض امروز{{ explain("home-pulse") }}</h2>
       <span class="cc-tag"><span data-icon="clock"></span>{{ dash.today.done }} از {{ dash.today.total }}</span>
     </div>
 
@@ -60,7 +60,7 @@
 
     {% if dash.today.due %}
     <a class="dash-link" href="/views/today/">
-      {{ dash.today.due }} مورد منتظر ثبت است
+      {{ dash.today.due }} نوبت منتظر ثبت است
       <span data-icon="chevronLeft"></span>
     </a>
     {% endif %}
@@ -74,10 +74,10 @@
         the one number here that never goes down. -#}
     <div class="mine-grid pairs">
       <div class="mine-tile gold">
-        <b><span data-icon="flame"></span>{{ dash.streak_current }}</b><span>بهترین رشتهٔ فعلی</span>
+        <b><span data-icon="flame"></span>{{ dash.streak_current }}</b><span>رشتهٔ فعلی{{ explain("streak") }}</span>
       </div>
       <div class="mine-tile gold">
-        <b><span data-icon="seal"></span>{{ dash.streak_best }}</b><span>رکورد پیاپی</span>
+        <b><span data-icon="seal"></span>{{ dash.streak_best }}</b><span>بهترین رشته</span>
       </div>
       <div class="mine-tile ok">
         <b>{{ dash.week_done }}</b><span>ثبت این هفته</span>
@@ -97,7 +97,7 @@
       ==================================================================== -#}
   <section class="detail-section" data-tour="home-grid">
     <div class="section-head">
-      <h2>روند فعالیت</h2>
+      <h2>روند فعالیت{{ explain("home-grid") }}</h2>
       <span class="cc-tag"><span data-icon="chart"></span>{{ dash.grid.weeks }} هفتهٔ اخیر</span>
     </div>
 
@@ -139,7 +139,7 @@
   {% if dash.focus.rows %}
   <section class="detail-section">
     <div class="section-head">
-      <h2>تمرکز تو</h2>
+      <h2>تمرکز تو{{ explain("home-focus") }}</h2>
       <span class="cc-tag">{{ dash.focus.window_days }} روز اخیر</span>
     </div>
 

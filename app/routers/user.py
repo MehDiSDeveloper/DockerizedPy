@@ -1,18 +1,21 @@
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy import Select, or_, select
+from sqlalchemy import Select, or_, select, true
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import (
     get_admin_user,
+    get_current_user,
     get_current_user_id,
     hash_password,
     set_session_cookie,
 )
 from app.database import get_db
+from app.models.audit_base import newest_first
 from app.models.user import User, UserRole
+from app.permissions import Perm, can
 from app.schemas.user import (
     UserAdminRead,
     UserCreate,
@@ -38,24 +41,36 @@ ROLE_VALUES = (ROLE_ALL, UserRole.MEMBER.value, UserRole.ADMIN.value)
 ROLE_PATTERN = "^(all|member|admin)$"
 
 
-def profile_visibility_filter(user_id: int):
-    """A profile is visible only to the member it belongs to.
+def profile_visibility_filter(viewer: User):
+    """A profile is visible to the member it belongs to -- and to an operator.
 
     Same shape as ``challenge_visibility_filter`` -- a clause composed into
     the query rather than a check bolted on after the row is loaded -- so the
     rule lives in one place and a miss falls out as "no such row" instead of
-    a separate branch each caller has to remember.
+    a separate branch each caller has to remember. It is also what keeps the
+    two front doors agreeing: ``GET /users/{id}`` and ``/views/users/{id}``
+    compose this same clause, so loosening happens here or nowhere.
 
-    Own-profile-only is the honest rule for what the app actually is today:
-    nothing anywhere links to another member's profile (the bottom nav points
-    at your own id; challenge-detail shows participant initials, never a
-    roster), so there is no legitimate way to arrive at someone else's. The
-    path id is a bare sequential integer, so anything looser than this is a
-    walk of ``1..n`` that harvests the whole membership. If a participant
-    list ever ships, loosen *this function* -- e.g. to "or we share a
-    challenge" -- and both the page and the JSON endpoint follow.
+    **Own-profile-only is still the rule for members**, and for the original
+    reason: the path id is a bare sequential integer and nothing in the app
+    links a member to anyone else's profile, so anything looser for them is a
+    walk of ``1..n`` that harvests the whole membership. That is also why the
+    refusal is a 404 rather than a 403 at every caller.
+
+    The one widening is ``Perm.USER_VIEW_ANY``, held by admins alone: the
+    operator panel already lists every member, and a roster whose rows cannot
+    be opened is a support desk that can see a name and nothing behind it. It
+    is asked as a *permission* rather than as ``role == "admin"`` so the
+    policy stays in ``app/permissions.py`` beside every other grant.
+
+    Taking the ``User`` row rather than an id is what lets the clause ask
+    that question at all -- and it costs nothing, since both callers already
+    hold the row (``get_page_user`` / ``get_current_user`` load it to make an
+    unrevocable cookie safe).
     """
-    return User.id == user_id
+    if can(viewer, Perm.USER_VIEW_ANY):
+        return true()
+    return User.id == viewer.id
 
 
 def apply_member_filters(stmt: Select, q: str | None, role: str | None) -> Select:
@@ -99,12 +114,13 @@ async def fetch_member_page(
 
     ``limit + 1`` is fetched and trimmed -- the same trick
     ``fetch_challenge_page`` uses -- so "is there another page" costs no
-    second COUNT query. Ordered by id so the sequence a scroller pages
-    through is stable between requests; a mutable sort key would let a row
-    the admin has already seen reappear on the next page.
+    second COUNT query. Ordered ``newest_first`` like every other list in
+    the app: the members an operator has to deal with are the ones who just
+    signed up, and the key is immutable, so the sequence a scroller pages
+    through stays stable between requests.
     """
     stmt = apply_member_filters(select(User), q, role)
-    stmt = stmt.order_by(User.id).offset(offset).limit(limit + 1)
+    stmt = stmt.order_by(*newest_first(User)).offset(offset).limit(limit + 1)
     members = list((await db.execute(stmt)).scalars().all())
     has_more = len(members) > limit
     return members[:limit], has_more
@@ -144,17 +160,22 @@ async def list_users(
 @router.get("/{user_id}", response_model=UserPublicRead)
 async def get_user(
     user_id: int,
-    current_user_id: int = Depends(get_current_user_id),
+    viewer: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """404, not 403, for someone else's id.
+    """404, not 403, for an id this caller may not see.
 
     A 403 here would answer the only question an enumerator is asking -- it
-    confirms which ids exist -- and the caller has no business distinguishing
-    "not yours" from "not there" for a resource they can never be shown.
+    confirms which ids exist -- and a member has no business distinguishing
+    "not yours" from "not there" for a resource they can never be shown. An
+    admin passes ``profile_visibility_filter`` and so never meets it.
+
+    The read shape stays ``UserPublicRead`` for everyone, admin included: the
+    wider ``UserAdminRead`` belongs to the roster route that requires
+    ``Perm.USER_LIST``, and widening it here would widen it for members too.
     """
     result = await db.execute(
-        select(User).where(User.id == user_id, profile_visibility_filter(current_user_id))
+        select(User).where(User.id == user_id, profile_visibility_filter(viewer))
     )
     db_user = result.scalar_one_or_none()
     if not db_user:
@@ -186,10 +207,27 @@ async def create_user(
 async def update_user(
     user_id: int,
     user: UserUpdate,
-    current_user_id: int = Depends(get_current_user_id),
+    viewer: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if user_id != current_user_id:
+    """Your own account -- or, for an operator, a member's.
+
+    ``Perm.USER_EDIT_ANY`` is the support grant (see ``app/permissions.py``
+    for why it is given where ``CHALLENGE_EDIT`` is withheld). It changes who
+    may call this and nothing else: the body is still ``UserUpdate``, so the
+    role remains unreachable from here and keeps its own door,
+    ``PATCH /users/{id}/role``.
+
+    The refusal stays a **403 raised before the lookup**, for member and
+    operator alike. Answering without touching the row is what keeps this
+    route from leaking which ids exist -- every id gets the same answer -- so
+    it needs no 404-vs-403 split of its own.
+
+    ``last_modifier_user_id`` is the *acting* user, never the row's owner:
+    that column is the only record that an edit was made on someone's behalf,
+    and it is what makes granting the permission acceptable at all.
+    """
+    if user_id != viewer.id and not can(viewer, Perm.USER_EDIT_ANY):
         raise HTTPException(status_code=403, detail="Not allowed to edit this user")
 
     result = await db.execute(select(User).where(User.id == user_id))
@@ -200,7 +238,7 @@ async def update_user(
     for key, value in user.model_dump(exclude_unset=True).items():
         setattr(db_user, key, value)
     db_user.updated_at = datetime.now(UTC)
-    db_user.last_modifier_user_id = current_user_id
+    db_user.last_modifier_user_id = viewer.id
 
     try:
         await db.commit()
@@ -253,6 +291,14 @@ async def delete_user(
     current_user_id: int = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
+    """Own account only -- deliberately *not* widened to an operator.
+
+    Reading a member's record and correcting it is support
+    (``USER_EDIT_ANY``); erasing the person is not, and there is no
+    permission for it. Even the owner is refused once any history exists --
+    the IntegrityError below is answered 409 rather than cascaded, the same
+    call ``DELETE /challenges/{id}`` makes once others have joined.
+    """
     if user_id != current_user_id:
         raise HTTPException(status_code=403, detail="Not allowed to delete this user")
 

@@ -1,14 +1,34 @@
 {% extends "layout.html" %}
 
+{#- The fallback only matters on a cold landing -- `wireBackButtons()`
+    retargets `[data-back]` at the previous trail entry whenever there is
+    one. It points at wherever this profile can legitimately be arrived
+    from, which differs by reader: my own hangs off the app, someone else's
+    only ever off the panel's roster. -#}
 {% block topbar_leading %}
-<a href="/views/home/" class="back-btn" data-back data-back-optional aria-label="بازگشت"><span
-    data-icon="chevronRight"></span></a>
+<a href="{{ '/views/admin/' if can_administer else '/views/home/' }}" class="back-btn" data-back
+  data-back-optional aria-label="بازگشت"><span data-icon="chevronRight"></span></a>
 {% endblock %}
 
-{#- Only your own profile is reachable (routers/user.py:profile_visibility_filter),
-    and it is a bottom-nav tab, so it resets the trail. The non-own branches
-    below are kept for the day a participant list makes someone else's
-    profile linkable. -#}
+{#- Two readers, one page.
+
+    A member reaches only their own profile; an operator reaches anyone's
+    (routers/user.py:profile_visibility_filter). The page does not fork into
+    two templates for that, because it is the same profile either way -- what
+    differs is only who may touch what, and that is three flags from the
+    router:
+
+    * `is_own_profile` -- the things that are only ever mine: logout,
+      settings, the history link, the panel row.
+    * `can_administer` -- the operator's own additions: the banner saying
+      whose account this is, and the role row.
+    * `can_edit` -- the union, and the only flag the editing affordances
+      read, so the avatar picker and the account sheet stay one code path
+      instead of an owner copy and an operator copy.
+
+    Only my own profile is a bottom-nav destination, so only it resets the
+    breadcrumb trail; someone else's is a step reached *from* the panel and
+    appends to it. -#}
 {% block breadcrumb %}
 {% set profile_label = 'پروفایل من' if is_own_profile else user.name %}
 <nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="{{ profile_label }}"
@@ -18,7 +38,7 @@
 {% endblock %}
 
 {% block topbar_action %}
-{% if is_own_profile %}
+{% if can_edit %}
 <button class="icon-btn" aria-label="ویرایش اطلاعات حساب" data-icon="edit" data-info-edit></button>
 {% endif %}
 {% endblock %}
@@ -29,9 +49,9 @@
     {#- The picture is its own control: tapping it opens the catalogue sheet.
         The camera badge was already drawn here as an affordance, so putting
         the action anywhere else (a menu row further down) would have left it
-        pointing at nothing. Someone else's profile gets the same picture
+        pointing at nothing. A reader who may not edit gets the same picture
         with no button and no badge. -#}
-    {% if is_own_profile %}
+    {% if can_edit %}
     <button type="button" class="profile-avatar" id="avatarEdit" aria-label="تغییر آواتار">
       <img src="{{ user.avatar | avatar_url }}" alt="آواتار {{ user.name }}" width="84" height="84">
       <span class="edit-badge"><span data-icon="camera"></span></span>
@@ -46,6 +66,16 @@
       data-jalali-format="day-month-year">{{ user.created_at.strftime('%Y-%m-%d') }}</span></p>
   </div>
 
+  {#- Said once, at the top, and never again: everything below this line
+      belongs to someone else and every save carries the operator's name
+      (`last_modifier_user_id`, stamped by `PATCH /users/{id}`). An operator
+      arriving from a roster of thirty similar rows has to be able to tell at
+      a glance whose account they are about to change. -#}
+  {% if can_administer %}
+  <p class="profile-note"><span>این پروفایل «{{ user.name }}» است و تو آن را به‌عنوان مدیر
+    می‌بینی. هر تغییری به نام تو ثبت می‌شود.</span></p>
+  {% endif %}
+
   <section class="stats">
     <div class="stat-card glass accent">
       <span class="stat-num" id="statActive">{{stat_active}}</span>
@@ -53,15 +83,17 @@
     </div>
     <div class="stat-card glass mohr">
       <span class="stat-num" id="statDone">{{stat_done}}</span>
-      <span class="stat-label">تکمیل‌شده</span>
+      <span class="stat-label">چالش تکمیل‌شده</span>
     </div>
   </section>
 
-  {% if is_own_profile %}
-  {#- «اطلاعات حساب» -- the member's own contact and where-they-are details.
-      Own-profile-only by construction: this page is already gated by
-      `profile_visibility_filter`, and none of these fields are in
-      `UserPublicRead`, so there is no second surface to gate.
+  {% if can_edit %}
+  {#- «اطلاعات حساب» -- the member's contact and where-they-are details.
+      Gated by construction rather than by a check here: this page is already
+      behind `profile_visibility_filter`, and none of these fields are in
+      `UserPublicRead`, so there is no second surface to gate. An operator
+      sees and edits exactly the same six, because correcting a mistyped
+      email on request is the whole reason they can be here at all.
 
       Everything but the name is optional and stays optional, so an unset
       field renders as «ثبت نشده» rather than disappearing -- a row that is
@@ -75,10 +107,23 @@
         data-info-edit></button>
     </div>
     <dl class="fact-list boxed glass">
+      {#- The verified login number, above the editable rows and outside the
+          loop because it is not one of them: it is the credential this
+          account signs in with, it has no box in the edit sheet, and
+          `PATCH /users/{id}` cannot touch it (`UserUpdate` does not carry
+          it). Rendered only when there is one -- an account that signs in
+          with a password has nothing here, and «ثبت نشده» would offer a
+          field nobody can fill. -#}
+      {% if login_mobile %}
+      <div class="fact">
+        <dt>شماره ورود</dt>
+        <dd dir="ltr" style="text-align:start">{{ login_mobile }}</dd>
+      </div>
+      {% endif %}
       {% for row in [
         ('name', 'نام', user.name),
         ('email', 'ایمیل', user.email),
-        ('phone', 'شماره موبایل', user.phone),
+        ('phone', 'شماره تماس', user.phone),
         ('country', 'کشور', user.country),
         ('city', 'شهر', user.city),
         ('address', 'نشانی دقیق', user.address)
@@ -89,8 +134,46 @@
       </div>
       {% endfor %}
     </dl>
-    <p class="info-note">این اطلاعات فقط برای خودت نمایش داده می‌شود. جز نام، پر کردن بقیه اختیاری است.</p>
+    <p class="info-note">{% if can_administer %}این اطلاعات فقط برای خود این عضو و مدیران دیده
+      می‌شود. جز نام، پر کردن بقیه اختیاری است.{% else %}این اطلاعات فقط برای خودت نمایش داده
+      می‌شود. جز نام، پر کردن بقیه اختیاری است.{% endif %}</p>
   </section>
+  {% endif %}
+
+  {#- «مدیریت عضو» -- the one thing on this page that is not the member's
+      own to change, kept in a section of its own for exactly that reason:
+      an operator must never be one mis-tap from a role change while
+      correcting a phone number.
+
+      The role lives here rather than on the roster row because a profile is
+      where the evidence is -- the name, the email, the two counters, the
+      account age. Promoting someone from a list of thirty near-identical
+      rows is how the wrong person gets promoted, which is the same argument
+      the moderation sheet makes with its «مشاهده چالش» link.
+
+      Only the role: the panel administers `Users.role` and nothing else
+      about a member, and the two things next to it that an operator might
+      reach for -- a password reset and account deletion -- have no route to
+      call (see app/permissions.py for why neither is granted). -#}
+  {% if can_administer %}
+  <section class="setting-group profile-admin">
+    <h2>مدیریت عضو</h2>
+    <div class="setting-row glass" role="button" tabindex="0" id="roleEdit"
+      data-member-role="{{ user.role }}">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">نقش در برنامه</span>
+          <span class="sr-hint">مدیر به پنل مدیریت، پروفایل همهٔ اعضا و همهٔ چالش‌ها دسترسی دارد.</span>
+        </div>
+        <span class="role-pill {{ 'is-admin' if user.role == 'admin' else '' }}"
+          data-role-pill>{{ role_labels.get(user.role, user.role) }}</span>
+        <span class="sr-chev" data-icon="chevronLeft"></span>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if is_own_profile %}
 
   {#- The profile's own actions, and nothing else. Every *preference* --
       the theme, notifications, «دربارهٔ چالش» -- moved to /views/settings/,
@@ -114,9 +197,22 @@
       <span class="mi-chev" data-icon="chevronLeft"></span>
     </a>
     {% endif %}
+    {#- «گروه‌ها» -- the way in, and the only one on a member-facing screen.
+        Always rendered, unlike the panel row above it: being in no group is
+        the normal state, and the page's empty state is the thing that
+        explains what a group is and how somebody gets into one. A row here
+        rather than a fifth bottom-nav tab, for the reason the panel is not
+        one either -- the nav is the four things every member does, and a
+        member with no group would pay a tab for something they never
+        open. -#}
+    <a class="menu-item glass" href="/views/groups/">
+      <div class="mi-icon"><span data-icon="building"></span></div>
+      <span class="mi-label">گروه‌ها</span>
+      <span class="mi-chev" data-icon="chevronLeft"></span>
+    </a>
     <a class="menu-item glass" href="/views/home/">
       <div class="mi-icon"><span data-icon="chart"></span></div>
-      <span class="mi-label">تاریخچهٔ چالش‌ها</span>
+      <span class="mi-label">کارنامهٔ من</span>
       <span class="mi-chev" data-icon="chevronLeft"></span>
     </a>
     <a class="menu-item glass" href="/views/settings/">
@@ -135,7 +231,7 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
-{% if is_own_profile %}
+{% if can_edit %}
 <script id="avatarOptions" type="application/json">{{ avatar_options | tojson }}</script>
 <script>
   // Change picture. The catalogue and the current pick both come from the
@@ -167,6 +263,9 @@
         onConfirm: async (values) => {
           const picked = values.avatar || "";
           if (picked === currentAvatar) return true;
+          // The same endpoint for both readers -- an operator's edit is
+          // permitted by `Perm.USER_EDIT_ANY` on the server, not by a
+          // second route here.
           const res = await fetch("/users/{{ user.id }}", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -199,7 +298,7 @@
   // Nothing here is derived from anything else on the page, so the response
   // repaints the rows in place instead of reloading.
   const infoLabels = {
-    name: "نام", email: "ایمیل", phone: "شماره موبایل",
+    name: "نام", email: "ایمیل", phone: "شماره تماس",
     country: "کشور", city: "شهر", address: "نشانی دقیق",
   };
   const infoValues = {{ {
@@ -261,6 +360,52 @@
           return true;
         },
       });
+    });
+  });
+</script>
+{% endif %}
+{% if can_administer %}
+<script>
+  // Change the member's app-wide role. `PATCH /users/{id}/role` is its own
+  // route with its own admin dependency (schemas/user.py:UserRoleUpdate), so
+  // this cannot ride along with the account sheet above even by accident.
+  //
+  // The row carries its own current role, like the roster's rows do, and is
+  // repainted from the response rather than from what was submitted -- the
+  // server is what decides, and a refusal must not leave the pill claiming
+  // otherwise.
+  const roleEdit = document.getElementById("roleEdit");
+  const roleLabels = {{ role_labels | tojson }};
+  roleEdit.addEventListener("click", () => {
+    createSheet({
+      title: {{ user.name | tojson }},
+      confirmLabel: "ذخیره",
+      fields: [
+        {
+          name: "role",
+          label: "نقش در برنامه",
+          type: "select",
+          options: Object.entries(roleLabels).map(([value, label]) => ({ value, label })),
+          value: roleEdit.dataset.memberRole,
+        },
+      ],
+      onConfirm: async (values) => {
+        if (values.role === roleEdit.dataset.memberRole) return true;
+        const { ok, data } = await apiFetch("/users/{{ user.id }}/role", {
+          method: "PATCH",
+          body: { role: values.role },
+        });
+        if (!ok) {
+          showToast("خطا: " + ((data && data.detail) || "ذخیره نشد"));
+          return false;
+        }
+        roleEdit.dataset.memberRole = data.role;
+        const pill = roleEdit.querySelector("[data-role-pill]");
+        pill.textContent = roleLabels[data.role] || data.role;
+        pill.classList.toggle("is-admin", data.role === "admin");
+        showToast("نقش به‌روز شد");
+        return true;
+      },
     });
   });
 </script>

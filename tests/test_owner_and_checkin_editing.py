@@ -9,6 +9,9 @@ mirror them rather than invent its own.
 
 from __future__ import annotations
 
+import json
+import re
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +22,22 @@ async def _make_challenge(client: AsyncClient, **kwargs) -> int:
     created = await create_challenge(client, **kwargs)
     assert created.status_code == 201, created.text
     return created.json()["id"]
+
+
+def _today_calendar_entry(page_text: str) -> dict:
+    """The one occurrence dated today, out of the page's history calendar.
+
+    challenge-detail hands the calendar every occurrence of the enrollment as
+    JSON and draws the month client-side, so this payload -- not any rendered
+    row -- is where the page states what each day may do.
+    """
+    match = re.search(r"const historyCalendarData = (\{.*?\});\n", page_text, re.S)
+    assert match, "challenge-detail did not embed a history calendar"
+    calendar = json.loads(match.group(1))
+    entries = calendar["days"].get(calendar["today"])
+    assert entries, f"no occurrence on {calendar['today']}"
+    assert len(entries) == 1, "a daily cadence asks for exactly one a day"
+    return entries[0]
 
 
 @pytest.mark.asyncio
@@ -89,33 +108,34 @@ async def test_recorded_checkin_offers_edit_instead_of_record(
         client, cadence={"kind": "recurring_days", "mode": "every_n_days", "n": 1}
     )
 
-    # Match the rendered button, not the handler that references the class.
-    edit_button = 'class="tl-action tl-edit"'
-
+    # The two flags are asserted on the calendar's own payload rather than on
+    # rendered buttons: the history calendar draws its days client-side, so
+    # `writable`/`editable` per occurrence *is* the contract the page ships,
+    # and the button is one reading of it.
     page = await client.get(f"/views/challenges/{challenge_id}")
-    assert edit_button not in page.text
-
-    today_key = None
-    for line in page.text.splitlines():
-        if 'class="tl-action"' in line and "data-key=" in line:
-            today_key = line.split('data-key="')[1].split('"')[0]
-            break
-    assert today_key is not None, "expected a writable occurrence to record"
+    today_entry = _today_calendar_entry(page.text)
+    assert today_entry["writable"] is True, "expected a writable occurrence to record"
+    assert today_entry["editable"] is False
+    assert today_entry["checkin_id"] is None
 
     checkin = await client.post(
         "/checkins/",
         json={
             "challenge_id": challenge_id,
-            "occurrence_key": today_key,
+            "occurrence_key": today_entry["key"],
             "state": "completed",
         },
     )
     assert checkin.status_code == 201, checkin.text
     checkin_id = checkin.json()["id"]
 
+    # Recorded: re-POSTing would silently no-op, so the day must now offer
+    # PATCH/DELETE instead -- never both, never neither.
     page = await client.get(f"/views/challenges/{challenge_id}")
-    assert edit_button in page.text
-    assert f'data-checkin-id="{checkin_id}"' in page.text
+    today_entry = _today_calendar_entry(page.text)
+    assert today_entry["writable"] is False
+    assert today_entry["editable"] is True
+    assert today_entry["checkin_id"] == checkin_id
 
 
 @pytest.mark.asyncio
