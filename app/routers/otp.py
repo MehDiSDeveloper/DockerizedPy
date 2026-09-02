@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import set_session_cookie, unusable_password_hash
 from app.database import get_db
+from app.logging_config import log_event
 from app.models.user import User, UserRole
 from app.otp import OtpRefused, request_code, verify_code
 from app.phone import mask_mobile, national_mobile
@@ -106,6 +107,13 @@ async def request_otp(
         ticket = await request_code(db, body.mobile, request_ip=client_ip(request))
     except OtpRefused as refused:
         await db.rollback()
+        log_event(
+            logger,
+            "otp.request_refused",
+            level=logging.WARNING,
+            mobile=mask_mobile(body.mobile),
+            status=refused.status_code,
+        )
         raise HTTPException(
             status_code=refused.status_code,
             detail=refused.message,
@@ -124,6 +132,7 @@ async def request_otp(
         raise HTTPException(status_code=502, detail=failure.message) from failure
 
     await db.commit()
+    log_event(logger, "otp.code_sent", mobile=mask_mobile(body.mobile))
     return OtpRequestResponse(
         mobile_masked=mask_mobile(body.mobile),
         expires_in=ticket.expires_in,
@@ -152,6 +161,13 @@ async def verify_otp(
         # record of the guessing, and discarding them on the way out is what
         # would make `MAX_ATTEMPTS` unenforceable.
         await db.commit()
+        log_event(
+            logger,
+            "otp.verify_failed",
+            level=logging.WARNING,
+            mobile=mask_mobile(body.mobile),
+            status=refused.status_code,
+        )
         raise HTTPException(
             status_code=refused.status_code,
             detail=refused.message,
@@ -205,4 +221,11 @@ async def verify_otp(
 
     await db.refresh(user)
     set_session_cookie(response, user.id)
+    log_event(
+        logger,
+        "auth.login_ok",
+        user_id=user.id,
+        method="otp",
+        is_new_account=is_new_account,
+    )
     return OtpVerifyResponse(user=user, is_new_account=is_new_account)

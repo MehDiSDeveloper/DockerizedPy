@@ -37,9 +37,18 @@
 </nav>
 {% endblock %}
 
+{#- «؟» replays this page's tour -- see today/index.html. It is offered only
+    on one's own profile, which is the profile the tour describes. -#}
 {% block topbar_action %}
-{% if can_edit %}
-<button class="icon-btn" aria-label="ویرایش اطلاعات حساب" data-icon="edit" data-info-edit></button>
+{% if is_own_profile or can_edit %}
+<div class="topbar-actions">
+  {% if is_own_profile %}
+  <button class="icon-btn" aria-label="راهنمای این صفحه" data-icon="help" data-tour-help></button>
+  {% endif %}
+  {% if can_edit %}
+  <button class="icon-btn" aria-label="ویرایش اطلاعات حساب" data-icon="edit" data-info-edit></button>
+  {% endif %}
+</div>
 {% endif %}
 {% endblock %}
 
@@ -100,7 +109,7 @@
       not there cannot be discovered as something you *may* fill in. Editing
       is the same `createSheet` + `PATCH /users/{id}` the avatar picker uses;
       there is no `/views/` twin, same as every other mutation in the app. -#}
-  <section class="profile-info">
+  <section class="profile-info" data-tour="profile-account">
     <div class="section-head">
       <h2>اطلاعات حساب</h2>
       <button type="button" class="icon-btn" aria-label="ویرایش اطلاعات حساب" data-icon="edit"
@@ -205,7 +214,7 @@
         one either -- the nav is the four things every member does, and a
         member with no group would pay a tab for something they never
         open. -#}
-    <a class="menu-item glass" href="/views/groups/">
+    <a class="menu-item glass" href="/views/groups/" data-tour="profile-groups">
       <div class="mi-icon"><span data-icon="building"></span></div>
       <span class="mi-label">گروه‌ها</span>
       <span class="mi-chev" data-icon="chevronLeft"></span>
@@ -215,7 +224,7 @@
       <span class="mi-label">کارنامهٔ من</span>
       <span class="mi-chev" data-icon="chevronLeft"></span>
     </a>
-    <a class="menu-item glass" href="/views/settings/">
+    <a class="menu-item glass" href="/views/settings/" data-tour="profile-settings">
       <div class="mi-icon"><span data-icon="settings"></span></div>
       <span class="mi-label">تنظیمات</span>
       <span class="mi-chev" data-icon="chevronLeft"></span>
@@ -231,6 +240,9 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
+{% if is_own_profile %}
+<script src="{{ url_for('static', path='/js/tour.js') }}"></script>
+{% endif %}
 {% if can_edit %}
 <script id="avatarOptions" type="application/json">{{ avatar_options | tojson }}</script>
 <script>

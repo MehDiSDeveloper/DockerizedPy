@@ -2531,6 +2531,60 @@ a.admin-stat{text-decoration:none; color:inherit;}
   box-shadow:0 0 0 2px rgba(var(--accent-rgb),0.75), 0 0 21px 3px rgba(var(--accent-rgb),0.30);
   animation:tourBreathe 2.8s ease-in-out infinite;
 }
+/* On a step that waits for a tap, the ring is the one thing on the overlay
+   that takes a pointer -- it lies exactly over the hole, so tapping it is
+   tapping the control inside it, and everything else stays swallowed by the
+   veil. Colour and geometry are unchanged: it is the same ring, now also the
+   button. */
+.tour-ring.is-handover{
+  pointer-events:auto; cursor:pointer;
+  /* Its own beat, faster and wider than the «look here» one: a step waiting
+     for a tap is asking for something, and the ring is the button. The scale
+     is on the standalone property so it composes with nothing else here and
+     stays centred on the hole -- the hole itself never moves, so the target
+     underneath is never clipped by the swell. */
+  animation:tourTap 1.4s ease-in-out infinite;
+}
+
+@keyframes tourTap{
+  0%,100%{
+    scale:1;
+    box-shadow:0 0 0 2px rgba(var(--accent-rgb),0.80), 0 0 16px 1px rgba(var(--accent-rgb),0.26);
+  }
+  50%{
+    scale:1.045;
+    box-shadow:0 0 0 3px rgba(var(--accent-rgb),1.00), 0 0 34px 9px rgba(var(--accent-rgb),0.55);
+  }
+}
+
+/* --- the handover instruction ---
+   Rendered only on a step that waits for a tap. It takes the accent and a
+   tinted fill because it is the one line on the callout that is an
+   instruction rather than a description -- the same accent the ring outside
+   is beating in, so the sentence and the ring read as one thing. */
+.tour-cta{
+  display:flex; align-items:center; gap:7px;
+  margin:10px 0 0; padding:8px 10px;
+  border-radius:var(--radius-sm);
+  background:rgba(var(--accent-rgb),0.12);
+  border:1px solid rgba(var(--accent-rgb),0.30);
+  color:var(--fayrouzeh);
+  font-size:12px; font-weight:700; line-height:1.7;
+}
+/* `display:flex` outranks the UA's `[hidden]{display:none}`, so the line has
+   to hide itself: without this it shows on every step, which is the opposite
+   of what it is for. */
+.tour-cta[hidden]{display:none;}
+.tour-cta-icon{display:inline-flex; flex:none;}
+.tour-cta-icon svg{width:16px; height:16px; animation:tourTapNudge 1.4s ease-in-out infinite;}
+
+/* The finger dips on the same beat the ring swells on, so the two are one
+   gesture rather than two loops running past each other. */
+@keyframes tourTapNudge{
+  0%,100%{transform:translateY(0);}
+  50%    {transform:translateY(2px);}
+}
+
 @keyframes tourBreathe{
   /* the trough is a floor, not an off state: with the veil this light the
      ring is the only thing marking the target, so it never fades out */
@@ -2630,7 +2684,11 @@ a.admin-stat{text-decoration:none; color:inherit;}
    stays, the breathing and the sliding are decoration and go. */
 @media (prefers-reduced-motion:reduce){
   .tour-veil, .tour-pop{animation:none;}
-  .tour-ring{animation:none;}
+  /* The handover ring loses its beat like every other ring, but keeps the
+     stronger resting shadow -- «this one wants a tap» is information, and the
+     sentence in .tour-cta carries it either way. */
+  .tour-ring, .tour-ring.is-handover, .tour-cta-icon svg{animation:none;}
+  .tour-ring.is-handover{box-shadow:0 0 0 3px rgba(var(--accent-rgb),1.00), 0 0 30px 6px rgba(var(--accent-rgb),0.45);}
   .tour-dots i{transition:none;}
 }
 
@@ -2909,13 +2967,97 @@ a.seg-btn.active{color:var(--on-accent);}
   background:rgba(var(--accent-rgb),0.14); color:var(--fayrouzeh);
   border-color:rgba(var(--accent-rgb),0.34);
 }
-.invite-row .mi-icon{
+/* The leading tile on a link row. `.setting-row` rather than `.invite-row`,
+   because the public link's own row wears the same mark and is deliberately
+   not one of them (see manage.html on why it is its own section). */
+.setting-row .mi-icon{
   width:36px; height:36px; border-radius:11px; flex-shrink:0;
   display:grid; place-items:center;
   background:rgba(var(--accent-rgb),0.1); color:var(--fayrouzeh);
 }
-.invite-row .mi-icon svg{width:17px; height:17px;}
+.setting-row .mi-icon svg{width:17px; height:17px;}
 .setting-row.danger-row .sr-label{color:var(--danger-text);}
+
+/* --- managing a group (group/manage.html) ---
+   A settings screen, and the redesign that made it one is a rule about
+   *marks*: a row ends in the glyph for what tapping it does. A chevron means
+   a page opens, a pencil means an editor opens, and an icon button means the
+   thing happens right here. The screen it replaced ended every row in a
+   chevron and explained the difference in a paragraph underneath, which is
+   how «مشخصات گروه — نام، توضیح، نوع و نشان» came to read as a place rather
+   than as four values somebody can change.
+
+   Nothing here is a status or a category, so the two colour channels stay
+   out (see the section note above). The one accent this screen spends is on
+   the button that *starts* something -- `+`, `✓`, copy -- so scanning it
+   finds the actions without reading a word. The undoing half (`✕`, `↻`) is
+   deliberately neutral: an equally loud pair would make the reader stop and
+   read, which is the opposite of what a two-mark answer is for. */
+
+/* A heading that carries a control. `.setting-group > h2`'s own metrics, so
+   a section with an action and one without look like the same section. */
+.sg-head{display:flex; align-items:center; gap:8px; margin:0 2px; min-height:30px;}
+.sg-head h2{
+  font-size:12.5px; font-weight:700; color:var(--text-3); margin:0;
+  letter-spacing:.2px;
+}
+.sg-head .icon-btn{margin-inline-start:auto;}
+/* How many answers are owed. A number rather than a dot, for the reason the
+   bell's badge is one: "someone is waiting" and "eleven people are waiting"
+   are different messages. It hides itself at zero rather than reading «۰». */
+.sg-count{
+  min-width:20px; height:20px; padding:0 6px; border-radius:999px;
+  display:grid; place-items:center;
+  font-size:11px; font-weight:800; line-height:1;
+  background:rgba(var(--accent-rgb),.14); color:var(--fayrouzeh);
+}
+.sg-count[hidden]{display:none;}
+/* An empty section, said once and quietly. The full-page `.empty` block is
+   48px of padding and a 44px glyph, which on a screen where "nothing is
+   waiting" is the normal state shouts about the good news. */
+.sg-note{
+  margin:0; padding:12px 4px; text-align:center;
+  font-size:12px; color:var(--text-3);
+}
+.sg-note[hidden]{display:none;}
+
+/* A row whose text is one line -- a label and its value -- does not need the
+   14px a two-line row does. Every row on this screen that dropped its
+   explanatory sentence took this instead. */
+.setting-row.compact{padding:11px 14px;}
+.setting-row.compact .sr-head{gap:9px;}
+
+/* The trailing controls. They sit at the end of `.sr-head` where the chevron
+   would be, so a list mixing "opens a page" rows with "acts here" rows still
+   scans down one column. */
+.sr-actions{display:flex; align-items:center; gap:6px; flex-shrink:0;}
+/* The row-sized icon button: the 40px topbar circle is a target for a thumb
+   crossing the whole screen, while these sit inside a 44px row and two of
+   them share its end. 30px keeps the row's height and still clears the 24px
+   the pointer needs. */
+.icon-btn.xs{width:30px; height:30px;}
+.icon-btn.xs svg{width:15px; height:15px;}
+/* The affirmative half of every pair on this screen -- add, approve, copy.
+   The accent is doing what it does everywhere else: marking the one thing
+   the reader most likely came to press. */
+.icon-btn.accent{
+  background:rgba(var(--accent-rgb),.14); border-color:rgba(var(--accent-rgb),.34);
+  color:var(--fayrouzeh);
+}
+.icon-btn.accent:hover{background:rgba(var(--accent-rgb),.22); color:var(--fayrouzeh);}
+
+/* «این ردیف ویرایش می‌شود». A pencil where a chevron would be: the row shows
+   its current value, and the mark says the value is the thing you change --
+   which a chevron, meaning "a page lives behind this", never said. Sized and
+   coloured exactly like `.sr-chev` so the two read as one column. */
+.sr-edit{width:16px; height:16px; color:var(--text-3); flex-shrink:0;}
+.setting-row.danger-row .sr-edit{color:var(--danger-text);}
+/* The emblem as a row's own value, the same "opaque ground under a picture"
+   every avatar surface needs (several catalogue styles ship transparent). */
+.sr-emblem{
+  width:30px; height:30px; border-radius:9px; flex-shrink:0;
+  background:var(--bg-1); object-fit:cover;
+}
 /* The exit rows live inside a tab panel rather than on a settings screen,
    so they bring their own top gap instead of the page's. */
 .group-exit{margin-top:14px;}

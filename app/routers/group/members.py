@@ -2,6 +2,7 @@
 """The group itself, and membership: creating, joining directly, roles,
 leaving, removal and ownership transfer."""
 
+import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -12,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_current_user
 from app.database import get_db
 from app.groups import apply_standing_audience, leave_group_challenges, member_counts
+from app.logging_config import log_event
 from app.models.challenge import Challenge
 from app.models.group import Group, GroupMembership, GroupRole
 from app.models.notification import NotificationKind
@@ -42,6 +44,8 @@ from app.schemas.group import (
     GroupUpdate,
     MemberAdd,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/groups", tags=["groups"])
 
@@ -81,6 +85,7 @@ async def create_group(
     )
     await db.commit()
     await db.refresh(group)
+    log_event(logger, "group.created", group_id=group.id)
     return await group_read(db, group, current_user.id, None)
 
 
@@ -182,6 +187,7 @@ async def delete_group(
         )
     await db.delete(group)
     await db.commit()
+    log_event(logger, "group.deleted", level=logging.WARNING, group_id=group_id)
 
 
 # ---------------------------------------------------------------------------
@@ -348,6 +354,7 @@ async def add_member(
     )
     await db.commit()
     await db.refresh(row)
+    log_event(logger, "group.member_added", group_id=group_id, member_id=user.id)
     return GroupMemberRead(
         user_id=user.id,
         name=user.name,
@@ -461,6 +468,15 @@ async def remove_member(
 
     await db.delete(target)
     await db.commit()
+    # One event with a flag rather than two: leaving and being removed differ
+    # only in who acted, and `self` is exactly that difference.
+    log_event(
+        logger,
+        "group.member_removed",
+        group_id=group_id,
+        member_id=user_id,
+        self=user_id == current_user.id,
+    )
 
 
 @router.post("/{group_id}/transfer", response_model=GroupRead)

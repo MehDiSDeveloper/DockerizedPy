@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,6 +10,7 @@ from app.auth import get_current_user_id
 from app.database import get_db
 from app.groups import is_group_member, leaving_is_allowed
 from app.identity import asks_the_joiner, resolve_anonymity
+from app.logging_config import log_event
 from app.models.audit_base import newest_first
 from app.models.challenge import Challenge
 from app.models.checkin import CheckIn
@@ -29,6 +31,8 @@ from app.schemas.enrollment import (
     EnrollmentRead,
     EnrollmentUpdate,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/enrollments", tags=["enrollments"])
 
@@ -403,6 +407,14 @@ async def enroll(
 
     await db.commit()
     await db.refresh(enrollment)
+    log_event(
+        logger,
+        "enrollment.joined",
+        challenge_id=challenge_id,
+        enrollment_id=enrollment.id,
+        is_anonymous=is_anonymous,
+        group_id=group_id,
+    )
     return enrollment
 
 
@@ -562,6 +574,9 @@ async def unenroll(
         )
 
     await db.commit()
+    # Paired with `enrollment.joined` on purpose: churn is only visible when
+    # both halves are logged, exactly as the owner's notifications are.
+    log_event(logger, "enrollment.left", challenge_id=challenge_id)
 
 
 async def build_enrollment_history(

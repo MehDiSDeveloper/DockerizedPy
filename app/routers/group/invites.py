@@ -1,6 +1,7 @@
 # app/routers/group/invites.py
 """Invite links, the public link, and the join-request queue behind them."""
 
+import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -17,6 +18,7 @@ from app.groups import (
     member_counts,
     new_invite_code,
 )
+from app.logging_config import log_event
 from app.models.group import (
     Group,
     GroupInvite,
@@ -51,6 +53,8 @@ from app.schemas.group import (
     InviteRead,
     JoinRequestRead,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/groups", tags=["groups"])
 
@@ -321,6 +325,7 @@ async def accept_invite(
         actor_user_id=current_user.id,
     )
     await db.commit()
+    log_event(logger, "group.invite_accepted", group_id=group.id, invite_id=invite.id)
     return await group_read(db, group, current_user.id, membership)
 
 
@@ -510,6 +515,14 @@ async def _decide_request(
     )
     await db.commit()
     await db.refresh(request)
+    log_event(
+        logger,
+        "group.request_decided",
+        group_id=group.id,
+        request_id=request.id,
+        member_id=request.user_id,
+        approved=approve,
+    )
     return request
 
 

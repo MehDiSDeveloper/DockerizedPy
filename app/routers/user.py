@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -13,6 +14,7 @@ from app.auth import (
     set_session_cookie,
 )
 from app.database import get_db
+from app.logging_config import log_event
 from app.models.audit_base import newest_first
 from app.models.user import User, UserRole
 from app.permissions import Perm, can
@@ -24,6 +26,8 @@ from app.schemas.user import (
     UserRoleUpdate,
     UserUpdate,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -200,6 +204,7 @@ async def create_user(
     await db.commit()
     await db.refresh(db_user)
     set_session_cookie(response, db_user.id)
+    log_event(logger, "user.registered", user_id=db_user.id, method="password")
     return db_user
 
 
@@ -249,6 +254,16 @@ async def update_user(
         await db.rollback()
         raise HTTPException(status_code=409, detail="Email already in use")
     await db.refresh(db_user)
+    # Only the field *names* -- the values are the member's own details and
+    # the log is not the place to keep a copy of them. `by_admin` marks an
+    # edit made on somebody's behalf, the one thing that needs finding later.
+    log_event(
+        logger,
+        "user.updated",
+        user_id=db_user.id,
+        fields=sorted(user.model_dump(exclude_unset=True)),
+        by_admin=db_user.id != viewer.id,
+    )
     return db_user
 
 
@@ -277,11 +292,23 @@ async def set_user_role(
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    previous_role = db_user.role
     db_user.role = payload.role.value
     db_user.updated_at = datetime.now(UTC)
     db_user.last_modifier_user_id = admin.id
     await db.commit()
     await db.refresh(db_user)
+    # A privilege change is the audit line an operator will be asked about
+    # months later, so it is WARNING: rare, and never routine noise.
+    log_event(
+        logger,
+        "user.role_changed",
+        level=logging.WARNING,
+        user_id=db_user.id,
+        actor_user_id=admin.id,
+        previous_role=previous_role,
+        role=db_user.role,
+    )
     return db_user
 
 
@@ -316,3 +343,4 @@ async def delete_user(
             status_code=409,
             detail="Cannot delete user with existing challenges or enrollments",
         )
+    log_event(logger, "user.deleted", level=logging.WARNING, user_id=user_id)

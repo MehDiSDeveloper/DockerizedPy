@@ -1,25 +1,36 @@
 {% extends "layout.html" %}
 
-{#- Managing the group: the way in for new members, the queue waiting on
-    an answer, the links that let people in, and the group's own settings.
+{#- Managing the group.
 
-    The pending request queue is rendered directly here -- it has no paging
-    of its own and no terminal states to filter between, so the separate
-    screen that used to hold it (`/requests`, with a `?status=` filter) is
-    gone; only `MAX_PENDING_ON_MANAGE` rows show, with a note if the queue
-    runs longer. Decided requests stay in the database (`decided_by_user_id`
-    still records who let somebody in) but are no longer surfaced in the UI.
+    **Five questions, five groups of rows, one shape.** The screen used to be
+    a stack of tall glass cards, each carrying a two-line paragraph and a
+    chevron, and the trouble with that was not density -- it was that a card
+    reading «مشخصات گروه — نام، توضیح، نوع و نشان گروه» does not look like a
+    thing you can change. It looks like a page you might visit. So this is a
+    settings screen and nothing else: one row per *editable value*, the value
+    itself on the row, and the mark of what tapping does at the end of it --
+    a pencil for "this opens an editor", a chevron for "this opens a page",
+    an icon button for "this does something right here".
+
+    That last distinction is the whole redesign. Every action on this page is
+    a small icon button whose meaning is the glyph: `+` adds, `✓` and `✕`
+    answer a request, the copy mark copies a link, `↻` replaces the public
+    one. The sentences that used to explain each button are gone from the
+    screen and live in `aria-label`/`title`, which is where a label nobody
+    needs to read twice belongs. The «؟» explainers stay: they answer
+    *concepts* (what a link admits, what a request is), which is a different
+    question from what a control does.
+
+    The queue is rendered directly here -- it has no paging of its own and no
+    terminal states to filter between, so the screen that used to hold it
+    (`/requests`, with a `?status=` filter) is gone; only
+    `MAX_PENDING_ON_MANAGE` rows show, with a note if the queue runs longer.
 
     A page of its own rather than an admin-only section of the group page,
     for the reason the moderation roster is one: this is where somebody goes
     to *act*, and a member has no business reading a list of other people's
     pending requests. The route answers a plain member **404**, the same call
-    `get_admin_page_user` makes for the operator panel.
-
-    Structure is the settings screen's own primitives -- `.settings-page`,
-    `.setting-group`, `.setting-row` -- like the admin panel's, so there is
-    one look for "a list of things you administer" in this app rather than a
-    third one. -#}
+    `get_admin_page_user` makes for the operator panel. -#}
 
 {% block topbar_leading %}
 <a href="/views/groups/{{ group.id }}" class="back-btn" data-back aria-label="بازگشت"><span
@@ -42,164 +53,193 @@
 
 <div class="settings-page">
 
-  {#- «افزودن عضو» first: it is the only thing on this page that *starts*
-      something, and an administrator who came here to add somebody should
-      not have to scroll past three queues to do it. Named by number rather
-      than by a search box on purpose -- there is no member search in this
-      app, and one here would be a way to walk the whole membership (see the
-      route's own docstring). -#}
+  {#- The queue first: it is the only thing on this screen somebody else is
+      waiting on. Empty is the normal state, so empty is one quiet line
+      rather than the full-page `.empty` block -- a section that shouts when
+      there is nothing to do teaches the reader to skip it. -#}
   <section class="setting-group">
-    <h2>افزودن عضو{{ explain("add-member") }}</h2>
-    <div class="setting-row glass" role="button" tabindex="0" id="grAddMember">
-      <div class="sr-head">
-        <div class="mi-icon"><span data-icon="userPlus"></span></div>
-        <div class="sr-text">
-          <span class="sr-label">افزودن با شمارهٔ موبایل</span>
-          <span class="sr-hint">شمارهٔ کسی که حساب دارد را وارد کن تا مستقیم عضو گروه
-            شود — بدون لینک و بدون درخواست.</span>
-        </div>
-        <span class="sr-chev" data-icon="chevronLeft"></span>
-      </div>
+    <div class="sg-head">
+      <h2>درخواست‌های عضویت{{ explain("join-request") }}</h2>
+      <span class="sg-count" id="grPendingCount" {{ 'hidden' if not requests }}>{{ requests | length }}</span>
     </div>
-  </section>
-
-  {#- «لینک عمومی گروه». Pulled out of the list of links below because it is
-      the one with a standing meaning: the address that keeps meaning "this
-      group" wherever it is pasted. It admits nobody by itself -- whoever
-      opens it can only *ask*, and the queue below is where that lands. -#}
-  <section class="setting-group">
-    <h2>لینک عمومی گروه{{ explain("public-link") }}</h2>
-    <div class="setting-row glass" role="button" tabindex="0" id="grPublicLink"
-      data-code="{{ public_invite.code if public_invite else '' }}">
-      <div class="sr-head">
-        <div class="mi-icon"><span data-icon="link"></span></div>
-        <div class="sr-text">
-          <span class="sr-label">{% if public_invite %}کپی لینک عمومی{% else %}ساختن لینک
-            عمومی{% endif %}</span>
-          <span class="sr-hint" id="grPublicHint">{% if public_invite %}هرکس این لینک را
-            باز کند می‌تواند درخواست عضویت بفرستد؛ ورودش با تایید توست.{% else %}یک لینک
-            همیشگی که می‌توانی هرجا بگذاری؛ کسی با آن مستقیم وارد نمی‌شود.{% endif %}</span>
-        </div>
-        <span class="sr-chev" data-icon="chevronLeft"></span>
-      </div>
-    </div>
-    {% if public_invite %}
-    <div class="setting-row glass danger-row" role="button" tabindex="0" id="grRotateLink">
-      <div class="sr-head">
-        <div class="sr-text">
-          <span class="sr-label">باطل کردن و ساختن لینک تازه</span>
-          <span class="sr-hint">نسخهٔ قبلی از کار می‌افتد؛ هرجا گذاشته‌ای باید لینک تازه را
-            بگذاری.</span>
-        </div>
-        <span class="sr-chev" data-icon="chevronLeft"></span>
-      </div>
-    </div>
-    {% endif %}
-  </section>
-
-  {#- The open queue, rendered directly -- no paging and no terminal states
-      to filter between, so the screen that used to hold this list is gone.
-      Empty is the normal state, which is why it says so. -#}
-  <section class="setting-group">
-    <h2>درخواست‌های عضویت{{ explain("join-request") }}</h2>
     <div id="grRequests">
       {% include "group/_request_rows.html" %}
     </div>
-    <div class="empty" id="grNoRequests" {{ 'hidden' if requests }}>
-      <span data-icon="check"></span>
-      <p>درخواست بازی وجود ندارد.</p>
-    </div>
+    <p class="sg-note" id="grNoRequests" {{ 'hidden' if requests }}>درخواستی در انتظار نیست.</p>
     {% if more_requests %}
-    <p class="sr-hint">فقط ۵۰ درخواست نخست نشان داده شده است.</p>
+    <p class="sg-note">فقط ۵۰ درخواست نخست نشان داده شده است.</p>
     {% endif %}
+  </section>
+
+  {#- Members. Adding somebody is an action, so it is the `+` in the heading
+      -- the same place a `+` sits in every list that can be added to. The
+      roster is a *page*, so it is a row with a chevron. Two different marks
+      because they are two different kinds of thing, which is the rule this
+      screen is built on. -#}
+  <section class="setting-group">
+    <div class="sg-head">
+      <h2>اعضا{{ explain("add-member") }}</h2>
+      <button type="button" class="icon-btn xs accent" id="grAddMember"
+        aria-label="افزودن عضو با شمارهٔ موبایل" title="افزودن عضو"><span data-icon="plus"></span></button>
+    </div>
+    <a class="setting-row glass compact" href="/views/groups/{{ group.id }}/members">
+      <div class="sr-head">
+        <div class="sr-text"><span class="sr-label">اعضا و نقش‌ها</span></div>
+        <span class="sr-value">{{ member_count }} نفر</span>
+        <span class="sr-chev" data-icon="chevronLeft"></span>
+      </div>
+    </a>
+  </section>
+
+  {#- «لینک عمومی». Its own group rather than the first row of the list
+      below, for the reason it always had: it is the one link with a standing
+      meaning -- the address that keeps meaning "this group" wherever it is
+      pasted -- and picking it out of five rows all labelled «لینک دعوت» is
+      exactly the moment somebody hands out the wrong one. It admits nobody
+      by itself; whoever opens it can only *ask*, and that lands in the queue
+      above. -#}
+  <section class="setting-group">
+    <div class="sg-head">
+      <h2>لینک عمومی{{ explain("public-link") }}</h2>
+    </div>
+    <div class="setting-row glass compact" id="grPublicLink"
+      data-code="{{ public_invite.code if public_invite else '' }}"
+      data-invite-id="{{ public_invite.id if public_invite else '' }}">
+      <div class="sr-head">
+        <div class="mi-icon"><span data-icon="link"></span></div>
+        <div class="sr-text">
+          <span class="sr-label">لینک همیشگی گروه</span>
+          <span class="sr-hint" id="grPublicHint">{% if public_invite %}ورود با تایید تو{% else %}هنوز
+            ساخته نشده{% endif %}</span>
+        </div>
+        <div class="sr-actions" id="grPublicActions">
+          {% if public_invite %}
+          <button type="button" class="icon-btn xs" data-public-rotate
+            aria-label="باطل کردن لینک عمومی و ساختن لینک تازه" title="لینک تازه"><span
+              data-icon="refresh"></span></button>
+          <button type="button" class="icon-btn xs accent" data-public-copy aria-label="کپی لینک عمومی"
+            title="کپی"><span data-icon="copy"></span></button>
+          {% else %}
+          <button type="button" class="icon-btn xs accent" data-public-create
+            aria-label="ساختن لینک عمومی" title="ساختن لینک"><span data-icon="plus"></span></button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
   </section>
 
   {#- «لینک‌های دعوت». Each row states the two things a link is: how much of
       it is used up, and whether it still works. The state is derived
-      (`invite_state`), so the label follows the link's real condition rather
-      than a column somebody would have to keep true. -#}
+      (`invite_state`), so the pill follows the link's real condition rather
+      than a column somebody would have to keep true.
+
+      The gear that used to open a sheet whose confirm button was «کپی لینک»
+      is gone: copying and revoking are two actions, so they are two buttons,
+      and neither needs a dialog to say what it is. -#}
   <section class="setting-group">
-    <div class="section-head">
+    <div class="sg-head">
       <h2>لینک‌های دعوت{{ explain("invite-link") }}</h2>
-      <button type="button" class="cc-tag accent" id="grNewInvite">لینک تازه</button>
+      <button type="button" class="icon-btn xs accent" id="grNewInvite" aria-label="ساختن لینک دعوت تازه"
+        title="لینک تازه"><span data-icon="plus"></span></button>
     </div>
     <div id="grInvites">
       {% for i in invites %}
-      <div class="setting-row glass invite-row" data-invite-id="{{ i.id }}"
+      <div class="setting-row glass compact invite-row" data-invite-id="{{ i.id }}"
         data-invite-code="{{ i.code }}" data-invite-state="{{ i.state }}">
         <div class="sr-head">
           <div class="mi-icon"><span data-icon="link"></span></div>
           <div class="sr-text">
             <span class="sr-label">{{ i.label or 'لینک دعوت' }}</span>
-            <span class="sr-hint">{% if i.max_uses %}{{ i.uses }} از {{ i.max_uses }} نفر
-              استفاده کرده‌اند{% else %}{{ i.uses }} نفر استفاده کرده‌اند — ظرفیت نامحدود{% endif %}{% if
-              i.expires_at %} · تا <span data-jalali="{{ i.expires_at.isoformat() }}"
+            <span class="sr-hint">{% if i.max_uses %}{{ i.uses }} از {{ i.max_uses }}{% else %}{{ i.uses }}
+              نفر · نامحدود{% endif %}{% if i.expires_at %} · تا <span
+                data-jalali="{{ i.expires_at.isoformat() }}"
                 data-jalali-format="day-month">{{ i.expires_at.strftime('%Y-%m-%d') }}</span>{% endif %}{%
-              if i.requires_approval %} · با تایید مدیر{% endif %}</span>
+              if i.requires_approval %} · با تایید{% endif %}</span>
           </div>
           <span class="invite-pill is-{{ i.state }}">{{ invite_state_labels.get(i.state, i.state) }}</span>
-          <button type="button" class="icon-btn" aria-label="گزینه‌های لینک" data-invite-menu>
-            <span data-icon="settings"></span>
-          </button>
+          <div class="sr-actions">
+            {% if i.state == 'active' %}
+            <button type="button" class="icon-btn xs" data-revoke aria-label="باطل کردن این لینک"
+              title="باطل کردن"><span data-icon="x"></span></button>
+            {% endif %}
+            <button type="button" class="icon-btn xs accent" data-copy aria-label="کپی این لینک"
+              title="کپی"><span data-icon="copy"></span></button>
+          </div>
         </div>
       </div>
       {% endfor %}
     </div>
-    <div class="empty" id="grNoInvites" {{ 'hidden' if invites }}>
-      <span data-icon="link"></span>
-      <p>هنوز لینکی نساخته‌ای.<br>با لینک دعوت، هرکس آن را داشته باشد بدون تایید وارد گروه می‌شود.</p>
+    <p class="sg-note" id="grNoInvites" {{ 'hidden' if invites }}>هنوز لینکی نساخته‌ای.</p>
+  </section>
+
+  {#- The group's own record. One row per field, each showing what it holds
+      now and ending in a pencil: a row that displays its value is a row
+      whose purpose the reader can see. The single «مشخصات گروه» row that
+      opened a four-field sheet said none of this -- it named a noun and hid
+      four answers behind it. -#}
+  <section class="setting-group">
+    <div class="sg-head"><h2>مشخصات گروه</h2></div>
+
+    <div class="setting-row glass compact" role="button" tabindex="0" data-edit="emblem">
+      <div class="sr-head">
+        <div class="sr-text"><span class="sr-label">نشان</span></div>
+        <img class="sr-emblem" src="{{ group.emblem | avatar_url }}" alt="" width="30" height="30">
+        <span class="sr-edit" data-icon="edit"></span>
+      </div>
+    </div>
+
+    <div class="setting-row glass compact" role="button" tabindex="0" data-edit="name">
+      <div class="sr-head">
+        <div class="sr-text"><span class="sr-label">نام</span></div>
+        <span class="sr-value">{{ group.name }}</span>
+        <span class="sr-edit" data-icon="edit"></span>
+      </div>
+    </div>
+
+    <div class="setting-row glass compact" role="button" tabindex="0" data-edit="kind">
+      <div class="sr-head">
+        <div class="sr-text"><span class="sr-label">نوع</span></div>
+        <span class="sr-value">{{ group_kind_labels.get(group.kind, group.kind) }}</span>
+        <span class="sr-edit" data-icon="edit"></span>
+      </div>
+    </div>
+
+    <div class="setting-row glass compact" role="button" tabindex="0" data-edit="description">
+      <div class="sr-head">
+        <div class="sr-text"><span class="sr-label">توضیح</span></div>
+        <span class="sr-value{{ '' if group.description else ' muted' }}">{% if group.description %}{{
+          group.description | truncate(30, true, '…') }}{% else %}ندارد{% endif %}</span>
+        <span class="sr-edit" data-icon="edit"></span>
+      </div>
     </div>
   </section>
 
+  {#- Ownership. Its own group at the foot, apart from everything above: an
+      administrator running the group day to day must never be one mis-tap
+      from handing it away. Both rows are the owner's alone. -#}
+  {% if my_role == 'owner' %}
   <section class="setting-group">
-    <h2>تنظیمات گروه</h2>
-    <div class="setting-row glass" role="button" tabindex="0" id="grEdit">
-      <div class="sr-head">
-        <div class="sr-text">
-          <span class="sr-label">مشخصات گروه</span>
-          <span class="sr-hint">نام، توضیح، نوع و نشان گروه.</span>
-        </div>
-        <span class="sr-value">{{ group.name }}</span>
-        <span class="sr-chev" data-icon="chevronLeft"></span>
-      </div>
-    </div>
-    <a class="setting-row glass" href="/views/groups/{{ group.id }}/members">
-      <div class="sr-head">
-        <div class="sr-text">
-          <span class="sr-label">اعضا و نقش‌ها</span>
-          <span class="sr-hint">افزودن مدیر، حذف عضو.</span>
-        </div>
-        <span class="sr-value">{{ member_count }} عضو</span>
-        <span class="sr-chev" data-icon="chevronLeft"></span>
-      </div>
-    </a>
-
-    {#- Transfer and delete are the owner's alone, and they sit apart from
-        everything above -- an administrator running the group day to day
-        must never be one mis-tap from handing it away. -#}
-    {% if my_role == 'owner' %}
-    <div class="setting-row glass" role="button" tabindex="0" id="grTransfer">
+    <div class="sg-head"><h2>مالکیت</h2></div>
+    <div class="setting-row glass compact" role="button" tabindex="0" id="grTransfer">
       <div class="sr-head">
         <div class="sr-text">
           <span class="sr-label">واگذاری گروه</span>
-          <span class="sr-hint">مالکیت به یکی از اعضا منتقل می‌شود؛ تو مدیر می‌مانی. تا وقتی
-            گروه را واگذار نکرده‌ای نمی‌توانی از آن خارج شوی.</span>
+          <span class="sr-hint">تا واگذار نکنی نمی‌توانی از گروه خارج شوی.</span>
         </div>
         <span class="sr-chev" data-icon="chevronLeft"></span>
       </div>
     </div>
-    <div class="setting-row glass danger-row" role="button" tabindex="0" id="grDelete">
+    <div class="setting-row glass compact danger-row" role="button" tabindex="0" id="grDelete">
       <div class="sr-head">
         <div class="sr-text">
           <span class="sr-label">حذف گروه</span>
-          <span class="sr-hint">فقط وقتی ممکن است که هیچ چالشی در گروه نمانده باشد — سابقهٔ
-            ثبت‌شدهٔ اعضا پاک نمی‌شود.</span>
+          <span class="sr-hint">فقط وقتی هیچ چالشی در گروه نمانده باشد.</span>
         </div>
-        <span class="sr-chev" data-icon="chevronLeft"></span>
+        <span class="sr-edit" data-icon="trash"></span>
       </div>
     </div>
-    {% endif %}
   </section>
+  {% endif %}
 </div>
 {% endblock %}
 
@@ -210,8 +250,46 @@
   document.addEventListener("DOMContentLoaded", () => {
     const GROUP_ID = {{ group.id }};
     const emblemOptions = JSON.parse(document.getElementById("emblemOptions").textContent);
+    const STATE_LABELS = {{ invite_state_labels | tojson }};
+
+    // A destructive act is confirmed with a sheet carrying a `note`, not a
+    // `confirm()`: the browser dialog cannot say *what* is about to stop
+    // working, and this app already has one way to ask a hard question.
+    //
+    // The irreversible half is the `danger` button and the primary one backs
+    // out -- the same shape the group's two exit sheets use, so a stray tap
+    // on the button under the reader's thumb never destroys anything.
+    function confirmSheet({ title, note, dangerLabel, onYes }) {
+      createSheet({
+        title,
+        fields: [{ type: "note", text: note, tone: "danger" }],
+        confirmLabel: "بی‌خیال",
+        onConfirm: async () => true,
+        danger: { label: dangerLabel, onClick: onYes },
+      });
+    }
+
+    // ---- links -----------------------------------------------------------
+    function inviteUrl(code) {
+      return `${window.location.origin}/views/invites/${code}`;
+    }
+
+    async function copyLink(code) {
+      const url = inviteUrl(code);
+      try {
+        await navigator.clipboard.writeText(url);
+        showToast("لینک کپی شد");
+      } catch {
+        // Clipboard access is refused outside a secure context and in some
+        // in-app browsers; a prompt is the fallback that still lets somebody
+        // get the link out rather than a toast saying it failed.
+        window.prompt("لینک دعوت:", url);
+      }
+    }
 
     // ---- adding a member -------------------------------------------------
+    // Named by credential, never by a search box: see the route's docstring
+    // on why a member search here would be a way to walk the membership.
     document.getElementById("grAddMember").addEventListener("click", () => {
       createSheet({
         title: "افزودن عضو",
@@ -220,21 +298,19 @@
           {
             name: "identifier", label: "شمارهٔ موبایل", required: true, maxlength: 120,
             placeholder: "۰۹۱۲۳۴۵۶۷۸۹",
-            hint: "همان شماره‌ای که با آن وارد برنامه می‌شود. اگر حسابش با ایمیل ساخته شده، ایمیلش را بنویس.",
+            hint: "اگر حسابش با ایمیل ساخته شده، ایمیلش را بنویس.",
           },
         ],
         onConfirm: async (values) => {
           const { ok, status, data } = await apiFetch(`/groups/${GROUP_ID}/members`, {
             method: "POST",
-            body: {
-              identifier: values.identifier.trim(),
-            },
+            body: { identifier: values.identifier.trim() },
           });
           if (!ok) {
             // The server's three answers, said in Farsi here: no such
             // account, already in, or something else. A single "انجام نشد"
-            // would leave the administrator retyping a number that was
-            // never the problem.
+            // would leave the administrator retyping a number that was never
+            // the problem.
             showToast(
               status === 404 ? "حسابی با این شماره پیدا نشد"
                 : status === 409 ? "این شخص همین حالا هم عضو گروه است"
@@ -242,9 +318,8 @@
             );
             return false;
           }
-          // The roster count and the standing challenges the new member
-          // picks up both move at once -- reload rather than patch them by
-          // hand, the same call the group settings sheet makes.
+          // The roster count and the standing challenges the new member picks
+          // up both move at once -- reload rather than patch them by hand.
           window.location.reload();
           return true;
         },
@@ -252,10 +327,19 @@
     });
 
     // ---- answering membership requests ------------------------------------
-    // One delegated listener on the list, not a handler per row: the roster
-    // rows carry their own data-request-* attributes for the same reason.
+    // One delegated listener on the list, not a handler per row: the rows
+    // carry their own data-request-* attributes for the same reason.
     const requestsEl = document.getElementById("grRequests");
     const noRequests = document.getElementById("grNoRequests");
+    const pendingCount = document.getElementById("grPendingCount");
+
+    function paintQueue() {
+      const n = requestsEl.children.length;
+      noRequests.hidden = n > 0;
+      pendingCount.hidden = n === 0;
+      pendingCount.textContent = n;
+    }
+
     requestsEl.addEventListener("click", async (e) => {
       const approve = e.target.closest("[data-approve]");
       const reject = e.target.closest("[data-reject]");
@@ -270,13 +354,31 @@
         return;
       }
       row.remove();
-      noRequests.hidden = requestsEl.children.length > 0;
+      paintQueue();
       showToast(approve ? `${row.dataset.requestName} به گروه اضافه شد` : "درخواست رد شد");
     });
 
     // ---- the public link -------------------------------------------------
     const publicRow = document.getElementById("grPublicLink");
+    const publicHint = document.getElementById("grPublicHint");
+    const publicActions = document.getElementById("grPublicActions");
 
+    function paintPublic(invite) {
+      publicRow.dataset.code = invite.code;
+      publicRow.dataset.inviteId = invite.id;
+      publicHint.textContent = "ورود با تایید تو";
+      publicActions.innerHTML = `
+        <button type="button" class="icon-btn xs" data-public-rotate
+          aria-label="باطل کردن لینک عمومی و ساختن لینک تازه" title="لینک تازه">
+          <span data-icon="refresh"></span></button>
+        <button type="button" class="icon-btn xs accent" data-public-copy
+          aria-label="کپی لینک عمومی" title="کپی"><span data-icon="copy"></span></button>`;
+      renderIcons(publicActions);
+    }
+
+    // Get-or-create: one active unlimited approval link per group, so asking
+    // twice hands back the same code rather than orphaning the one already
+    // pasted somewhere.
     async function ensurePublicCode() {
       if (publicRow.dataset.code) return publicRow.dataset.code;
       const { ok, data } = await apiFetch(`/groups/${GROUP_ID}/invites/public`, {
@@ -286,70 +388,57 @@
         showToast("ساخت لینک عمومی انجام نشد");
         return null;
       }
-      publicRow.dataset.code = data.code;
-      publicRow.querySelector(".sr-label").textContent = "کپی لینک عمومی";
-      document.getElementById("grPublicHint").textContent =
-        "هرکس این لینک را باز کند می‌تواند درخواست عضویت بفرستد؛ ورودش با تایید توست.";
+      paintPublic(data);
       return data.code;
     }
 
-    publicRow.addEventListener("click", async () => {
-      const code = await ensurePublicCode();
-      if (code) await copyLink(code);
-    });
-
-    const rotate = document.getElementById("grRotateLink");
-    if (rotate) {
-      rotate.addEventListener("click", async () => {
-        if (!confirm("لینک عمومی فعلی باطل شود و لینک تازه‌ای ساخته شود؟")) return;
-        // Revoke through the same route every other link uses, then ask for
-        // the public link again -- get-or-create mints a fresh one because
-        // the old one is no longer active. No rotate endpoint needed.
-        const inv = {{ (public_invite.id if public_invite else 0) | tojson }};
-        const { ok } = await apiFetch(`/groups/${GROUP_ID}/invites/${inv}`, {
-          method: "DELETE",
-        });
-        if (!ok) {
-          showToast("باطل کردن انجام نشد");
-          return;
-        }
-        publicRow.dataset.code = "";
+    publicRow.addEventListener("click", async (e) => {
+      if (e.target.closest("[data-public-copy]")) {
+        await copyLink(publicRow.dataset.code);
+        return;
+      }
+      if (e.target.closest("[data-public-create]")) {
         const code = await ensurePublicCode();
         if (code) await copyLink(code);
+        return;
+      }
+      if (!e.target.closest("[data-public-rotate]")) return;
+      confirmSheet({
+        title: "لینک عمومی تازه",
+        note: "لینک فعلی از کار می‌افتد و هرجا گذاشته‌ای باید لینک تازه را بگذاری. کسانی که پیش‌تر عضو شده‌اند در گروه می‌مانند.",
+        dangerLabel: "باطل کن و بساز",
+        onYes: async () => {
+          // Revoke through the same route every other link uses, then ask for
+          // the public link again -- get-or-create mints a fresh one because
+          // the old one is no longer active. No rotate endpoint needed.
+          const { ok } = await apiFetch(
+            `/groups/${GROUP_ID}/invites/${publicRow.dataset.inviteId}`, { method: "DELETE" }
+          );
+          if (!ok) {
+            showToast("باطل کردن انجام نشد");
+            return false;
+          }
+          publicRow.dataset.code = "";
+          const code = await ensurePublicCode();
+          if (code) await copyLink(code);
+          return true;
+        },
       });
-    }
+    });
 
     // ---- invite links ----------------------------------------------------
     const invitesEl = document.getElementById("grInvites");
     const noInvites = document.getElementById("grNoInvites");
-    const STATE_LABELS = {{ invite_state_labels | tojson }};
-
-    function inviteUrl(code) {
-      return `${window.location.origin}/views/invites/${code}`;
-    }
-
-    async function copyLink(code) {
-      const url = inviteUrl(code);
-      try {
-        await navigator.clipboard.writeText(url);
-        showToast("لینک دعوت کپی شد");
-      } catch {
-        // Clipboard access is refused outside a secure context and in some
-        // in-app browsers; a prompt is the fallback that still lets somebody
-        // get the link out rather than a toast saying it failed.
-        window.prompt("لینک دعوت:", url);
-      }
-    }
 
     function renderInvite(inv) {
       const row = document.createElement("div");
-      row.className = "setting-row glass invite-row";
+      row.className = "setting-row glass compact invite-row";
       row.dataset.inviteId = inv.id;
       row.dataset.inviteCode = inv.code;
       row.dataset.inviteState = inv.state;
       const uses = inv.max_uses
-        ? `${inv.uses} از ${inv.max_uses} نفر استفاده کرده‌اند`
-        : `${inv.uses} نفر استفاده کرده‌اند — ظرفیت نامحدود`;
+        ? `${inv.uses} از ${inv.max_uses}`
+        : `${inv.uses} نفر · نامحدود`;
       row.innerHTML = `
         <div class="sr-head">
           <div class="mi-icon"><span data-icon="link"></span></div>
@@ -358,12 +447,16 @@
             <span class="sr-hint"></span>
           </div>
           <span class="invite-pill is-${inv.state}"></span>
-          <button type="button" class="icon-btn" aria-label="گزینه‌های لینک" data-invite-menu>
-            <span data-icon="settings"></span>
-          </button>
+          <div class="sr-actions">
+            <button type="button" class="icon-btn xs" data-revoke aria-label="باطل کردن این لینک"
+              title="باطل کردن"><span data-icon="x"></span></button>
+            <button type="button" class="icon-btn xs accent" data-copy aria-label="کپی این لینک"
+              title="کپی"><span data-icon="copy"></span></button>
+          </div>
         </div>`;
       row.querySelector(".sr-label").textContent = inv.label || "لینک دعوت";
-      row.querySelector(".sr-hint").textContent = uses;
+      row.querySelector(".sr-hint").textContent =
+        uses + (inv.requires_approval ? " · با تایید" : "");
       row.querySelector(".invite-pill").textContent = STATE_LABELS[inv.state] || inv.state;
       invitesEl.prepend(row);
       renderIcons(row);
@@ -418,82 +511,100 @@
     });
 
     invitesEl.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-invite-menu]");
-      if (!btn) return;
-      const row = btn.closest(".invite-row");
-      const code = row.dataset.inviteCode;
-      const dead = row.dataset.inviteState !== "active";
-      createSheet({
-        title: "لینک دعوت",
-        confirmLabel: "کپی لینک",
-        fields: [],
-        onConfirm: async () => { await copyLink(code); },
-        danger: dead ? undefined : {
-          label: "باطل کردن لینک",
-          onClick: async () => {
-            if (!confirm("این لینک باطل شود؟ کسی که آن را دارد دیگر نمی‌تواند وارد شود.")) {
-              return false;
-            }
-            const { ok } = await apiFetch(
-              `/groups/${GROUP_ID}/invites/${row.dataset.inviteId}`, { method: "DELETE" }
-            );
-            if (!ok) {
-              showToast("باطل کردن انجام نشد");
-              return false;
-            }
-            row.dataset.inviteState = "revoked";
-            const pill = row.querySelector(".invite-pill");
-            pill.className = "invite-pill is-revoked";
-            pill.textContent = STATE_LABELS.revoked;
-            showToast("لینک باطل شد");
-            return true;
-          },
+      const row = e.target.closest(".invite-row");
+      if (!row) return;
+      if (e.target.closest("[data-copy]")) {
+        copyLink(row.dataset.inviteCode);
+        return;
+      }
+      if (!e.target.closest("[data-revoke]")) return;
+      confirmSheet({
+        title: "باطل کردن لینک",
+        note: "کسی که این لینک را دارد دیگر نمی‌تواند با آن وارد شود. اعضایی که پیش‌تر با آن آمده‌اند در گروه می‌مانند.",
+        dangerLabel: "باطل کن",
+        onYes: async () => {
+          const { ok } = await apiFetch(
+            `/groups/${GROUP_ID}/invites/${row.dataset.inviteId}`, { method: "DELETE" }
+          );
+          if (!ok) {
+            showToast("باطل کردن انجام نشد");
+            return false;
+          }
+          row.dataset.inviteState = "revoked";
+          const pill = row.querySelector(".invite-pill");
+          pill.className = "invite-pill is-revoked";
+          pill.textContent = STATE_LABELS.revoked;
+          // The state is derived, so the control that only means something on
+          // a live link goes with it rather than sitting there refusing.
+          row.querySelector("[data-revoke]").remove();
+          showToast("لینک باطل شد");
+          return true;
         },
       });
     });
 
-    // ---- group settings --------------------------------------------------
+    // ---- the group's own record ------------------------------------------
+    // One sheet per field. `PATCH /groups/{id}` is partial, so each of these
+    // sends exactly the one value it asked about -- a sheet that re-sends
+    // four fields is a sheet that can quietly undo somebody else's edit.
     const KIND_OPTIONS = [
       { value: "company", label: "شرکت", icon: "building" },
       { value: "school", label: "مدرسه", icon: "school" },
       { value: "team", label: "تیم", icon: "users" },
       { value: "other", label: "سایر", icon: "catOther" },
     ];
-    document.getElementById("grEdit").addEventListener("click", () => {
-      createSheet({
-        title: "مشخصات گروه",
-        confirmLabel: "ذخیره",
-        fields: [
-          { name: "name", label: "نام گروه", required: true, maxlength: 60,
-            value: {{ group.name | tojson }} },
-          { name: "kind", label: "این گروه چیست؟", type: "chips",
-            value: {{ group.kind | tojson }}, options: KIND_OPTIONS },
-          { name: "description", label: "توضیح", type: "textarea", rows: 2, maxlength: 500,
-            value: {{ (group.description or '') | tojson }}, placeholder: "اختیاری" },
-          { name: "emblem", label: "نشان گروه", type: "avatars",
-            value: {{ (group.emblem or '') | tojson }},
-            options: emblemOptions.map((a, i) => ({ value: a.id, url: a.url, label: "نشان " + (i + 1) })) },
-        ],
-        onConfirm: async (values) => {
-          const { ok } = await apiFetch(`/groups/${GROUP_ID}`, {
-            method: "PATCH",
-            body: {
-              name: values.name.trim(),
-              kind: values.kind,
-              description: values.description.trim() || null,
-              emblem: values.emblem || null,
-            },
-          });
-          if (!ok) {
-            showToast("ذخیره نشد");
-            return false;
-          }
-          // The name is in the hero, the breadcrumb and this row's value at
-          // once -- reload rather than patch three places by hand, the same
-          // call challenge-detail makes after a check-in.
-          window.location.reload();
-          return true;
-        },
+    const FIELDS = {
+      name: {
+        title: "نام گروه",
+        field: { name: "name", label: "نام گروه", required: true, maxlength: 60,
+          value: {{ group.name | tojson }} },
+        body: (v) => ({ name: v.name.trim() }),
+      },
+      kind: {
+        title: "نوع گروه",
+        field: { name: "kind", label: "این گروه چیست؟", type: "chips",
+          value: {{ group.kind | tojson }}, options: KIND_OPTIONS },
+        body: (v) => ({ kind: v.kind }),
+      },
+      description: {
+        title: "توضیح گروه",
+        field: { name: "description", label: "توضیح", type: "textarea", rows: 3, maxlength: 500,
+          value: {{ (group.description or '') | tojson }}, placeholder: "اختیاری",
+          hint: "اعضا این را در «دربارهٔ گروه» می‌بینند." },
+        body: (v) => ({ description: v.description.trim() || null }),
+      },
+      emblem: {
+        title: "نشان گروه",
+        field: { name: "emblem", label: "نشان گروه", type: "avatars",
+          value: {{ (group.emblem or '') | tojson }},
+          options: emblemOptions.map((a, i) => ({ value: a.id, url: a.url, label: "نشان " + (i + 1) })) },
+        body: (v) => ({ emblem: v.emblem || null }),
+      },
+    };
+
+    document.querySelectorAll("[data-edit]").forEach((row) => {
+      const spec = FIELDS[row.dataset.edit];
+      row.addEventListener("click", () => {
+        createSheet({
+          title: spec.title,
+          confirmLabel: "ذخیره",
+          fields: [spec.field],
+          onConfirm: async (values) => {
+            const { ok } = await apiFetch(`/groups/${GROUP_ID}`, {
+              method: "PATCH",
+              body: spec.body(values),
+            });
+            if (!ok) {
+              showToast("ذخیره نشد");
+              return false;
+            }
+            // The name reaches the hero, the breadcrumb and this row at once
+            // -- reload rather than patch three places by hand, the same call
+            // challenge-detail makes after a check-in.
+            window.location.reload();
+            return true;
+          },
+        });
       });
     });
 
@@ -512,15 +623,14 @@
       createSheet({
         title: "واگذاری گروه",
         confirmLabel: "واگذار کن",
-        fields: [{
-          name: "user", label: "مالک تازه", type: "select",
-          options: others.map((m) => ({ value: String(m.user_id), label: m.name })),
-          hint: "بعد از واگذاری، تو مدیر گروه می‌مانی و مالک تازه می‌تواند همین را تغییر دهد.",
-        }],
+        fields: [
+          { type: "note", text: "بعد از واگذاری تو مدیر گروه می‌مانی، و برگرداندنش دست مالک تازه است." },
+          {
+            name: "user", label: "مالک تازه", type: "select",
+            options: others.map((m) => ({ value: String(m.user_id), label: m.name })),
+          },
+        ],
         onConfirm: async (values) => {
-          if (!confirm("مالکیت گروه واگذار شود؟ این کار برگشت‌پذیر نیست مگر مالک تازه آن را برگرداند.")) {
-            return false;
-          }
           const res = await apiFetch(`/groups/${GROUP_ID}/transfer`, {
             method: "POST",
             body: { new_owner_user_id: Number(values.user) },
@@ -535,21 +645,28 @@
       });
     });
 
-    document.getElementById("grDelete").addEventListener("click", async () => {
-      if (!confirm("این گروه حذف شود؟ اعضا و لینک‌های دعوت پاک می‌شوند.")) return;
-      const { ok, status, data } = await apiFetch(`/groups/${GROUP_ID}`, { method: "DELETE" });
-      if (status === 409) {
-        // The server's own reason, spelled in Farsi here: a group that still
-        // has challenges cannot be deleted, because that would take its
-        // members' logged history with it.
-        showToast("تا وقتی چالشی در گروه هست نمی‌شود حذفش کرد. اول چالش‌ها را بایگانی یا حذف کن.");
-        return;
-      }
-      if (!ok) {
-        showToast("خطا: " + ((data && data.detail) || "حذف نشد"));
-        return;
-      }
-      window.location.href = "/views/groups/";
+    document.getElementById("grDelete").addEventListener("click", () => {
+      confirmSheet({
+        title: "حذف گروه",
+        note: "اعضا و لینک‌های دعوت پاک می‌شوند. سابقهٔ ثبت‌شدهٔ اعضا دست‌نخورده می‌ماند.",
+        dangerLabel: "حذف کن",
+        onYes: async () => {
+          const { ok, status, data } = await apiFetch(`/groups/${GROUP_ID}`, { method: "DELETE" });
+          if (status === 409) {
+            // The server's own reason, spelled in Farsi here: a group that
+            // still has challenges cannot be deleted, because that would take
+            // its members' logged history with it.
+            showToast("تا وقتی چالشی در گروه هست نمی‌شود حذفش کرد. اول چالش‌ها را بایگانی یا حذف کن.");
+            return false;
+          }
+          if (!ok) {
+            showToast("خطا: " + ((data && data.detail) || "حذف نشد"));
+            return false;
+          }
+          window.location.href = "/views/groups/";
+          return true;
+        },
+      });
     });
     {% endif %}
   });

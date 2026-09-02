@@ -112,20 +112,24 @@
 
         {% block bottom_nav %}
         <nav class="bottom-nav" data-tour="nav">
-            <a href="/views/today/" class="nav-item{{ ' active' if active_nav == 'today' else '' }}">
-                <span data-icon="clock"></span>
-                امروز
-            </a>
-            <a href="/views/home/" class="nav-item{{ ' active' if active_nav == 'home' else '' }}">
+            <a href="/views/home/" class="nav-item{{ ' active' if active_nav == 'home' else '' }}"
+                data-tour="nav-home">
                 <span data-icon="home"></span>
                 خانه
             </a>
-            <a href="/views/challenges/" class="nav-item{{ ' active' if active_nav == 'challenges' else '' }}">
+            <a href="/views/today/" class="nav-item{{ ' active' if active_nav == 'today' else '' }}"
+                data-tour="nav-today">
+                <span data-icon="clock"></span>
+                امروز
+            </a>
+            <a href="/views/challenges/" class="nav-item{{ ' active' if active_nav == 'challenges' else '' }}"
+                data-tour="nav-explore">
                 <span data-icon="list"></span>
                 چالش‌ها
             </a>
             <a href="{{ '/views/users/' ~ current_user_id if current_user_id else '/views/auth/' }}"
-                class="nav-item{{ ' active' if active_nav == 'profile' else '' }}">
+                class="nav-item{{ ' active' if active_nav == 'profile' else '' }}"
+                data-tour="nav-profile">
                 <span data-icon="user"></span>
                 پروفایل
             </a>

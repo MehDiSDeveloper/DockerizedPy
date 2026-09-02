@@ -1,10 +1,18 @@
-{#- One row per membership request. Included directly by
-    group/manage.html, which only ever passes it the pending queue.
+{#- One row per membership request. Included directly by group/manage.html,
+    which only ever passes it the pending queue.
 
-    Two shapes, one row: a pending request carries the two buttons that
-    answer it, a decided one carries the answer instead. That is deliberately
-    not a third template -- the reader is looking at the same fact in two
-    moments, and splitting it is how the two come to describe the same person
+    **The answer is two icon buttons, not two words.** «تایید» / «رد» as
+    labelled buttons put two blocks of text at the end of a row that already
+    carries a name and a date, and on a phone that is what starts wrapping.
+    A check and a cross are the two marks every list of pending things in
+    every app answers with, so they need no label on screen -- they carry an
+    `aria-label` and a `title` naming the person, which is more than the two
+    words said.
+
+    Two shapes, one row: a pending request carries the buttons that answer
+    it, a decided one carries the answer instead. That is deliberately not a
+    third template -- the reader is looking at the same fact in two moments,
+    and splitting it is how the two come to describe the same person
     differently.
 
     A row is **not a link**. Reaching somebody's profile from a list they
@@ -12,7 +20,7 @@
     `profile_visibility_filter` alone -- the same rule the roster and the
     leaderboard follow. -#}
 {% for r in requests %}
-<div class="setting-row glass request-row" data-request-id="{{ r.id }}"
+<div class="setting-row glass compact request-row" data-request-id="{{ r.id }}"
   data-request-name="{{ r.name }}">
   <div class="sr-head">
     <img class="mr-avatar" src="{{ r.avatar | avatar_url }}" alt="" width="36" height="36"
@@ -20,7 +28,7 @@
     <div class="sr-text">
       <span class="sr-label">{{ r.name }}</span>
       {% if r.status == 'pending' %}
-      <span class="sr-hint">درخواست در <span data-jalali="{{ r.created_at.isoformat() }}"
+      <span class="sr-hint"><span data-jalali="{{ r.created_at.isoformat() }}"
           data-jalali-format="day-month-year">{{ r.created_at.strftime('%Y-%m-%d') }}</span></span>
       {% else %}
       {#- The decided row names *when* and *by whom*: that pair is the only
@@ -34,9 +42,11 @@
       {% endif %}
     </div>
     {% if r.status == 'pending' %}
-    <div class="rr-actions">
-      <button type="button" class="cc-btn ghost sm" data-reject>رد</button>
-      <button type="button" class="cc-btn primary sm" data-approve>تایید</button>
+    <div class="sr-actions">
+      <button type="button" class="icon-btn xs" data-reject
+        aria-label="رد کردن درخواست {{ r.name }}" title="رد کردن"><span data-icon="x"></span></button>
+      <button type="button" class="icon-btn xs accent" data-approve
+        aria-label="تایید عضویت {{ r.name }}" title="تایید"><span data-icon="check"></span></button>
     </div>
     {% else %}
     <span class="req-pill is-{{ r.status }}">{{ 'تاییدشده' if r.status == 'approved' else 'ردشده' }}</span>

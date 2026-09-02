@@ -137,7 +137,7 @@
       is the real count, so nothing is only a proportion.
       ==================================================================== -#}
   {% if dash.focus.rows %}
-  <section class="detail-section">
+  <section class="detail-section" data-tour="home-focus">
     <div class="section-head">
       <h2>تمرکز تو{{ explain("home-focus") }}</h2>
       <span class="cc-tag">{{ dash.focus.window_days }} روز اخیر</span>
@@ -160,8 +160,21 @@
   </section>
   {% endif %}
 
-  <!-- my challenges -->
+  {#- گروه‌ها -- the same row the profile and settings carry, put where the
+      dashboard hands off to the lists: a group is the other place a member's
+      challenges come from, and «چالش‌های من» is the moment that question is
+      asked. Always rendered, like the profile row: being in no group is the
+      normal state and the groups page's empty state explains the rest. -#}
   <section>
+    <a class="menu-item glass" href="/views/groups/">
+      <div class="mi-icon"><span data-icon="building"></span></div>
+      <span class="mi-label">گروه‌ها</span>
+      <span class="mi-chev" data-icon="chevronLeft"></span>
+    </a>
+  </section>
+
+  <!-- my challenges -->
+  <section data-tour="home-challenges">
     <div class="section-head">
       <h2>چالش‌های من</h2>
       {#- The two counts used to be their own stat cards above the list. They

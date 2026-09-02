@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -8,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_current_user, get_optional_user_id
 from app.database import get_db
 from app.groups import assign_participants, group_scope_filter
+from app.logging_config import log_event
 from app.models.audit_base import newest_first
 from app.models.challenge import (
     Challenge,
@@ -29,6 +31,8 @@ from app.schemas.challenge import ChallengeCreate, ChallengeRead, ChallengeUpdat
 from app.schemas.checkin import ChallengeStatsRead
 
 VELOCITY_WINDOW_DAYS = 7
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/challenges", tags=["challenges"])
 
@@ -550,6 +554,18 @@ async def create_challenge_record(
         timezone=tz,
     )
 
+    # Logged here rather than in each caller: this function is the single
+    # funnel both front doors go through, so a create can never be made
+    # without a line. The id is only assigned on flush, which
+    # `create_challenge_record` has already done.
+    log_event(
+        logger,
+        "challenge.created",
+        challenge_id=db_challenge.id,
+        cadence=db_challenge.cadence_kind,
+        visibility=db_challenge.visibility,
+        group_id=db_challenge.group_id,
+    )
     return db_challenge
 
 
@@ -789,6 +805,16 @@ async def update_challenge(
 
     await db.commit()
     await db.refresh(db_challenge)
+    log_event(
+        logger,
+        "challenge.updated",
+        challenge_id=db_challenge.id,
+        fields=sorted(updates),
+        lifecycle=db_challenge.lifecycle_status,
+        # An operator changing somebody else's challenge is the line worth
+        # finding later; `moderated` is what makes that one query.
+        moderated=db_challenge.owner_id != current_user_id,
+    )
     return db_challenge
 
 
@@ -836,5 +862,15 @@ async def delete_challenge(
             detail="Cannot delete a challenge others have joined; archive it instead",
         )
 
+    owner_id = db_challenge.owner_id
     await db.delete(db_challenge)
     await db.commit()
+    # A destructive, irreversible act -- the one challenge event that has to
+    # survive in the log after the row itself is gone.
+    log_event(
+        logger,
+        "challenge.deleted",
+        level=logging.WARNING,
+        challenge_id=challenge_id,
+        moderated=owner_id != current_user.id,
+    )

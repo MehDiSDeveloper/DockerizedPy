@@ -19,10 +19,10 @@
     challenge is worth looking at at all -- its status -- stays on the page;
     category and the "my challenges" scope live behind the button, which
     carries a count so a filter can never be left on invisibly. -#}
-<div class="search-bar" data-tour="explore-search">
+<div class="search-bar">
   <span data-icon="search"></span>
   <input type="text" id="clSearch" placeholder="جستجوی چالش..." value="{{ query }}" />
-  <button type="button" class="filter-btn" id="clFilterBtn" aria-label="فیلترها">
+  <button type="button" class="filter-btn" id="clFilterBtn" aria-label="فیلترها" data-tour="explore-filters">
     <span data-icon="filter"></span>
     <span class="filter-badge" id="clFilterCount" hidden></span>
   </button>

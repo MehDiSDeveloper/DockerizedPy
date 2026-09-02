@@ -32,9 +32,21 @@ const icons = {
   logout: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>`,
   edit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>`,
   share: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.6l6.8-3.8M8.6 13.4l6.8 3.8"/></svg>`,
+  // Duplicating a sheet: the "copy this to the clipboard" glyph. The group
+  // management screen's links are copied, never opened, so the action needs a
+  // mark of its own rather than borrowing `link` (which names the *thing*).
+  copy: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.4"/><path d="M5.5 15H5a2 2 0 01-2-2V5a2 2 0 012-2h8a2 2 0 012 2v.5"/></svg>`,
+  // Two arrows chasing each other: replacing something with a fresh copy of
+  // itself. Revoking the public link and minting the next one is one act, so
+  // it gets one glyph -- `trash` would say the group loses its public address.
+  refresh: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 11a8.5 8.5 0 00-14.6-5.1L3 8.8"/><path d="M3.5 13a8.5 8.5 0 0014.6 5.1L21 15.2"/><path d="M3 4.2v4.6h4.6M21 19.8v-4.6h-4.6"/></svg>`,
   target: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>`,
   chart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>`,
   camera: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>`,
+  // A finger over a target: the one glyph in the set that means "tap this".
+  // The tour's handover step is its only caller -- a step that waits for the
+  // member's own tap has to say so in words *and* show it.
+  tap: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11.5V6.2a1.8 1.8 0 013.6 0v7.6"/><path d="M12.6 12.1a1.7 1.7 0 013.4 0v.9"/><path d="M16 13.4a1.7 1.7 0 013.4 0v3.1a5 5 0 01-5 5h-2a4.6 4.6 0 01-3.6-1.7l-3-3.7a1.7 1.7 0 012.5-2.2l1.7 1.7"/></svg>`,
   // ---- challenge categories -------------------------------------------
   // One icon per ChallengeCategory member. The mapping from the (Farsi) enum
   // value to these names lives server-side in app/icons.py and reaches the

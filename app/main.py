@@ -1,3 +1,5 @@
+import logging
+from contextlib import asynccontextmanager
 from urllib.parse import quote
 
 from fastapi import FastAPI, Request
@@ -8,8 +10,10 @@ from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.auth import LoginRequired, clear_session_cookie
-from app.config import BASE_DIR
+from app.config import BASE_DIR, settings
 from app.explainers import register_explainer_filters
+from app.logging_config import configure_logging, log_event
+from app.middleware import RequestLogMiddleware
 from app.routers import (
     auth,
     challenge,
@@ -31,7 +35,33 @@ from app.routers.views import settings as settings_views
 from app.routers.views import today as today_views
 from app.routers.views import user as user_views
 
-app = FastAPI(title="Challenge Manager API")
+# Before anything else can log. Handlers installed after the first record is
+# written would silently drop it.
+configure_logging()
+logger = logging.getLogger("app.lifecycle")
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Boot and shutdown, each one line.
+
+    The boot line names the two facts an operator checks first when a deploy
+    behaves unlike the last one: which environment it thinks it is in, and
+    which database it opened. `database` is the backend, never the URL --
+    that string can carry a password.
+    """
+    log_event(
+        logger,
+        "app.started",
+        environment=settings.environment,
+        database="sqlite" if settings.is_sqlite else "postgres",
+    )
+    yield
+    log_event(logger, "app.stopped")
+
+
+app = FastAPI(title="Challenge Manager API", lifespan=lifespan)
+app.add_middleware(RequestLogMiddleware)
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 register_explainer_filters(templates.env)

@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     # flow runs offline like the rest of the stack; anywhere else it is a
     # hard error, because a login screen that accepts codes nobody was sent
     # is worse than one that is plainly down.
+    # --- Logging --------------------------------------------------------
+    # `log_format` is "auto" (human-readable lines in development, one JSON
+    # object per line everywhere else), or "text"/"json" to force one. See
+    # `app/logging_config.py`.
+    log_level: str = "INFO"
+    log_format: str = "auto"
+
     kavenegar_api_key: str = ""
     kavenegar_otp_template: str = ""
     kavenegar_sender: str = ""

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
@@ -12,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user_id
 from app.database import get_db
+from app.logging_config import log_event
 from app.models.challenge import Challenge
 from app.models.checkin import CheckIn
 from app.models.enrollment import Enrollment
@@ -25,6 +27,8 @@ from app.schemas.cadence import (
     ScheduleCadence,
 )
 from app.schemas.checkin import CheckInCreate, CheckInRead, CheckInUpdate
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/checkins", tags=["checkins"])
 
@@ -303,6 +307,15 @@ async def create_checkin(
 
     await db.commit()
     await db.refresh(checkin)
+    log_event(
+        logger,
+        "checkin.created",
+        checkin_id=checkin.id,
+        challenge_id=challenge.id,
+        enrollment_id=enrollment.id,
+        occurrence_key=key,
+        state=checkin.state,
+    )
     return checkin
 
 
@@ -374,6 +387,7 @@ async def update_checkin(
     stats.updated_at = now_utc
 
     await db.commit()
+    log_event(logger, "checkin.deleted", checkin_id=checkin_id, challenge_id=challenge.id)
     await db.refresh(checkin)
     return checkin
 
