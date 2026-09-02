@@ -18,10 +18,12 @@ from app.routers import (
     auth,
     challenge,
     checkin,
+    comment,
     enrollment,
     group,
     notification,
     otp,
+    reaction,
     today,
     user,
 )
@@ -150,6 +152,8 @@ app.include_router(group.router)
 app.include_router(group.invite_router)
 app.include_router(checkin.router)
 app.include_router(notification.router)
+app.include_router(reaction.router)
+app.include_router(comment.router)
 app.include_router(today.router)
 
 app.include_router(admin_views.router)

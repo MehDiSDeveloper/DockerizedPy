@@ -1993,7 +1993,7 @@ a.admin-stat{text-decoration:none; color:inherit;}
 .challenge-card.st-finished:hover,
 .challenge-card.st-finished:focus-visible{opacity:1;}
 
-.explore-head{display:flex; align-items:center; gap:8px; margin-bottom:4px;}
+.explore-head{display:flex; align-items:flex-start; gap:8px; margin-bottom:4px;}
 .explore-head h3{margin:0; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 
 /* Colour alone can't carry the status (colour-blindness, greyscale), so the
@@ -3215,3 +3215,566 @@ a.seg-btn.active{color:var(--on-accent);}
 @media (prefers-reduced-motion:reduce){
   .explain-pop{transform:none; transition:opacity .16s var(--ease);}
 }
+
+/* ==========================================================================
+   لایک
+   --------------------------------------------------------------------------
+   No chrome: an icon and a number, not a pill. On a card this sits under the
+   status pill, and a second bordered capsule there competes with the pill for
+   the same glance -- the pill is a *state* the reader is scanning for, the
+   heart is an action they either want or don't.
+
+   It is coloured at rest, not only once liked: `--mohr` already means «warm,
+   personal» in this UI, and a heart that only becomes visible after the tap
+   reads as disabled. Liked is then the *filled* heart plus a slightly deeper
+   ink -- shape carries the state, so it survives a greyscale screenshot and
+   does not depend on the reader remembering which red meant which.
+   ========================================================================== */
+.like-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px;
+  border: 0;
+  background: none;
+  color: var(--mohr);
+  font: inherit;
+  font-size: .78rem;
+  line-height: 1;
+  cursor: pointer;
+  /* The press squeeze is global (`initPressFeedback`); only its depth is
+     tuned here, which is why there is no `:active` rule. */
+  --press-scale: .88;
+}
+.like-btn [data-icon] { width: 16px; height: 16px; display: inline-flex; }
+.like-btn [data-icon] svg { width: 100%; height: 100%; }
+.like-btn b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.like-btn.is-liked { color: var(--mohr-dim); }
+
+/* The heart alone grows, not the row: a control that resizes shifts the card
+   body beside it. */
+.like-btn.is-liked [data-icon] { animation: likePop .28s ease-out; }
+@keyframes likePop {
+  0% { scale: 1; }
+  45% { scale: 1.3; }
+  100% { scale: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .like-btn.is-liked [data-icon] { animation: none; }
+}
+
+/* The hero's copy: same control, sized for a page rather than a card. */
+.like-btn.lg { font-size: .95rem; gap: 7px; }
+.like-btn.lg [data-icon] { width: 20px; height: 20px; }
+
+/* --- the conversation's control -----------------------------------------
+   The heart's twin: same geometry, same press depth, same «icon and a number
+   with no chrome». What it does *not* share is the colour -- `--mohr` means
+   «warm, personal» and belongs to the heart alone, so the bubble takes the
+   neutral ink every other quiet action on a card takes. Nothing about it
+   carries state: a conversation is not something you are in or out of. */
+.cm-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px; border: 0; background: none;
+  color: var(--text-3);
+  font: inherit; font-size: .78rem; line-height: 1;
+  cursor: pointer;
+  --press-scale: .88;
+}
+.cm-btn [data-icon] { width: 16px; height: 16px; display: inline-flex; }
+.cm-btn [data-icon] svg { width: 100%; height: 100%; }
+.cm-btn b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.cm-btn.lg { font-size: .95rem; gap: 7px; }
+.cm-btn.lg [data-icon] { width: 20px; height: 20px; }
+
+/* The hero's row: the two things a viewer does *to* a challenge, side by
+   side. A row rather than two margins, so neither control has to know the
+   other exists. */
+.hero-social { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; }
+
+/* --- on an explore card -------------------------------------------------
+   Status and like stack in one column at the card's outer edge (left, in
+   RTL): the pill answers «should I act on this», the heart is how you act,
+   and keeping them in one column leaves the card's text lines to the text.
+   `.explore-head` therefore aligns to the top rather than centring. --- */
+/* The pill takes the first line and the two actions share the second, rather
+   than all three stacking: a three-row column made the row twice as tall as
+   its own text and left a hole down the middle of the card. */
+.ec-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.ec-acts { display: flex; align-items: center; gap: 12px; }
+
+/* ==========================================================================
+   گفتگو — the comment page and its composer
+   --------------------------------------------------------------------------
+   Three parts, and only the third is new to this app: a list of threads built
+   out of the same neutral card the rest of the app uses, a composer floating
+   above the nav exactly like `.sticky-cta` (the same geometry tokens, so it
+   clears the nav the same way), and the emoji keyboard below.
+
+   A thread is *one* card with its replies indented inside it rather than a
+   card per comment: the replies belong to the question, and a flat list of
+   equal cards loses the only structure one level of threading buys.
+
+   No new colour. The send button takes the accent because it is the page's
+   one primary action, «حذف» takes the `--danger-text` it takes everywhere
+   else, and everything else here is ink on the neutral fills.
+   ========================================================================== */
+
+/* --- the modal ----------------------------------------------------------- */
+/* It comes up from the bottom, over whatever the reader was on. The scrim and
+   the slide are `createSheet`'s own (`.sheet-backdrop`, `sheetSlideUp`), so
+   the conversation opens the way every other overlay in this app opens; what
+   it does differently is height — a sheet is as tall as its question, and a
+   conversation is as tall as the screen allows. */
+.cm-modal{position:fixed; inset:0; z-index:71;}
+/* The scrim is *this* modal's, so it is re-floored inside it: `.sheet-backdrop`
+   carries the z-index that puts a sheet's scrim above the page, and left as
+   it stands it would paint over the panel it belongs to. */
+.cm-modal .sheet-backdrop{z-index:0;}
+.cm-modal[hidden]{display:none;}
+.cm-panel{
+  position:absolute; z-index:1; inset-inline:0; bottom:0;
+  margin-inline:auto; width:100%; max-width:var(--shell-max);
+  height:88dvh;
+  display:flex; flex-direction:column;
+  border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+  background:var(--bg-1); border:1px solid var(--border-strong); border-bottom:none;
+  box-shadow:var(--shadow-lift);
+  /* Fast: this is a reply to a tap, not an announcement. */
+  animation:sheetSlideUp .2s var(--ease);
+}
+/* The page behind must not scroll under a full-height overlay -- a phone
+   otherwise scrolls it instead of the threads the moment a flick starts on
+   the header. */
+body.cm-modal-open{overflow:hidden;}
+
+.cm-modal-head{
+  position:relative; flex-shrink:0;
+  display:flex; align-items:center; gap:10px;
+  padding:18px 16px 12px;
+  border-bottom:1px solid var(--border);
+}
+/* The mark that says «this came up and can go back down», centred over the
+   header rather than taking a row of its own. */
+.cm-grip{
+  position:absolute; top:7px; inset-inline:0; margin-inline:auto;
+  width:38px; height:4px; border-radius:2px; background:var(--fill-2);
+}
+.cm-modal-head h3{
+  margin:0; min-width:0; flex:1;
+  font-size:14px; font-weight:800;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.cm-count{font-size:11px; color:var(--text-3); flex-shrink:0;}
+
+/* The one scrolling region. Contained, or a flick past the last thread
+   scrolls the page behind the modal. */
+.cm-scroll{flex:1; overflow-y:auto; overscroll-behavior:contain; padding:12px 0;}
+
+/* A row that opens this modal rather than a page: a `<button>` wearing the
+   leaderboard row's shape, so it needs the three things a button does not
+   inherit. */
+button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
+/* The live count sits *inside* the row's second line, and `.lb-entry-text b`
+   is a block (it is the row's title everywhere else). */
+.lb-entry-text [data-comment-count]{display:inline;}
+
+/* --- the list ------------------------------------------------------------ */
+.cm-list{display:flex; flex-direction:column; gap:10px; padding:0 16px;}
+.cm-thread{
+  padding:12px 13px; border-radius:var(--radius-lg);
+  background:var(--glass); border:1px solid var(--border);
+}
+
+.cm{display:flex; gap:10px; align-items:flex-start;}
+/* An opaque ground behind every avatar, like every other surface that renders
+   one: several of the styles ship transparent. */
+.cm-av{
+  width:34px; height:34px; border-radius:50%; overflow:hidden;
+  flex-shrink:0; background:var(--bg-1); display:block;
+}
+.cm-av img{width:100%; height:100%; object-fit:cover; display:block;}
+.cm-main{min-width:0; flex:1;}
+.cm-head{display:flex; align-items:baseline; gap:8px;}
+.cm-head b{
+  font-size:12.5px; font-weight:700; min-width:0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.cm-when{font-size:10.5px; color:var(--text-3); flex-shrink:0;}
+.cm-text{
+  margin:3px 0 0; font-size:13px; line-height:1.95;
+  /* Line breaks the writer typed are line breaks, and a pasted URL wraps
+     instead of widening the card. */
+  white-space:pre-wrap; overflow-wrap:anywhere;
+}
+/* The rows written while a comment carried a sticker id of its own. Nothing
+   writes one any more -- the keyboard types into the text. */
+.cm-sticker{display:inline-block; font-size:26px; line-height:1.3; margin-top:2px;}
+
+.cm-actions{display:flex; gap:14px; margin-top:5px;}
+.cm-act{
+  display:inline-flex; align-items:center; gap:4px;
+  background:none; border:0; padding:2px;
+  color:var(--text-3); font:inherit; font-size:11px; cursor:pointer;
+  --press-scale:.9;
+}
+.cm-act svg{width:13px; height:13px;}
+.cm-act.danger{color:var(--danger-text);}
+
+/* Logical properties, not left/right: the rail runs down the reading edge and
+   this page is RTL. */
+.cm-replies{
+  margin-top:10px; padding-inline-start:13px;
+  border-inline-start:1px solid var(--border);
+  display:flex; flex-direction:column; gap:10px;
+}
+.cm-reply .cm-av{width:28px; height:28px;}
+.cm-reply .cm-text{font-size:12.5px;}
+.cm-more{
+  align-self:flex-start; padding:2px;
+  background:none; border:0; color:var(--fayrouzeh);
+  font:inherit; font-size:11.5px; font-weight:700; cursor:pointer;
+}
+
+/* --- the composer -------------------------------------------------------- */
+/* The foot of the panel: it no longer floats above the nav, because the modal
+   already ends where the nav begins. It stays put while the threads scroll --
+   the one thing this surface is for must not scroll away and ask the reader
+   to find their place again. */
+.cm-composer{
+  flex-shrink:0;
+  padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+  border-top:1px solid var(--border);
+  background:var(--bg-1);
+}
+.cm-composer .btn-primary{margin-top:0; text-decoration:none;}
+
+/* display:flex would beat the UA's [hidden]{display:none}. */
+.cm-replying[hidden]{display:none;}
+.cm-replying{
+  display:flex; align-items:center; gap:6px;
+  padding-bottom:8px; margin-bottom:8px;
+  border-bottom:1px solid var(--border);
+  font-size:11.5px; color:var(--text-3);
+}
+.cm-replying svg{width:14px; height:14px;}
+.cm-replying b{color:var(--text-2); font-weight:700;}
+.cm-replying .icon-btn{margin-inline-start:auto;}
+
+.cm-input-row{display:flex; align-items:flex-end; gap:8px;}
+.cm-input-row textarea{
+  flex:1; min-width:0; resize:none;
+  padding:9px 13px; border-radius:18px;
+  background:var(--fill-1); border:1px solid var(--border);
+  color:var(--text-1); font:inherit; font-size:13px; line-height:1.7;
+  max-height:140px; overflow-y:hidden;
+}
+.cm-input-row textarea:focus{outline:none; border-color:var(--border-strong);}
+/* .btn-primary is full width by default; here it is a round send key. */
+.cm-send{
+  width:38px; height:38px; flex-shrink:0;
+  padding:0; margin:0; border-radius:50%;
+}
+.cm-send:disabled{opacity:.45; box-shadow:none; cursor:default;}
+
+/* ==========================================================================
+   صفحه‌کلید اموجی
+   --------------------------------------------------------------------------
+   Laid out the way every phone keyboard already taught people to read one: a
+   strip of category tabs, the open category named under it, the tiles below.
+   The catalogue is `static/js/emoji.js`, so none of it is server-rendered and
+   only the open tab is ever in the DOM.
+
+   The tabs are monochrome stroke icons and the button that opens the panel
+   carries no chrome at all: a coloured row above a grid of coloured emoji
+   gives the eye nothing to land on, and a bordered circle beside the text
+   field reads as a second thing to send with. Colour lands in exactly one
+   place -- the accent on the open tab and on the open button, the same «this
+   is the live one» it means everywhere else in the app.
+   ========================================================================== */
+.em-picker{
+  padding-bottom:9px; margin-bottom:9px;
+  border-bottom:1px solid var(--border);
+}
+
+.em-tabs{display:flex; gap:2px;}
+.em-tab{
+  flex:1; height:32px; display:grid; place-items:center;
+  background:none; border:0; border-radius:var(--radius-sm);
+  color:var(--text-3); cursor:pointer;
+  transition:color .15s var(--ease), background .15s var(--ease);
+  --press-scale:.88;
+}
+.em-tab svg{width:18px; height:18px;}
+.em-tab.is-active{color:var(--fayrouzeh); background:rgba(var(--accent-rgb),0.12);}
+
+.em-label{
+  display:block; padding:9px 4px 5px;
+  font-size:11px; font-weight:700; color:var(--text-3);
+}
+
+.em-grid{
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(38px,1fr));
+  gap:2px; max-height:212px; overflow-y:auto;
+  /* The list lives inside a fixed panel: without this, a flick past its end
+     scrolls the conversation behind it. */
+  overscroll-behavior:contain;
+}
+.em-tile{
+  height:38px; padding:0; border:0; border-radius:10px;
+  background:none; cursor:pointer;
+  /* The device's own emoji font, named rather than left to the fallback: the
+     app's Farsi stack carries no emoji, and what a bare fallback picks is a
+     monochrome glyph on some Windows builds. */
+  font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",
+    "Twemoji Mozilla",sans-serif;
+  font-size:23px; line-height:1;
+  --press-scale:.82;
+}
+.em-tile:hover{background:var(--fill-1);}
+.em-empty{margin:16px 6px 6px; text-align:center; font-size:12px; color:var(--text-3);}
+
+/* The control that opens it: an outline glyph and nothing else. */
+.em-btn{
+  width:34px; height:34px; flex-shrink:0;
+  display:grid; place-items:center;
+  background:none; border:0; padding:0;
+  color:var(--text-3); cursor:pointer;
+  transition:color .15s var(--ease);
+  --press-scale:.88;
+}
+.em-btn svg{width:22px; height:22px;}
+.em-btn.is-open{color:var(--fayrouzeh);}
+
+/* ==========================================================================
+   «ریل» — the cover feed and its full-screen reader
+   ==========================================================================
+   The challenge list draws the *same* cards two ways, and the shape is the
+   only state there is: `.rail` on the list container turns the row into a
+   cover card, and `.is-immersive` on that same element turns the feed into a
+   fixed, scroll-snapped reader. Nothing is re-fetched, re-rendered or copied
+   into a second markup — which is what lets search, the filters, the filter
+   sheet and infinite scroll carry on untouched in both modes, and what makes
+   switching instant instead of a reload.
+
+   Colour adds no channel here: status keeps its `--st-*` edge and pill,
+   category keeps the `--cat-*` hue it already paints the thumb with, and the
+   cover is that same hue at cover size.
+   -------------------------------------------------------------------------- */
+
+/* the view switch: two options, so it sizes to its content and sits at the
+   end of its own row rather than stretching like a filter */
+.seg-row.view-row{display:flex; justify-content:flex-end; padding-bottom:10px;}
+.view-row .seg-btn{flex:0 0 auto; padding:7px 14px;}
+
+/* --- the feed ----------------------------------------------------------- */
+.challenge-list.rail{gap:16px;}
+/* One cell, both children in it: the cover fills it and the body sits at its
+   foot. A grid rather than the absolutely-positioned body it used to be,
+   because that body was then the containing block for anything absolute
+   inside it -- and the status pill has to be placed against the *card*, up on
+   the cover, not against the strip of text at the bottom. */
+.challenge-list.rail .challenge-card{
+  display:grid; grid-template-columns:minmax(0,1fr); padding:0;
+  /* the cover sits on a negative layer (below), which without a stacking
+     context of its own here would sink beneath the card's glass background */
+  isolation:isolate;
+}
+
+/* THE COVER. There is no image field yet, so the placeholder is the
+   category's own gradient (inherited from [data-cat] .explore-thumb — the
+   52px thumb and this are one rule), its glyph at cover size, and the app's
+   own tile texture. When a picture lands it goes inside this element and
+   nothing else here changes; a challenge without one keeps exactly this. */
+.challenge-list.rail .explore-thumb{
+  grid-area:1/1;
+  /* Below the body rather than beside it: the two share one grid cell, and a
+     negative layer is what lets the body stay in normal flow -- which in turn
+     is what leaves the *card* as the containing block for the status pill, up
+     on the cover. Its texture and scrim ride inside this same layer. */
+  z-index:-1;
+  width:100%; height:auto; aspect-ratio:4/3; border-radius:0;
+  /* the 52px thumb's tint is a hint beside a title; at cover size it has to
+     be the thing that tells two challenges apart across a scroll, so the
+     same one hue runs deeper. Still one hue and still the category's own. */
+  background:linear-gradient(160deg, rgba(var(--cat-rgb, var(--accent-rgb)),0.42), rgba(var(--cat-rgb, var(--accent-rgb)),0.10));
+}
+.challenge-list.rail .explore-thumb > [data-icon]:not(.cadence-badge) svg{
+  width:60px; height:60px; opacity:.9;
+}
+/* the same tile the page ground wears, so the placeholder reads as part of
+   this app rather than as a missing image */
+.challenge-list.rail .explore-thumb::before{
+  content:""; position:absolute; inset:0;
+  background-image:var(--tile-url); background-size:84px; opacity:.22;
+}
+/* the cover has to carry text at its foot, and later a photograph will.
+   Fading to the raised ground rather than to black keeps the body's own
+   --text-* ink legible in both themes without a second palette. */
+.challenge-list.rail .explore-thumb::after{
+  content:""; position:absolute; inset:0;
+  background:linear-gradient(to top, var(--bg-2) 4%, transparent 60%);
+}
+/* the 52px thumb hangs this badge off its corner; on a full-width cover
+   that corner is clipped, so it moves inside the cover's own top edge */
+.challenge-list.rail .cadence-badge{
+  inset-block-end:auto; inset-block-start:12px; inset-inline-start:12px;
+  width:26px; height:26px;
+}
+.challenge-list.rail .cadence-badge svg{width:13px; height:13px;}
+
+/* The body is the same grid cell as the cover, parked at its foot. Its own
+   rows are laid out here rather than by `.explore-head`, which goes
+   `display:contents` just below: the title wants a line of its own, and the
+   heart belongs on the meta line beside the category -- one action sitting on
+   the row of facts it is about, rather than floating above it. */
+.challenge-list.rail .explore-body{
+  grid-area:1/1; align-self:end;
+  display:flex; flex-wrap:wrap; align-items:center;
+  column-gap:10px; row-gap:6px;
+  padding:12px 16px 14px;
+}
+/* `.explore-head` is the list row's title/side split and has nothing to say
+   here; dissolving it lets its children take part in the body's own rows. */
+.challenge-list.rail .explore-head,
+.challenge-list.rail .ec-side,
+.challenge-list.rail .ec-acts{display:contents;}
+/* `display:contents` changes layout, not the tree, so these stay descendant
+   selectors -- a `>` from the body would match neither the title nor the
+   heart, both of which are still children of `.explore-head`. */
+.challenge-list.rail .explore-body h3{
+  order:1; flex:0 0 100%; margin:0;
+  font-size:16px; line-height:1.7; white-space:normal;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.challenge-list.rail .explore-body > .cc-group{order:2; flex:0 0 100%;}
+/* the facts line: category, member count, due date */
+.challenge-list.rail .explore-body > p:not(.cc-group){
+  order:3; flex:1 1 auto; min-width:0;
+}
+/* the heart and the conversation ride at the far end of that same line --
+   the actions sitting on the row of facts they are about, rather than
+   stacked above the title where they competed with the status pill */
+.challenge-list.rail .explore-body .like-btn,
+.challenge-list.rail .explore-body .cm-btn{
+  order:4; flex:0 0 auto; align-self:center;
+}
+.challenge-list.rail .explore-body .like-btn{margin-inline-start:auto;}
+.challenge-list.rail .explore-body > .rail-extra{order:5; flex:0 0 100%;}
+
+/* THE STATUS PILL, up on the cover's top corner (left, in RTL): it is the
+   first question a reader asks of a full-bleed card and it must not sit in
+   the same breath as the title. It rides over an image-shaped surface, so it
+   carries an opaque-ish ground and a blur of its own rather than the 14%
+   tint that works over a flat card. */
+.challenge-list.rail .status-pill{
+  position:absolute; z-index:3;
+  inset-block-start:12px; inset-inline-end:12px;
+  padding:4px 10px;
+  color:var(--st);
+  background:color-mix(in srgb, var(--st) 20%, var(--chrome-bg-strong));
+  border-color:color-mix(in srgb, var(--st) 45%, transparent);
+  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+  box-shadow:0 2px 10px rgba(0,0,0,.18);
+}
+
+/* --- the full-screen reader --------------------------------------------- */
+/* One panel per card, snapped hard: `mandatory` plus `scroll-snap-stop` is
+   what guarantees the reader is never parked between two challenges, and a
+   fling can never skip one. Above the nav (30) and the FAB (40), below the
+   toast (60) so a failed like still says so. */
+.challenge-list.is-immersive{
+  position:fixed; inset:0; z-index:50;
+  padding:0; gap:0; margin:0;
+  background:var(--bg-0);
+  overflow-y:auto; overscroll-behavior:contain;
+  scroll-snap-type:y mandatory;
+  /* the panels are the only scroll indicator this view needs */
+  scrollbar-width:none;
+}
+.challenge-list.is-immersive::-webkit-scrollbar{display:none;}
+.challenge-list.is-immersive .challenge-card{
+  flex:0 0 auto;
+  width:100%; max-width:var(--shell-max); margin-inline:auto;
+  height:100vh; height:100dvh;
+  border-radius:0; border-block:0;
+  scroll-snap-align:start; scroll-snap-stop:always;
+}
+.challenge-list.is-immersive .explore-thumb{
+  position:absolute; inset:0; width:auto; height:auto; aspect-ratio:auto;
+}
+.challenge-list.is-immersive .explore-thumb > [data-icon]:not(.cadence-badge) svg{
+  width:96px; height:96px;
+}
+.challenge-list.is-immersive .explore-thumb::after{
+  background:linear-gradient(to top, var(--bg-2) 16%, transparent 76%);
+}
+/* the panel's text can outgrow its share of the screen once the description
+   is opened, so it scrolls inside itself — contained, or that scroll would
+   chain into the snap container and move to the next challenge */
+.challenge-list.is-immersive .explore-body{
+  padding:18px 20px calc(18px + env(safe-area-inset-bottom));
+  max-height:78%; overflow-y:auto; overscroll-behavior:contain;
+}
+.challenge-list.is-immersive .explore-body h3{font-size:19px; -webkit-line-clamp:3;}
+/* clear of the close button, which is fixed to the same corner */
+.challenge-list.is-immersive .status-pill{
+  inset-block-start:calc(16px + env(safe-area-inset-top));
+  inset-inline-end:70px;
+}
+
+/* what the reader adds to the card, and the only thing it adds */
+.rail-extra{display:none;}
+.challenge-list.is-immersive .rail-extra{display:block; margin-top:10px;}
+.explore-body .rail-tags{display:flex; flex-wrap:wrap; gap:6px; margin:0 0 8px;}
+/* .explore-body p is a flex row at 11.5px; the description is neither.
+   Collapsed and full ship as two spans and «بیشتر» swaps them (see the
+   partial): a line-clamp cannot be toggled meaningfully, because a
+   description already short enough to fit is clamped to nothing and the
+   control then appears to do nothing at all. */
+.explore-body .rail-desc{
+  display:block; margin:0;
+  font-size:12.5px; line-height:1.9; color:var(--text-2);
+}
+.rd-full{display:none;}
+.challenge-card.desc-open .rd-short{display:none;}
+/* Open, a long description scrolls inside itself rather than pushing the
+   card's controls off the panel -- contained, or that scroll chains into the
+   snap container and moves to the next challenge. */
+.challenge-card.desc-open .rd-full{
+  display:block; max-height:34vh;
+  overflow-y:auto; overscroll-behavior:contain;
+}
+.rail-toggle{
+  display:inline-block; margin-top:6px;
+  padding:3px 10px; border-radius:999px;
+  background:rgba(var(--accent-rgb),0.12);
+  font-size:11.5px; font-weight:700; color:var(--fayrouzeh); cursor:pointer;
+  --press-scale:.9;
+}
+/* the explicit way to the challenge's own page — the one tap in this view
+   that leaves it, so it is the only filled control on the panel */
+.rail-cta{
+  /* flex rather than inline-flex: it takes a line of its own, below the
+     description's «بیشتر», instead of trailing it */
+  display:flex; width:fit-content; align-items:center; gap:5px; margin-top:12px;
+  padding:9px 16px; border-radius:999px;
+  font-size:12.5px; font-weight:700;
+  background:var(--fayrouzeh); color:var(--on-accent);
+  box-shadow:var(--glow-accent); cursor:pointer;
+}
+.rail-cta svg{width:14px; height:14px;}
+
+/* .icon-btn is display:grid, which beats the UA's [hidden]{display:none} --
+   the same trap .list-loading documents above. */
+.icon-btn.rail-close[hidden]{display:none;}
+.icon-btn.rail-close{
+  position:fixed; z-index:51;
+  inset-block-start:calc(14px + env(safe-area-inset-top)); inset-inline-end:16px;
+  background:var(--chrome-bg-strong); color:var(--text-1);
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+}
+/* the status edge is drawn by the card's own ::before, which the cover — a
+   positioned child later in tree order — would otherwise paint over */
+.challenge-list.rail .challenge-card[data-status]::before{z-index:2;}

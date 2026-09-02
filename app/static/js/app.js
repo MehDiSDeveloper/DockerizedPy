@@ -27,6 +27,9 @@ const icons = {
   eyeOff: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.1A11 11 0 0123 12s-1.6 2.8-4.4 4.9M6.4 6.9C3.8 8.8 2 12 2 12s4 7 11 7c1.3 0 2.6-.2 3.7-.6"/><path d="M9.5 9.5a3 3 0 004.2 4.2"/></svg>`,
   chevronRight: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>`,
   chevronLeft: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>`,
+  // The end of a row that opens a sheet *upwards* rather than a page:
+  // «chevronLeft» promises somewhere to go, this promises something to come up.
+  chevronUp: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>`,
   calendar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>`,
   filter: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M7 12h10M10 19h4"/></svg>`,
   logout: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>`,
@@ -77,6 +80,24 @@ const icons = {
   userPlus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.5" cy="8" r="3.6"/><path d="M2.5 20c1.1-3.6 3.7-5.5 7-5.5s5.9 1.9 7 5.5"/><path d="M18.5 6.5v6M21.5 9.5h-6"/></svg>`,
   shield: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5.5c0 4.4-2.9 8.2-7 9.5-4.1-1.3-7-5.1-7-9.5V6z"/><path d="M9.2 12.2l2 2 3.6-3.8"/></svg>`,
   info: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 8h.01"/></svg>`,
+  reply: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 5 20 10 15 15"/><path d="M20 10H8a4 4 0 00-4 4v5"/></svg>`,
+  smiley: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 007 0"/><path d="M9 9.5h.01M15 9.5h.01"/></svg>`,
+  // --- emoji keyboard tabs -------------------------------------------
+  // One per group in `emoji.js`, plus `clock` for «اخیر». They are drawn on
+  // the same 24px stroke grid as everything else on purpose: the tab strip
+  // says *which drawer*, and a row of coloured emoji above a grid of
+  // coloured emoji gives the eye nothing to land on.
+  emSmiley: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 007 0"/><path d="M9 9.5h.01M15 9.5h.01"/></svg>`,
+  emPaw: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="6.5" cy="10" rx="2.1" ry="2.6"/><ellipse cx="10.6" cy="6.4" rx="2.1" ry="2.6"/><ellipse cx="15.4" cy="6.4" rx="2.1" ry="2.6"/><ellipse cx="19.5" cy="10" rx="2.1" ry="2.6"/><path d="M13 13.2c2.6 0 4.7 2 4.7 4.3 0 1.9-1.5 3-3.3 3-1 0-1.6-.4-2.4-.4s-1.4.4-2.4.4c-1.8 0-3.3-1.1-3.3-3 0-2.3 2.1-4.3 4.7-4.3z"/></svg>`,
+  emFood: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8.4c-1.2-1.1-2.7-1.5-4.1-1C5.9 8.2 5 10.2 5 12.6 5 16 7.3 20 9.6 20c.8 0 1.6-.4 2.4-.4s1.6.4 2.4.4c2.3 0 4.6-4 4.6-7.4 0-2.4-.9-4.4-2.9-5.2-1.4-.5-2.9-.1-4.1 1z"/><path d="M12 8.4V5.6"/><path d="M12 5.6c1.7 0 3-1.4 3-3.1-1.7 0-3 1.4-3 3.1z"/></svg>`,
+  emCar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16.5v-3.2l1.8-4.6A2.5 2.5 0 017.1 7h9.8a2.5 2.5 0 012.3 1.7L21 13.3v3.2"/><path d="M3 13.4h18"/><circle cx="7" cy="17.2" r="1.8"/><circle cx="17" cy="17.2" r="1.8"/></svg>`,
+  emBall: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.2l4 2.9-1.5 4.7h-5L8 10.1z"/><path d="M12 3v4.2M4.5 9.4l3.5.7M19.5 9.4l-3.5.7M7.2 20l2.3-5.2M16.8 20l-2.3-5.2"/></svg>`,
+  emBulb: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17.5a6.5 6.5 0 116 0v1.7a1.5 1.5 0 01-1.5 1.5h-3A1.5 1.5 0 019 19.2z"/><path d="M9.5 17.5h5"/></svg>`,
+  emSymbol: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.4 3.5L7.2 20.5M16.8 3.5l-2.2 17M4.4 8.9h15.2M3.6 15.1h15.2"/></svg>`,
+  emFlag: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 21V3.5"/><path d="M5.5 4.5h11l-2.2 3.6L16.5 12h-11"/></svg>`,
+  send: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3L3 10.5l7 2.5 2.5 7z"/><path d="M21 3l-11 10"/></svg>`,
+  heart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.3l-7.1-7a4.6 4.6 0 116.5-6.5l.6.6.6-.6a4.6 4.6 0 116.5 6.5z"/></svg>`,
+  heartFill: `<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.3l-7.1-7a4.6 4.6 0 116.5-6.5l.6.6.6-.6a4.6 4.6 0 116.5 6.5z"/></svg>`,
   trophy: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 01-10 0z"/><path d="M7 5.5H4.8A1.8 1.8 0 003 7.3C3 9.6 4.8 11 7 11"/><path d="M17 5.5h2.2A1.8 1.8 0 0121 7.3c0 2.3-1.8 3.7-4 3.7"/><path d="M12 14v3.5"/><path d="M8.5 20.5h7"/><path d="M10 17.5h4l.7 3h-5.4z"/></svg>`,
 };
 
@@ -617,6 +638,12 @@ function createInfiniteScroller({
 
   return {
     reset: () => fetchPage(true),
+    // For a caller whose own container scrolls (the challenge list's
+    // full-screen reader): the sentinel is then behind a fixed overlay and
+    // can never intersect, so it asks for the next page itself. The
+    // loading/hasMore guards inside fetchPage still apply, so calling it on
+    // every scroll frame is safe.
+    loadMore: () => fetchPage(false),
     // Callers that drop a card from the DOM *and* from the server's result
     // set must say so, or `offset` stays one too high and the next page
     // silently skips a row.
@@ -1435,4 +1462,250 @@ function initExplainers() {
   window.addEventListener("resize", replace, { passive: true });
 }
 
-document.addEventListener("DOMContentLoaded", () => initExplainers());
+
+// ---------------------------------------------------------------------------
+// لایک
+//
+// One delegated listener for every like button on every page: a card list
+// grows by infinite scroll, so a per-button listener would miss page two.
+// The button carries its own subject (`data-like-subject` /
+// `data-like-id`) rather than the page knowing what it is about, which is
+// what keeps this generic across subject kinds — the route is one shape too.
+//
+// Optimistic, and it sends a *state* rather than a toggle: the server is
+// told what should be true, so a retry or a second device cannot land on the
+// opposite answer. A failure snaps back and says so, the same trade the
+// notification switches make.
+// ---------------------------------------------------------------------------
+function paintLike(btn, count, liked) {
+  btn.dataset.liked = liked ? "true" : "false";
+  btn.classList.toggle("is-liked", liked);
+  btn.setAttribute("aria-pressed", liked ? "true" : "false");
+  btn.setAttribute("aria-label", liked ? "برداشتن لایک" : "لایک");
+  const icon = btn.querySelector("[data-icon]");
+  if (icon) {
+    icon.setAttribute("data-icon", liked ? "heartFill" : "heart");
+    renderIcons(btn);
+  }
+  const n = btn.querySelector("[data-like-count]");
+  if (n) n.textContent = String(count);
+}
+
+function initLikes() {
+  document.addEventListener("click", async (e) => {
+    const btn = e.target.closest ? e.target.closest("[data-like-subject]") : null;
+    if (!btn) return;
+    // Cards are a single `<a>`; without this a tap on the heart opens the
+    // challenge instead of liking it.
+    e.preventDefault();
+    e.stopPropagation();
+    if (btn.dataset.busy === "1") return;
+
+    const wasLiked = btn.dataset.liked === "true";
+    const el = btn.querySelector("[data-like-count]");
+    const wasCount = Number(el ? el.textContent : 0) || 0;
+    const liked = !wasLiked;
+
+    btn.dataset.busy = "1";
+    paintLike(btn, Math.max(0, wasCount + (liked ? 1 : -1)), liked);
+
+    const url = `/reactions/${btn.dataset.likeSubject}/${btn.dataset.likeId}/likes`;
+    const { ok, data } = await apiFetch(url, {
+      method: "PUT",
+      body: { liked },
+    });
+    btn.dataset.busy = "";
+
+    if (ok && data) paintLike(btn, data.count, data.liked);
+    else {
+      paintLike(btn, wasCount, wasLiked);
+      showToast("لایک ثبت نشد. دوباره تلاش کن.");
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// صفحه‌کلید اموجی
+//
+// A keyboard, not a catalogue: what it produces is *characters typed into a
+// textarea*, so nothing about an emoji reaches the server as an emoji — it
+// arrives as part of the comment's text. That is the whole reason the set
+// can be 1800 emoji instead of the 44 a stored id-per-sticker design could
+// afford to keep in Python (see `app/stickers.py`, which still renders the
+// rows written when it was one).
+//
+// The catalogue is `emoji.js` — a generated file, loaded only by the pages
+// that carry a composer, so nothing here assumes it is present.
+//
+// Two mechanics are load-bearing:
+//
+//   * **One tab is in the DOM at a time.** Rendering all nine groups is
+//     ~1800 buttons; rendering the open one is at most ~530, and the HTML of
+//     each is cached after its first paint, so switching back is free.
+//   * **The caret is remembered, not read at insert time.** Tapping a tile
+//     may have taken focus off the textarea (and on a phone the keyboard is
+//     deliberately dismissed when the panel opens), and an unfocused
+//     textarea reports a caret at the end — which is exactly the bug where
+//     every emoji lands after the text instead of where the writer was.
+// ---------------------------------------------------------------------------
+const EMOJI_RECENT_KEY = "chalesh-emoji-recent";
+const EMOJI_RECENT_MAX = 32;
+
+function readRecentEmoji() {
+  // Same guard the theme reads with: storage throws outright in some
+  // private-mode browsers, and a keyboard is not worth a broken page.
+  try {
+    const raw = JSON.parse(localStorage.getItem(EMOJI_RECENT_KEY) || "[]");
+    return Array.isArray(raw) ? raw.filter((c) => typeof c === "string") : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function pushRecentEmoji(char) {
+  try {
+    const next = [char, ...readRecentEmoji().filter((c) => c !== char)];
+    localStorage.setItem(
+      EMOJI_RECENT_KEY, JSON.stringify(next.slice(0, EMOJI_RECENT_MAX))
+    );
+  } catch (err) {
+    /* a keyboard that cannot remember is still a keyboard */
+  }
+}
+
+// The tiles' own font stack, repeated from styles.css because a measurement
+// taken in a different font answers a different question.
+const EMOJI_TILE_FONT =
+  '23px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla",sans-serif';
+
+const EMOJI_NO_GLYPH = String.fromCodePoint(0x10fffd); // a character no font has
+const EMOJI_BASELINE = String.fromCodePoint(0x1f600);  // E1.0 — every font has it
+
+let emojiRuler = null;
+
+/** The emoji of `list` this device can actually draw.
+ *
+ * A catalogue is a promise about Unicode, not about the reader's phone: an
+ * emoji whose font predates it comes out as an empty box, and a ZWJ sequence
+ * a font only half knows comes out as the two emoji it is made of. Both are
+ * measurable — a box is exactly as wide as any other unknown glyph, and a
+ * sequence that fell apart is nearly twice as wide as one emoji — so the
+ * device decides what is on its own keyboard and nothing here has to guess a
+ * version cap that would be wrong for somebody either way.
+ *
+ * It fails *open*: where the ruler cannot tell a box from an emoji (a font
+ * that draws both at one width), the list comes back untouched — a keyboard
+ * with a few boxes in it beats an empty one.
+ */
+function drawableEmoji(list) {
+  try {
+    if (!emojiRuler) {
+      emojiRuler = document.createElement("canvas").getContext("2d");
+      emojiRuler.font = EMOJI_TILE_FONT;
+    }
+    const box = emojiRuler.measureText(EMOJI_NO_GLYPH).width;
+    const one = emojiRuler.measureText(EMOJI_BASELINE).width;
+    if (!box || !one || Math.abs(box - one) < 0.5) return list;
+    return list.filter((char) => {
+      const w = emojiRuler.measureText(char).width;
+      return w > box + 0.5 && w < one * 1.4;
+    });
+  } catch (err) {
+    return list;
+  }
+}
+
+function createEmojiPicker({ panel, tabsEl, labelEl, gridEl, emptyEl, onPick }) {
+  const groups = Array.isArray(window.EMOJI_GROUPS) ? window.EMOJI_GROUPS : [];
+  // «اخیر» is a tab like any other, and it is first because it is the one a
+  // returning writer wants. It is empty on a first visit, which is the only
+  // reason the panel needs an empty state at all.
+  const tabs = [{ id: "recent", label: "اخیر", icon: "clock" }, ...groups];
+  const cache = new Map();
+  let active = null;
+
+  tabsEl.innerHTML = tabs
+    .map(
+      (t) =>
+        `<button type="button" class="em-tab" role="tab" data-em-tab="${t.id}"` +
+        ` aria-selected="false" aria-label="${t.label}" title="${t.label}">` +
+        `<span data-icon="${t.icon}"></span></button>`
+    )
+    .join("");
+  renderIcons(tabsEl);
+
+  const drawable = new Map();
+
+  function charsFor(id) {
+    // Recents are what this device already drew, so they need no filtering.
+    if (id === "recent") return readRecentEmoji();
+    if (!drawable.has(id)) {
+      const group = groups.find((g) => g.id === id);
+      drawable.set(id, group ? drawableEmoji(group.emoji) : []);
+    }
+    return drawable.get(id);
+  }
+
+  function show(id) {
+    if (active === id) return;
+    active = id;
+    const tab = tabs.find((t) => t.id === id);
+    labelEl.textContent = tab ? tab.label : "";
+    tabsEl.querySelectorAll(".em-tab").forEach((el) => {
+      const on = el.dataset.emTab === id;
+      el.classList.toggle("is-active", on);
+      el.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    const chars = charsFor(id);
+    // «اخیر» is rebuilt every time — it is the one tab whose contents change
+    // while the panel is open.
+    if (id === "recent" || !cache.has(id)) {
+      const html = chars
+        .map((c) => `<button type="button" class="em-tile" tabindex="-1">${c}</button>`)
+        .join("");
+      if (id !== "recent") cache.set(id, html);
+      gridEl.innerHTML = html;
+    } else {
+      gridEl.innerHTML = cache.get(id);
+    }
+    if (emptyEl) emptyEl.hidden = chars.length > 0;
+    gridEl.scrollTop = 0;
+  }
+
+  // Desktop: the panel must not steal focus, or the caret the textarea is
+  // holding is gone before the tile's click handler runs.
+  panel.addEventListener("mousedown", (e) => { e.preventDefault(); });
+
+  tabsEl.addEventListener("click", (e) => {
+    const tab = e.target.closest("[data-em-tab]");
+    if (tab) show(tab.dataset.emTab);
+  });
+
+  gridEl.addEventListener("click", (e) => {
+    const tile = e.target.closest(".em-tile");
+    if (!tile) return;
+    const char = tile.textContent;
+    pushRecentEmoji(char);
+    onPick(char);
+  });
+
+  function open() {
+    panel.hidden = false;
+    if (!active) show(readRecentEmoji().length ? "recent" : (groups[0] || {}).id);
+    else if (active === "recent") { active = null; show("recent"); }
+  }
+  function close() { panel.hidden = true; }
+
+  return {
+    open,
+    close,
+    toggle() { if (panel.hidden) open(); else close(); },
+    isOpen() { return !panel.hidden; },
+  };
+}
+window.createEmojiPicker = createEmojiPicker;
+
+document.addEventListener("DOMContentLoaded", () => {
+  initExplainers();
+  initLikes();
+});

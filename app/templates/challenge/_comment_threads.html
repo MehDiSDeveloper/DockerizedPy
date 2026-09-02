@@ -1,0 +1,67 @@
+{#- One thread per top-level child — the infinite-scroll fragment for a
+    challenge's conversation.
+
+    Served by `GET /views/challenges/{id}/comments/fragment` -- every page of
+    it, including the first: the conversation is a modal (`_comment_modal.html`
+    plus `static/js/comments.js`) that asks for page one the moment it opens,
+    so unlike `_leaderboard_rows.html` this partial is never `{% include %}`-ed
+    into a server-rendered page. It must therefore stay free of
+    anything but the threads: `createInfiniteScroller()` counts this file's
+    top-level children to advance the offset, and one child is one *thread*,
+    which is what the server pages by.
+
+    A comment names its author and shows their avatar and nothing else: the
+    conversation does not link to a profile, so `profile_visibility_filter`
+    stays exactly as wide as it was (CLAUDE.md, the leaderboard). -#}
+{% macro comment_body(c) %}
+{% if c.body %}<p class="cm-text">{{ c.body }}</p>{% endif %}
+{#- The sticker is rendered from its id through `sticker_char`, never from
+    anything the row stored verbatim — the same contract `avatar_url` has. -#}
+{% if c.sticker %}<span class="cm-sticker" aria-hidden="true">{{ c.sticker | sticker_char }}</span>{% endif %}
+{% endmacro %}
+
+{% macro comment(c, is_reply) %}
+<div class="cm{{ ' cm-reply' if is_reply }}" data-comment-id="{{ c.id }}">
+  <span class="cm-av"><img src="{{ c.user.avatar | avatar_url }}" alt=""
+      loading="lazy" width="{{ 28 if is_reply else 34 }}" height="{{ 28 if is_reply else 34 }}"></span>
+  <div class="cm-main">
+    <div class="cm-head">
+      <b>{{ c.user.name }}</b>
+      <span class="cm-when" data-jalali="{{ c.created_at.isoformat() }}"
+        data-jalali-format="day-month">{{ c.created_at.isoformat() }}</span>
+    </div>
+    {{ comment_body(c) }}
+    <div class="cm-actions">
+      {#- Both actions carry their own id, and one delegated listener on the
+          page reads it: threads arrive by infinite scroll, so a per-button
+          listener would miss page two. -#}
+      <button type="button" class="cm-act" data-reply-to="{{ c.id }}"
+        data-reply-name="{{ c.user.name }}"><span data-icon="reply"></span>پاسخ</button>
+      {% if current_user_id and c.user_id == current_user_id %}
+      <button type="button" class="cm-act danger" data-delete-comment="{{ c.id }}"
+        data-is-root="{{ 'false' if is_reply else 'true' }}"><span data-icon="trash"></span>حذف</button>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{% for thread in threads %}
+<article class="cm-thread">
+  {{ comment(thread.comment, false) }}
+  {% if thread.replies %}
+  <div class="cm-replies">
+    {% for reply in thread.replies %}
+    {#- Everything past the preview is rendered and hidden, so «پاسخ‌های
+        بیشتر» is a toggle rather than a second request. -#}
+    <div class="cm-reply-slot"{{ ' hidden' if loop.index0 >= thread.preview }}>
+      {{ comment(reply, true) }}
+    </div>
+    {% endfor %}
+    {% if thread.extra_replies %}
+    <button type="button" class="cm-more" data-show-replies>{{ thread.extra_replies }} پاسخ دیگر</button>
+    {% endif %}
+  </div>
+  {% endif %}
+</article>
+{% endfor %}

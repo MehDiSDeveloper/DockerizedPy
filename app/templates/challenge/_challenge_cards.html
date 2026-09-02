@@ -1,3 +1,6 @@
+{% set liked_ids = liked_ids or [] %}
+{% set like_counts = like_counts or {} %}
+{% set comment_counts = comment_counts or {} %}
 {#- Farsi labels for the English `cadence_kind` codes. Per CLAUDE.md there is no
     shared display-map module yet, so each template inlines its own. -#}
 {% set cadence_labels = {
@@ -12,8 +15,21 @@
     and the status filter can never disagree. -#}
 {% set status = c | challenge_status %}
 {% set status_label = status_meta[status].label %}
+{#- One card markup, two shapes. «لیست» is this row exactly as it has always
+    been; «ریل» is the same nodes re-laid-out by CSS from the `.rail` class on
+    the list container, and the full-screen reader is that again at 100dvh
+    (see the «ریل» section of styles.css). One markup rather than two partials
+    because a second copy is a second thing to keep in step -- and because
+    switching mode is then a class toggle rather than a refetch, which is what
+    lets search, the filters and infinite scroll carry on untouched. -#}
 <a href="/views/challenges/{{ c.id }}" class="challenge-card glass explore-card st-{{ status }}"
   data-status="{{ status }}" data-cat="{{ c.category | category_slug }}">
+  {#- THE COVER. This element is the one place a challenge's picture will
+      land: there is no image field yet, so it paints the category's own hue,
+      glyph and the app's tile texture -- a placeholder that belongs to the
+      challenge rather than a grey box. When the field arrives, an `{% if
+      c.image_url %}<img …>{% endif %}` inside this div is the whole change,
+      and every challenge without a picture keeps exactly what it has now. -#}
   <div class="explore-thumb">
     <span data-icon="{{ c.category | category_icon }}"></span>
     <span class="cadence-badge" title="{{ cadence_label }}" aria-label="{{ cadence_label }}"
@@ -22,7 +38,45 @@
   <div class="explore-body">
     <div class="explore-head">
       <h3>{{ c.title }}</h3>
-      <span class="status-pill"><span data-icon="{{ status_meta[status].icon }}"></span>{{ status_label }}</span>
+      {#- Status and like, one column at the card's outer edge. The pill says
+          «should I act on this»; the heart is how you act. A `<span
+          role="button">` rather than a `<button>`: the whole card is one
+          `<a>` and a nested button is invalid markup -- the delegated handler
+          in app.js calls preventDefault so the tap likes instead of opening.
+          It carries its own subject, so this same markup works for anything
+          else that becomes likeable. -#}
+      <span class="ec-side">
+        <span class="status-pill"><span data-icon="{{ status_meta[status].icon }}"></span>{{ status_label }}</span>
+        {#- The two actions share a row under the pill: three stacked items
+            made the card twice as tall as its own text. -#}
+        <span class="ec-acts">
+        <span class="like-btn{{ ' is-liked' if c.id in liked_ids else '' }}" role="button" tabindex="0"
+          aria-pressed="{{ 'true' if c.id in liked_ids else 'false' }}"
+          aria-label="{{ 'برداشتن لایک' if c.id in liked_ids else 'لایک' }}"
+          data-like-subject="challenge" data-like-id="{{ c.id }}"
+          data-liked="{{ 'true' if c.id in liked_ids else 'false' }}">
+          <span data-icon="{{ 'heartFill' if c.id in liked_ids else 'heart' }}"></span>
+          <b data-like-count>{{ like_counts.get(c.id, 0) }}</b>
+        </span>
+        {#- The conversation, from the card. It is here rather than only on
+            the challenge's page because «what did people say» is a question
+            the reader has *while scanning the list* -- and answering it no
+            longer costs them the list, since the control opens the modal
+            (`static/js/comments.js`) over whatever they were reading.
+
+            A `<span role="button">` for the same reason the heart is one: the
+            card is a single `<a>` and a nested button is invalid markup. It
+            carries its own subject, count and title, so the modal can draw
+            its header before a request goes out. -#}
+        <span class="cm-btn" role="button" tabindex="0" aria-haspopup="dialog"
+          aria-label="گفتگو" data-comments-id="{{ c.id }}"
+          data-comments-title="{{ c.title }}"
+          data-comments-count="{{ comment_counts.get(c.id, 0) }}">
+          <span data-icon="message"></span>
+          <b data-comment-count>{{ comment_counts.get(c.id, 0) }}</b>
+        </span>
+        </span>
+      </span>
     </div>
     {#- The group a challenge belongs to, at a glance and one tap from its
         page. A chip rather than a colour: status owns the `--st-*` hues and
@@ -50,6 +104,48 @@
       {% if c.due_date %}<span data-icon="calendar"></span><span data-jalali="{{ c.due_date.isoformat() }}"
         data-jalali-format="day-month-year">{{ c.due_date.strftime('%Y-%m-%d') }}</span>{% endif %}
     </p>
+    {#- What the full-screen reader adds to the card, and nothing else reads:
+        `display:none` everywhere but `.is-immersive`. It is inside the card
+        rather than built by JS from data attributes so it is server-rendered
+        Farsi like the rest, and so a card arriving on page two of the
+        infinite scroll already carries it. -#}
+    <div class="rail-extra">
+      {#- The cadence in words. The card only ever shows it as the corner
+          badge's icon, which is the one thing on the cover a reader cannot
+          name. `num`/goal are deliberately not here: this partial is
+          rendered by the group router's env too, which registers a smaller
+          filter set. -#}
+      <p class="rail-tags">
+        <span class="cc-tag"><span data-icon="{{ c.cadence_kind | cadence_icon }}"></span>{{ cadence_label }}</span>
+      </p>
+      {#- Short and full ship together, and «بیشتر» swaps which one is
+          displayed. A CSS line-clamp cannot do this: a two-line description
+          is already whole, so the toggle moved nothing and read as broken.
+          The cut is by *characters* (90, about two lines) so the collapsed
+          shape is the same on every card whatever the panel's width, and the
+          control only exists when there is something behind it. -#}
+      {% if c.description %}
+      {% set desc = c.description | trim %}
+      {% if desc | length > 90 %}
+      <p class="rail-desc">
+        <span class="rd-short">{{ desc[:90] | trim }}…</span>
+        {#- The full text scrolls inside itself when it is long; the panel
+            behind it must not scroll with it, hence overscroll containment
+            in the stylesheet. -#}
+        <span class="rd-full">{{ desc }}</span>
+      </p>
+      {#- role="button" for the same reason the heart is one: this lives
+          inside the card's `<a>`. -#}
+      <span class="rail-toggle" role="button" tabindex="0" aria-expanded="false" data-rail-toggle>بیشتر</span>
+      {% else %}
+      <p class="rail-desc is-brief">{{ desc }}</p>
+      {% endif %}
+      {% endif %}
+      {#- The explicit way out to the challenge's own page. It needs no
+          handler at all: the card *is* that link, so the rail's click
+          handler simply declines to preventDefault on this one. -#}
+      <span class="rail-cta" data-rail-open>صفحه چالش<span data-icon="chevronLeft"></span></span>
+    </div>
   </div>
 </a>
 {% endfor %}

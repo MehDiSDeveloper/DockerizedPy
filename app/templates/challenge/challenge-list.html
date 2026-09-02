@@ -52,11 +52,36 @@
     Rendered by JS from the same state the sheet writes, so it can't drift. -#}
 <div class="active-filters" id="clActiveFilters" hidden></div>
 
+{#- How the same results are drawn. Two mutually exclusive options, so a
+    segmented control like every other such choice in the app -- and a row of
+    its own rather than a third group in the status row, which is already at
+    the width a 360px phone can hold. It changes nothing about *which*
+    challenges are shown, so it sits below the filters rather than among
+    them. -#}
+<div class="seg-row view-row">
+  <div class="seg" id="clViewSeg" role="tablist" aria-label="حالت نمایش">
+    <button class="seg-btn" data-view="rail" role="tab" aria-selected="false"><span
+        data-icon="camera"></span>ریل</button>
+    <button class="seg-btn" data-view="list" role="tab" aria-selected="false"><span
+        data-icon="list"></span>لیست</button>
+  </div>
+</div>
+
 <section>
-  <div class="challenge-list" id="clList" data-page-size="{{ page_size }}" data-initial-count="{{ challenges|length }}"
-    data-has-more="{{ 'true' if has_more else 'false' }}">
+  <div class="challenge-list rail" id="clList" data-page-size="{{ page_size }}"
+    data-initial-count="{{ challenges|length }}" data-has-more="{{ 'true' if has_more else 'false' }}">
     {% include "challenge/_challenge_cards.html" %}
   </div>
+  {#- «ریل» is the default, so the markup ships in it and only the member who
+      chose «لیست» needs correcting. Inline and immediately after the element
+      on purpose: from {% block scripts %} this would repaint a frame in,
+      which is the same flash layout.html's theme script exists to avoid. -#}
+  <script>
+    try {
+      if (localStorage.getItem("chalesh-challenge-view") === "list")
+        document.getElementById("clList").classList.remove("rail");
+    } catch (e) { /* private mode: the default stands */ }
+  </script>
   <div class="empty" id="clEmpty" {{ 'hidden' if challenges }}>
     <span data-icon="empty"></span>
     <p id="clEmptyText">{{ "چالشی با این مشخصات پیدا نشد." if (active_category or query or active_mine != "all" or active_status != "all") else "هنوز چالشی ثبت نشده." }}</p>
@@ -65,15 +90,28 @@
   <div class="list-loading" id="clLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
 </section>
 
+{#- The full-screen reader's own close control. It lives outside the list
+    because the list *is* the reader -- it goes position:fixed and each card
+    becomes one snapped panel, so a button inside it would scroll away with
+    the first card. back/Esc close it too. -#}
+<button type="button" class="icon-btn rail-close" id="clRailClose" aria-label="بستن نمای تمام‌صفحه" hidden>
+  <span data-icon="x"></span>
+</button>
+
 <a href="/views/challenges/create" class="fab" aria-label="ساخت چالش جدید" data-tour="explore-create">
   <span data-icon="plus"></span>
 </a>
+
+{#- گفتگو. One modal per page, filled in by whichever comment control is
+    tapped -- see `challenge/_comment_modal.html`. -#}
+{% include "challenge/_comment_modal.html" %}
 {% endblock %}
 
 
 {% block scripts %}
 
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script src="{{ url_for('static', path='/js/comments.js') }}"></script>
 <script src="{{ url_for('static', path='/js/tour.js') }}"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => {
@@ -278,6 +316,135 @@
     }, 300));
 
     renderFilterState();
+
+    // ---------------------------------------------------------------------
+    // «ریل» -- the cover feed and its full-screen reader
+    //
+    // One set of cards, three shapes, and the shape is the only state: the
+    // `.rail` class on the list container swaps the feed for the list, and
+    // `.is-immersive` on the same element turns that feed into a fixed,
+    // scroll-snapped reader. Nothing here re-fetches, re-renders or
+    // remembers a position -- which is exactly why search, the filters, the
+    // filter sheet and infinite scroll carry on working untouched in both
+    // modes.
+    // ---------------------------------------------------------------------
+    const VIEW_KEY = "chalesh-challenge-view";
+    const viewSeg = document.getElementById("clViewSeg");
+    const railClose = document.getElementById("clRailClose");
+    const listSection = listEl.parentElement;
+    const viewBtns = Array.from(viewSeg.querySelectorAll(".seg-btn"));
+    let immersive = false;
+
+    const isRail = () => listEl.classList.contains("rail");
+
+    function setView(mode) {
+      closeImmersive();
+      listEl.classList.toggle("rail", mode !== "list");
+      try { localStorage.setItem(VIEW_KEY, mode); } catch (e) { /* private mode */ }
+      viewBtns.forEach(b => {
+        const on = b.dataset.view === mode;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-selected", on ? "true" : "false");
+      });
+    }
+
+    viewSeg.addEventListener("click", e => {
+      const btn = e.target.closest(".seg-btn");
+      if (btn) setView(btn.dataset.view);
+    });
+    // Painted from whatever the pre-paint script above settled on, so the
+    // control carries no server-rendered selection -- the same trade the
+    // theme controls make.
+    setView(isRail() ? "rail" : "list");
+
+    function openImmersive(card) {
+      if (immersive) return;
+      immersive = true;
+      // The list is about to leave the flow. Freezing the space it occupied
+      // is what keeps the page behind at the scroll offset the member left
+      // it at -- without it the section collapses, the document shortens and
+      // the browser clamps the offset, so closing lands somewhere else.
+      listSection.style.minHeight = `${listEl.offsetHeight}px`;
+      listEl.classList.add("is-immersive");
+      railClose.hidden = false;
+      // Instant, not smooth: this is where the reader *opens*, not a move
+      // between two cards. offsetTop resolves against the now-fixed list.
+      listEl.scrollTop = card.offsetTop;
+      // So the phone's back gesture -- the way most people will close this --
+      // closes the reader instead of leaving the page.
+      history.pushState({ rail: true }, "");
+    }
+
+    function closeImmersive(fromPop) {
+      if (!immersive) return;
+      immersive = false;
+      listEl.classList.remove("is-immersive");
+      listEl.scrollTop = 0;
+      railClose.hidden = true;
+      listSection.style.minHeight = "";
+      if (!fromPop && history.state && history.state.rail) history.back();
+    }
+
+    listEl.addEventListener("click", e => {
+      // «لیست» is the card exactly as it was: the anchor wins and this
+      // listener has no opinion.
+      if (!isRail()) return;
+      // The one control that *is* meant to open the challenge's page. The
+      // card is already that link, so letting the default through is the
+      // whole implementation.
+      if (e.target.closest("[data-rail-open]")) return;
+      // The social controls act on the card, not through it: they carry
+      // their own handlers and must not also open the reader or navigate.
+      if (e.target.closest("[data-like-subject], [data-comments-id]")) {
+        e.preventDefault();
+        return;
+      }
+      const card = e.target.closest(".challenge-card");
+      if (!card) return;
+      // The description: collapsed and full ship as two spans in the card,
+      // so this is a class toggle and nothing here reads or rewrites text.
+      const toggle = e.target.closest("[data-rail-toggle]");
+      if (toggle) {
+        e.preventDefault();
+        const open = card.classList.toggle("desc-open");
+        toggle.textContent = open ? "کمتر" : "بیشتر";
+        toggle.setAttribute("aria-expanded", open ? "true" : "false");
+        return;
+      }
+      // Inside the reader the card is the link it always was: a tap opens
+      // the challenge's page. The preventDefault below belongs only to the
+      // tap that *opens* the reader.
+      if (immersive) return;
+      e.preventDefault();
+      openImmersive(card);
+    });
+
+    // `.rail-toggle` is a span (it lives inside the card's own <a>), so it
+    // gets the keyboard activation a real button would have had for free.
+    listEl.addEventListener("keydown", e => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const toggle = e.target.closest("[data-rail-toggle]");
+      if (!toggle) return;
+      e.preventDefault();
+      toggle.click();
+    });
+
+    railClose.addEventListener("click", () => closeImmersive(false));
+    window.addEventListener("popstate", () => closeImmersive(true));
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape") closeImmersive(false);
+    });
+
+    // The page's sentinel is behind the reader and can never come into view
+    // while it is open, so the reader asks for the next page itself -- one
+    // screen ahead, through the same scroller, so both modes page through
+    // one offset and one set of filters.
+    listEl.addEventListener("scroll", () => {
+      if (!immersive) return;
+      if (listEl.scrollTop + listEl.clientHeight * 2 >= listEl.scrollHeight) {
+        scroller.loadMore();
+      }
+    }, { passive: true });
   });
 </script>
 {% endblock %}

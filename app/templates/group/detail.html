@@ -250,10 +250,15 @@
   <span data-icon="plus"></span>
 </a>
 {% endif %}
+
+{#- گفتگو. One modal per page, filled in by whichever comment control is
+    tapped -- see `challenge/_comment_modal.html`. -#}
+{% include "challenge/_comment_modal.html" %}
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script src="{{ url_for('static', path='/js/comments.js') }}"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => {
     // ---- tabs (same contract as challenge-detail: hash-backed, replaceState)

@@ -83,7 +83,7 @@ from app.routers.group import (
     member_rows,
 )
 from app.routers.user import DEFAULT_MEMBER_PAGE_SIZE, MAX_MEMBER_PAGE_SIZE
-from app.routers.views.challenge import STATUS_META
+from app.routers.views.challenge import STATUS_META, social_context
 
 router = APIRouter(prefix="/views/groups", tags=["group-views"])
 invite_router = APIRouter(prefix="/views/invites", tags=["group-views"])
@@ -267,6 +267,7 @@ async def group_detail(
             "active_nav": "profile",
             **context,
             "challenges": challenges,
+            **await social_context(db, viewer.id, challenges),
             "has_more": has_more,
             "page_size": DEFAULT_PAGE_SIZE,
             "active_status": status,
@@ -314,7 +315,12 @@ async def group_challenges_fragment(
     )
     response = templates.TemplateResponse(
         "challenge/_challenge_cards.html",
-        {"request": request, "challenges": challenges, "hide_group_chip": True},
+        {
+            "request": request,
+            "challenges": challenges,
+            "hide_group_chip": True,
+            **await social_context(db, viewer.id, challenges),
+        },
     )
     response.headers["X-Has-More"] = "true" if has_more else "false"
     return response

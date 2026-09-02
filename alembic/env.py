@@ -9,6 +9,7 @@ from app.config import settings
 from app.database import Base
 from app.models.challenge import Challenge  # noqa: F401
 from app.models.checkin import CheckIn  # noqa: F401
+from app.models.comment import Comment  # noqa: F401
 from app.models.enrollment import Enrollment  # noqa: F401
 from app.models.group import (  # noqa: F401
     Group,
@@ -18,6 +19,7 @@ from app.models.group import (  # noqa: F401
 )
 from app.models.notification import Notification  # noqa: F401
 from app.models.otp import OtpCode  # noqa: F401
+from app.models.reaction import Reaction  # noqa: F401
 from app.models.stats import ChallengeStats  # noqa: F401
 from app.models.user import User  # noqa: F401
 

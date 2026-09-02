@@ -18,6 +18,16 @@ from app.auth import (
     get_page_user,
 )
 from app.avatars import register_avatar_filters
+from app.comments import (
+    DEFAULT_COMMENT_PAGE_SIZE,
+    MAX_COMMENT_PAGE_SIZE,
+    count_for,
+    fetch_thread_page,
+    subject_is_visible,
+)
+from app.comments import (
+    counts_for as comment_counts_for,
+)
 from app.config import BASE_DIR
 from app.database import get_db
 from app.explainers import register_explainer_filters
@@ -30,8 +40,10 @@ from app.identity import (
 )
 from app.models.challenge import Challenge, ChallengeCategory
 from app.models.checkin import CheckIn
+from app.models.comment import CommentSubject
 from app.models.enrollment import ChallengeRole, Enrollment
 from app.models.group import GroupMembership
+from app.models.reaction import ReactionSubject
 from app.models.stats import ChallengeStats
 from app.models.user import User
 from app.occurrences import (
@@ -47,6 +59,7 @@ from app.occurrences import (
     week_start,
 )
 from app.permissions import Perm, can, challenge_role
+from app.reactions import counts_for, liked_subject_ids, reaction_state
 from app.routers.challenge import (
     DEFAULT_PAGE_SIZE,
     DEFAULT_TIMEZONE,
@@ -84,6 +97,7 @@ from app.schemas.cadence import (
     ScheduleCadence,
 )
 from app.schemas.challenge import ChallengeCreate
+from app.stickers import register_sticker_filters
 
 logger = logging.getLogger(__name__)
 
@@ -214,6 +228,7 @@ register_identity_filters(templates.env)
 # has -- as globals rather than context keys, so none of the three routes
 # that render a card can forget to pass them.
 register_group_filters(templates.env)
+register_sticker_filters(templates.env)
 
 
 @router.get("/create")
@@ -301,6 +316,33 @@ async def create_challenge(
         )
 
 
+async def social_context(
+    db: AsyncSession, user_id: int | None, challenges: list[Challenge]
+) -> dict:
+    """The three numbers a page of cards needs about likes and comments.
+
+    Asked once for the whole page rather than once per card -- the same trade
+    `_mute_map` makes in `notify_many`. Every surface rendering
+    `challenge/_challenge_cards.html` spreads this into its context; the
+    fragment template defaults all three keys, so a caller that forgets
+    renders a zeroed heart and a zeroed bubble instead of raising.
+
+    Likes and comments are asked for together because they are one control
+    group on the card: a card that can be liked can be talked about, and two
+    helpers would be two things to remember to spread.
+    """
+    ids = [c.id for c in challenges]
+    return {
+        "like_counts": await counts_for(db, ReactionSubject.CHALLENGE, ids),
+        "liked_ids": await liked_subject_ids(
+            db, user_id, ReactionSubject.CHALLENGE, ids
+        ),
+        "comment_counts": await comment_counts_for(
+            db, CommentSubject.CHALLENGE, ids
+        ),
+    }
+
+
 @router.get("/")
 async def challenge_list(
     request: Request,
@@ -344,6 +386,7 @@ async def challenge_list(
             "page_size": DEFAULT_PAGE_SIZE,
             "current_user_id": current_user_id,
             "active_nav": "challenges",
+            **await social_context(db, current_user_id, challenges),
         },
     )
 
@@ -377,7 +420,11 @@ async def challenge_list_fragment(
     )
     response = templates.TemplateResponse(
         "challenge/_challenge_cards.html",
-        {"request": request, "challenges": challenges},
+        {
+            "request": request,
+            "challenges": challenges,
+            **await social_context(db, current_user_id, challenges),
+        },
     )
     response.headers["X-Has-More"] = "true" if has_more else "false"
     return response
@@ -1053,6 +1100,13 @@ async def challenge_detail(
         history_summary = history["summary"]
         today_key = history["today_key"]
 
+    # --- likes ------------------------------------------------------------
+    # One read for the pair; the same `(count, liked_by_me)` the JSON route
+    # answers, so the server-rendered heart and a later tap agree.
+    like_count, liked_by_me = await reaction_state(
+        db, current_user_id, ReactionSubject.CHALLENGE, db_challenge.id
+    )
+
     # --- the group this challenge belongs to, if any ---------------------
     # Three answers the page needs and one is not derivable from the others:
     # whether the viewer administers the group (the participants screen),
@@ -1141,6 +1195,14 @@ async def challenge_detail(
             "visibility_options": VISIBILITY_LABELS,
             "lifecycle_options": LIFECYCLE_LABELS,
             "participant_count": participant_count,
+            "like_count": like_count,
+            # Everything said under this challenge, replies included -- the
+            # count on the row that opens the conversation. Read live off
+            # `Comments`, like every other count in this app.
+            "comment_count": await count_for(
+                db, CommentSubject.CHALLENGE, challenge_id
+            ),
+            "liked_by_me": liked_by_me,
             "total_completions": total_completions,
             "total_amount": total_amount,
             "progress_pct": progress_pct,
@@ -1376,6 +1438,69 @@ async def challenge_leaderboard_fragment(
     response = templates.TemplateResponse(
         "challenge/_leaderboard_rows.html",
         {"request": request, "rows": rows, **_leaderboard_context(sort)},
+    )
+    response.headers["X-Has-More"] = "true" if has_more else "false"
+    return response
+
+
+# ---------------------------------------------------------------------------
+# گفتگو -- one challenge's comments
+# ---------------------------------------------------------------------------
+#
+# There is no comments *page*. The conversation is a modal that comes up from
+# the bottom of whatever screen the reader is already on -- a card in the
+# list, the card in the rail's reader, the challenge's own page -- because
+# reading it is not leaving what you were doing, and a page would lose the
+# reader's place in a list they scrolled to get to.
+#
+# What the server owns is unchanged: this route serves the *same* threads
+# fragment `createInfiniteScroller()` has always asked for, and the modal is
+# its first page as well as its later ones. So the list pages exactly as it
+# did, and nothing here knows a modal exists.
+#
+# **Discovery stays open.** Reading comments is gated by nothing but the
+# challenge's own `challenge_visibility_filter` -- the same clause the detail
+# page runs on -- so a signed-out visitor reading a public challenge reads
+# its conversation too. Saying something needs an account, which is the JSON
+# route's `get_current_user_id`, not a second rule here.
+
+
+@router.get("/{challenge_id}/comments/fragment")
+async def challenge_comments_fragment(
+    challenge_id: int,
+    request: Request,
+    current_user_id: int | None = Depends(get_optional_user_id),
+    db: AsyncSession = Depends(get_db),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(
+        default=DEFAULT_COMMENT_PAGE_SIZE, ge=1, le=MAX_COMMENT_PAGE_SIZE
+    ),
+):
+    """The next page of threads.
+
+    `get_optional_user_id` rather than `get_current_user_id` here, unlike
+    every other `/fragment`: this list is readable signed out, so a 401 would
+    bounce a visitor out of a page they are allowed to be on. The 404 the
+    visibility filter raises is the only refusal this route has.
+    """
+    if not await subject_is_visible(
+        db, CommentSubject.CHALLENGE, challenge_id, current_user_id
+    ):
+        raise HTTPException(status_code=404, detail="Challenge not found")
+    threads, has_more = await fetch_thread_page(
+        db,
+        subject=CommentSubject.CHALLENGE,
+        subject_id=challenge_id,
+        offset=offset,
+        limit=limit,
+    )
+    response = templates.TemplateResponse(
+        "challenge/_comment_threads.html",
+        {
+            "request": request,
+            "threads": threads,
+            "current_user_id": current_user_id,
+        },
     )
     response.headers["X-Has-More"] = "true" if has_more else "false"
     return response

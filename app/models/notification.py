@@ -29,6 +29,18 @@ class NotificationKind(str, enum.Enum):
     #: A challenge you are enrolled in was (re)opened -- draft/archived -> active.
     CHALLENGE_ACTIVATED = "challenge_activated"
 
+    # ---- Comments -----------------------------------------------------
+    #: Somebody started a thread under a challenge you own.
+    CHALLENGE_COMMENTED = "challenge_commented"
+    #: Somebody answered a comment of yours.
+    #:
+    #: Its own kind rather than a flag on the one above, for the rule this
+    #: model is built on: the two are different events, they reach different
+    #: people, and a member who wants to hear about answers to their own
+    #: comments without hearing every thread under their challenge needs two
+    #: switches to say so.
+    COMMENT_REPLIED = "comment_replied"
+
     # ---- Groups -------------------------------------------------------
     # Each of these is a place a member could not otherwise find out. A
     # group happens *around* you: somebody else approves you, promotes you,

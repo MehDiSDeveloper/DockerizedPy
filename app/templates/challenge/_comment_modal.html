@@ -1,0 +1,87 @@
+{#- گفتگو — the conversation, as a modal.
+
+    Included once by every screen that shows a comment control (the challenge
+    list, the group's challenge list, challenge-detail). It ships *empty*: the
+    threads, the header and the composer's subject are all filled in by
+    `initCommentModal()` in `static/js/comments.js` when a control is tapped,
+    because one screen carries many challenges and rendering a conversation
+    per card is not a thing a page can afford.
+
+    It is a modal rather than a page for the reason it comes up from the
+    bottom rather than fading in: reading what people said about a challenge
+    is not leaving the list you were scrolling, and a page would take the
+    reader's place with it. Every part of it already exists — the scrim and
+    the slide-up are `createSheet`'s (`.sheet-backdrop`, `sheetSlideUp`), the
+    threads are the same `/fragment` markup `createInfiniteScroller()` has
+    always appended, and the composer is the one this app already had.
+
+    A single instance per page, keyed on nothing: the modal is one at a time
+    by definition, so its ids are page-unique and the JS holds no registry.
+
+    The emoji keyboard's catalogue is *not* loaded with the page — it is 14 KB
+    for a control most readers never open, and this partial now rides along on
+    screens that are not about writing at all. `comments.js` fetches it the
+    first time somebody opens the keyboard. -#}
+<div class="cm-modal" id="cmModal" hidden>
+  <div class="sheet-backdrop" data-cm-close></div>
+  <div class="cm-panel glass" role="dialog" aria-modal="true" aria-labelledby="cmModalTitle">
+
+    {#- A grab handle and a title, the two things that say «this came up and
+        can go back down». The title is the challenge, because the same modal
+        opens over a list where every card could have been the one tapped. -#}
+    <div class="cm-modal-head">
+      <span class="cm-grip" aria-hidden="true"></span>
+      <h3 id="cmModalTitle">گفتگو</h3>
+      <span class="cm-count" id="cmTotal" data-total="0"></span>
+      <button type="button" class="icon-btn" data-cm-close aria-label="بستن"><span data-icon="x"></span></button>
+    </div>
+
+    {#- The one scrolling region. `overscroll-behavior:contain` in the
+        stylesheet keeps a flick past the end from scrolling the page behind
+        it -- the same guard the emoji grid needs. -#}
+    <div class="cm-scroll" id="cmScroll">
+      <div class="cm-list" id="cmList"></div>
+      <div class="empty" id="cmEmpty" hidden>
+        <span data-icon="message"></span>
+        <p>هنوز کسی چیزی ننوشته. اولین نفر باش.</p>
+      </div>
+      <div class="scroll-sentinel" id="cmSentinel" aria-hidden="true"></div>
+      <div class="list-loading" id="cmLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
+    </div>
+
+    {% if current_user_id %}
+    <div class="cm-composer" id="cmComposer">
+      {#- Named, and cancellable. A reply that does not say who it answers is
+          a reply somebody sends to the wrong person. -#}
+      <div class="cm-replying" id="cmReplying" hidden>
+        <span data-icon="reply"></span><b id="cmReplyName"></b>
+        <button type="button" class="icon-btn xs" id="cmReplyCancel" aria-label="لغو پاسخ"><span data-icon="x"></span></button>
+      </div>
+
+      <div class="em-picker" id="cmEmoji" hidden>
+        <div class="em-tabs" id="cmEmojiTabs" role="tablist" aria-label="دسته‌بندی اموجی"></div>
+        <span class="em-label" id="cmEmojiLabel"></span>
+        <div class="em-grid" id="cmEmojiGrid"></div>
+        <p class="em-empty" id="cmEmojiEmpty" hidden>هرچه بفرستی اینجا می‌ماند تا زود پیدایش کنی.</p>
+      </div>
+
+      <div class="cm-input-row">
+        {#- Bare on purpose: it opens a keyboard, and a bordered circle beside
+            a text field reads as a second thing to send with. -#}
+        <button type="button" class="em-btn" id="cmEmojiBtn" aria-label="اموجی"
+          aria-expanded="false"><span data-icon="emSmiley"></span></button>
+        <textarea id="cmBody" rows="1" maxlength="1000" placeholder="چیزی بنویس..."
+          aria-label="متن دیدگاه"></textarea>
+        <button type="button" class="btn-primary cm-send" id="cmSend" disabled
+          aria-label="ارسال"><span data-icon="send"></span></button>
+      </div>
+    </div>
+    {% else %}
+    {#- `next` is stamped by comments.js: this partial is on several screens
+        and the way back is wherever the reader opened it from. -#}
+    <div class="cm-composer">
+      <a class="btn-primary" id="cmSignIn" href="/views/auth/">برای نوشتن دیدگاه وارد شو</a>
+    </div>
+    {% endif %}
+  </div>
+</div>

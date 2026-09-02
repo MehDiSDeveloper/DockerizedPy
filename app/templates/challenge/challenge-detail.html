@@ -62,6 +62,29 @@
     {% if challenge.lifecycle_status != 'active' %}<span class="cc-tag warn">{{ lifecycle_label }}</span>{% endif %}
   </div>
   <h1>{{ challenge.title }}</h1>
+  {#- The two things a viewer does *to* the challenge rather than reads about
+      it, in one row under the title: like it, or go and see what people said.
+      Real `<button>`s here, unlike the card's spans -- nothing wraps the hero
+      in an `<a>` -- but the same attributes and the same delegated handlers,
+      so the card and the hero cannot drift. They sit beside the title rather
+      than in `.detail-stats`, because those three are figures about the
+      challenge and these are actions the viewer takes. -#}
+  <div class="hero-social">
+    <button type="button" class="like-btn lg{{ ' is-liked' if liked_by_me else '' }}"
+      aria-pressed="{{ 'true' if liked_by_me else 'false' }}"
+      aria-label="{{ 'برداشتن لایک' if liked_by_me else 'لایک' }}"
+      data-like-subject="challenge" data-like-id="{{ challenge.id }}"
+      data-liked="{{ 'true' if liked_by_me else 'false' }}">
+      <span data-icon="{{ 'heartFill' if liked_by_me else 'heart' }}"></span>
+      <b data-like-count>{{ like_count }}</b>
+    </button>
+    <button type="button" class="cm-btn lg" aria-haspopup="dialog" aria-label="گفتگو"
+      data-comments-id="{{ challenge.id }}" data-comments-title="{{ challenge.title }}"
+      data-comments-count="{{ comment_count }}">
+      <span data-icon="message"></span>
+      <b data-comment-count>{{ comment_count }}</b>
+    </button>
+  </div>
   <div class="detail-stats">
     <div><b id="participantCount">{{ participant_count }}</b><span>شرکت‌کننده</span></div>
     {% if is_enrolled and history_summary %}
@@ -542,6 +565,23 @@
     </div>
   </section>
 
+  {#- The full-width way into the conversation — the same `.lb-entry` the
+      leaderboard row uses, in «درباره» rather than «من» because unlike the
+      leaderboard it is readable by anyone who can read the challenge at all.
+      It is a `<button>` rather than a link now: the conversation is a modal
+      that comes up over this page, so there is no page to navigate to, and a
+      chevron would promise one. -#}
+  <button type="button" class="lb-entry cm-entry glass" aria-haspopup="dialog"
+    data-comments-id="{{ challenge.id }}" data-comments-title="{{ challenge.title }}"
+    data-comments-count="{{ comment_count }}">
+    <span class="lb-entry-icon"><span data-icon="message"></span></span>
+    <div class="lb-entry-text">
+      <b>گفتگو</b>
+      <span>{% if comment_count %}<b data-comment-count>{{ comment_count }}</b> دیدگاه و پاسخ{% else %}هنوز دیدگاهی نیست؛ اولین نفر باش{% endif %}</span>
+    </div>
+    <span class="sr-chev" data-icon="chevronUp"></span>
+  </button>
+
   {#- Only what nothing else on the page already says: the hero carries the
       counts and the non-default visibility/lifecycle tags, and the plan
       panel carries every date the cadence implies. -#}
@@ -598,11 +638,16 @@
       aria-label="انصراف از چالش"><span data-icon="x"></span></button>
   </div>
 </div>
+
+{#- گفتگو. One modal per page, filled in by whichever comment control is
+    tapped -- see `challenge/_comment_modal.html`. -#}
+{% include "challenge/_comment_modal.html" %}
 {% endblock %}
 
 {% block scripts %}
 
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script src="{{ url_for('static', path='/js/comments.js') }}"></script>
 {#- Loaded for window.jalaliCalendar alone -- this page has no date input to
     enhance, but the history calendar needs the same Jalali month arithmetic
     the picker already owns. -#}

@@ -127,6 +127,18 @@ NOTIFICATION_META: dict[str, dict[str, str]] = {
         "icon": "flame",
         "hint": "وقتی چالشی که در آن هستی دوباره فعال می‌شود.",
     },
+    NotificationKind.CHALLENGE_COMMENTED.value: {
+        "title": "دیدگاه تازه",
+        "text": "{actor} زیر چالش «{challenge}» دیدگاهی گذاشت.",
+        "icon": "message",
+        "hint": "وقتی کسی زیر یکی از چالش‌های تو دیدگاه می‌گذارد.",
+    },
+    NotificationKind.COMMENT_REPLIED.value: {
+        "title": "پاسخ به دیدگاه تو",
+        "text": "{actor} به دیدگاه تو در چالش «{challenge}» پاسخ داد.",
+        "icon": "reply",
+        "hint": "وقتی کسی به دیدگاه تو پاسخ می‌دهد.",
+    },
     # ---- Groups ---------------------------------------------------------
     # Every one of these is something that happens *to* a member because
     # somebody else acted, on a screen they were not looking at. That is the
