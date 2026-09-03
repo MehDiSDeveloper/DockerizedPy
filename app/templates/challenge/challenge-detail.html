@@ -19,7 +19,7 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="{{ challenge.title }}">
+<nav class="crumbs" aria-label="مسیر پیمایش" data-crumb-trail data-crumb-label="{{ challenge.title }}">
   <span class="crumb current" aria-current="page">{{ challenge.title }}</span>
 </nav>
 {% endblock %}
@@ -41,7 +41,18 @@
     progress and streak, a visitor the challenge's size and deadline. Every
     other figure lives in the panel it belongs to instead of being repeated
     here, in a details grid, and in a section of its own. -#}
-<div class="detail-hero glass" data-cat="{{ challenge.category | category_slug }}">
+{%- set hero_cover = challenge.image_square | media_url -%}
+<div class="detail-hero glass{{ ' has-cover' if hero_cover }}" data-cat="{{ challenge.category | category_slug }}">
+  {#- The challenge's own picture as the hero's ground. It goes *behind* the
+      glass pane (which is `::after`, at z-index:-1) and wears the same
+      `--hero-fade` mask everything else in this card does, so the photo
+      dissolves at the edges exactly like the pane over it rather than
+      arriving as a rectangle stuck on. Its own gradient scrim is what keeps
+      `--text-*` ink legible over whatever was photographed, in both themes,
+      without a second palette. -#}
+  {% if hero_cover %}
+  <span class="hero-cover"><img src="{{ hero_cover }}" alt="" decoding="async"></span>
+  {% endif %}
   <div class="detail-icon"><span data-icon="{{ challenge.category | category_icon }}"></span>
     <span class="cadence-badge" title="{{ cadence_plan.label }}" aria-label="{{ cadence_plan.label }}"
       data-icon="{{ challenge.cadence_kind | cadence_icon }}"></span></div>
@@ -62,36 +73,13 @@
     {% if challenge.lifecycle_status != 'active' %}<span class="cc-tag warn">{{ lifecycle_label }}</span>{% endif %}
   </div>
   <h1>{{ challenge.title }}</h1>
-  {#- The two things a viewer does *to* the challenge rather than reads about
-      it, in one row under the title: like it, or go and see what people said.
-      Real `<button>`s here, unlike the card's spans -- nothing wraps the hero
-      in an `<a>` -- but the same attributes and the same delegated handlers,
-      so the card and the hero cannot drift. They sit beside the title rather
-      than in `.detail-stats`, because those three are figures about the
-      challenge and these are actions the viewer takes. -#}
-  <div class="hero-social">
-    <button type="button" class="like-btn lg{{ ' is-liked' if liked_by_me else '' }}"
-      aria-pressed="{{ 'true' if liked_by_me else 'false' }}"
-      aria-label="{{ 'برداشتن لایک' if liked_by_me else 'لایک' }}"
-      data-like-subject="challenge" data-like-id="{{ challenge.id }}"
-      data-liked="{{ 'true' if liked_by_me else 'false' }}">
-      <span data-icon="{{ 'heartFill' if liked_by_me else 'heart' }}"></span>
-      <b data-like-count>{{ like_count }}</b>
-    </button>
-    <button type="button" class="cm-btn lg" aria-haspopup="dialog" aria-label="گفتگو"
-      data-comments-id="{{ challenge.id }}" data-comments-title="{{ challenge.title }}"
-      data-comments-count="{{ comment_count }}">
-      <span data-icon="message"></span>
-      <b data-comment-count>{{ comment_count }}</b>
-    </button>
-  </div>
   <div class="detail-stats">
     <div><b id="participantCount">{{ participant_count }}</b><span>شرکت‌کننده</span></div>
     {% if is_enrolled and history_summary %}
-    <div><b>{{ history_summary.pct }}٪</b><span>پیشرفت من</span></div>
+    <div><b>{{ history_summary.pct }}٪</b><span>پیشرفت</span></div>
     <div class="gold">
       <b><span data-icon="flame"></span>{{ my_streak or 0 }}</b>
-      <span>رشتهٔ من</span>
+      <span>زنجیره</span>
     </div>
     {% elif challenge.due_date %}
     <div><b>{{ total_completions }}</b><span>ثبت انجام‌شده</span></div>
@@ -101,6 +89,31 @@
     <div><b>{{ total_completions }}</b><span>ثبت انجام‌شده</span></div>
     <div><b>{{ progress_pct }}٪</b><span>پیشرفت جمعی</span></div>
     {% endif %}
+  </div>
+  {#- The two things a viewer does *to* the challenge rather than reads about
+      it: like it, or go and see what people said. They sit *below* the three
+      figures, behind a hairline of their own, because the card reads top to
+      bottom as «what is this» → «how is it going» → «what can I do about
+      it» -- and because a left-hugging row wedged under a centred title was
+      the one thing on this card not sitting on its axis. Real `<button>`s
+      here, unlike the card's spans (nothing wraps the hero in an `<a>`), but
+      the same attributes and the same delegated handlers, so the card and
+      the hero cannot drift. -#}
+  <div class="hero-social">
+    <button type="button" class="like-btn lg{{ ' is-liked' if liked_by_me else '' }}"
+      aria-pressed="{{ 'true' if liked_by_me else 'false' }}"
+      aria-label="{{ 'برداشتن لایک' if liked_by_me else 'لایک' }}"
+      data-like-subject="challenge" data-like-id="{{ challenge.id }}"
+      data-liked="{{ 'true' if liked_by_me else 'false' }}">
+      <span data-icon="{{ 'heartFill' if liked_by_me else 'heart' }}"></span>
+      <b data-like-count>{{ like_count }}</b>
+    </button>
+    <button type="button" class="cm-btn lg" aria-haspopup="dialog" aria-label="نظرها"
+      data-comments-id="{{ challenge.id }}" data-comments-title="{{ challenge.title }}"
+      data-comments-count="{{ comment_count }}">
+      <span data-icon="message"></span>
+      <b data-comment-count>{{ comment_count }}</b>
+    </button>
   </div>
 </div>
 
@@ -114,12 +127,12 @@
   <button type="button" class="dtab" role="tab" id="tab-me" data-panel="me"
     aria-controls="panel-me" aria-selected="true">
     <span data-icon="flame"></span>من
-    {%- if today_key %}<span class="dtab-dot" title="امروز نوبت داری"></span>{% endif %}
+    {%- if today_key %}<span class="dtab-dot" title="امروز وعده داری"></span>{% endif %}
   </button>
   {% endif %}
   <button type="button" class="dtab" role="tab" id="tab-plan" data-panel="plan"
     aria-controls="panel-plan" aria-selected="{{ 'false' if is_enrolled else 'true' }}">
-    <span data-icon="calendar"></span>برنامه
+    <span data-icon="calendar"></span>زمان‌بندی
   </button>
   <button type="button" class="dtab" role="tab" id="tab-about" data-panel="about"
     aria-controls="panel-about" aria-selected="false">
@@ -196,7 +209,7 @@
   {% if my_stats %}
   <section class="detail-section">
     <div class="section-head">
-      <h2>وضعیت من{{ explain("checkin-states") }}</h2>
+      <h2>وضعیت{{ explain("checkin-states") }}</h2>
       <span class="cc-tag">ثبت‌های خودت</span>
     </div>
 
@@ -246,10 +259,10 @@
 
     <div class="mine-grid">
       <div class="mine-tile gold">
-        <b><span data-icon="flame"></span>{{ my_stats.current_streak }}</b><span>رشتهٔ فعلی</span>
+        <b><span data-icon="flame"></span>{{ my_stats.current_streak }}</b><span>زنجیرهٔ فعلی</span>
       </div>
       <div class="mine-tile gold">
-        <b><span data-icon="seal"></span>{{ my_stats.longest_streak }}</b><span>بهترین رشته</span>
+        <b><span data-icon="seal"></span>{{ my_stats.longest_streak }}</b><span>بهترین زنجیره</span>
       </div>
       <div class="mine-tile">
         {#- no spaces around the slash: "0 / 1" splits into two number runs
@@ -260,7 +273,7 @@
       </div>
     </div>
     {% else %}
-    <p class="mine-empty glass">هنوز نوبتی برای این چالش نرسیده.</p>
+    <p class="mine-empty glass">هنوز وعده‌ای برای این چالش نرسیده.</p>
     {% endif %}
 
     {% if participant_count > 1 %}
@@ -289,7 +302,7 @@
         above the timeline's newest row. Deliberately unlabelled -- the
         timeline below is the readable version; this is the pattern. -#}
     <div class="sub-head-row">
-      <h3 class="sub-head">روند {{ history_strip | length }} نوبت اخیر{{ explain("backfill") }}</h3>
+      <h3 class="sub-head">روند {{ history_strip | length }} وعدهٔ اخیر{{ explain("backfill") }}</h3>
       {% if history_calendar %}
       {#- The strip is the shape of the recent run; the calendar is the whole
           of it, on the dates it actually happened. Beside the heading rather
@@ -301,7 +314,7 @@
       {% endif %}
     </div>
     <div class="occ-strip" role="img"
-      aria-label="روند {{ history_strip | length }} نوبت اخیر، {{ history_summary.completed }} نوبت تکمیل‌شده از {{ history_summary.total }}">
+      aria-label="روند {{ history_strip | length }} وعدهٔ اخیر، {{ history_summary.completed }} وعدهٔ تکمیل‌شده از {{ history_summary.total }}">
       {% for c in history_strip %}
       <span class="occ {{ c.state }}" data-jalali="{{ c.date.isoformat() }}"
         data-jalali-format="weekday-day-month" data-jalali-attr="title"
@@ -354,7 +367,7 @@
       is not a day and has no cell to live in, so it keeps its own rows. -#}
   {% if cadence_kind == 'recurring_quota' %}
   <section class="detail-section">
-    <h2>تاریخچهٔ من{{ explain("backfill") }}</h2>
+    <h2>تاریخچه{{ explain("backfill") }}</h2>
     <div class="quota-history" id="quotaHistory">
       {% for row in quota_rows %}
       <div class="quota-row{{ ' current' if row.is_current else '' }}">
@@ -365,14 +378,14 @@
           <span class="quota-row-count">{{ row.done }} از {{ row.target }}</span>
         </div>
         <div class="quota-pips" role="img"
-          aria-label="{{ row.done }} از {{ row.target }} نوبت انجام شده">
+          aria-label="{{ row.done }} از {{ row.target }} وعده انجام شده">
           {% for i in range(row.target) %}
           <span class="quota-pip{{ ' done' if i < row.done else '' }}"></span>
           {% endfor %}
         </div>
         {% if row.writable_key %}
         <button type="button" class="tl-action solid quota-submit" data-key="{{ row.writable_key }}">
-          ثبت نوبت جدید
+          ثبت وعدهٔ جدید
         </button>
         {% endif %}
       </div>
@@ -383,16 +396,16 @@
 
   {% if my_stats %}
   <section class="detail-section">
-    <h3 class="sub-head">جزئیات عضویت من</h3>
+    <h3 class="sub-head">جزئیات عضویت</h3>
     <dl class="fact-list boxed glass">
       <div class="fact">
-        <dt>شروع من</dt>
+        <dt>تاریخ شروع</dt>
         <dd><span data-jalali="{{ my_stats.start_date.isoformat() }}"
             data-jalali-format="day-month-year">{{ my_stats.start_date.isoformat() }}</span></dd>
       </div>
       {% if my_stats.last_checkin_at %}
       <div class="fact">
-        <dt>آخرین ثبت من</dt>
+        <dt>آخرین ثبت</dt>
         <dd><span data-jalali="{{ my_stats.last_checkin_at.isoformat() }}" data-jalali-format="datetime"
             data-jalali-tz="{{ my_stats.timezone }}">{{ my_stats.last_checkin_at.isoformat() }}</span></dd>
       </div>
@@ -404,7 +417,7 @@
       </div>
       {% endif %}
       <div class="fact">
-        <dt>منطقهٔ زمانی من</dt>
+        <dt>منطقهٔ زمانی</dt>
         <dd dir="ltr">{{ my_stats.timezone }}</dd>
       </div>
     </dl>
@@ -423,7 +436,7 @@
   {% if is_enrolled %}hidden{% endif %}>
   <section class="detail-section">
     <div class="section-head">
-      <h2>برنامهٔ چالش{{ explain("cadence-plan") }}</h2>
+      <h2>زمان‌بندی چالش{{ explain("cadence-plan") }}</h2>
       {% if cadence_plan.kind != 'once' %}
       <span class="cc-tag" title="{{ cadence_plan.timezone }}">{{ cadence_plan.timezone }}</span>
       {% endif %}
@@ -531,7 +544,6 @@
   <section class="detail-section">
     <div class="section-head">
       <h2>پیشرفت جمعی{{ explain("collective-progress") }}</h2>
-      <span class="cc-tag">خوداظهاری</span>
     </div>
     <div class="plan-card glass">
       <div class="collective-head">
@@ -565,23 +577,6 @@
     </div>
   </section>
 
-  {#- The full-width way into the conversation — the same `.lb-entry` the
-      leaderboard row uses, in «درباره» rather than «من» because unlike the
-      leaderboard it is readable by anyone who can read the challenge at all.
-      It is a `<button>` rather than a link now: the conversation is a modal
-      that comes up over this page, so there is no page to navigate to, and a
-      chevron would promise one. -#}
-  <button type="button" class="lb-entry cm-entry glass" aria-haspopup="dialog"
-    data-comments-id="{{ challenge.id }}" data-comments-title="{{ challenge.title }}"
-    data-comments-count="{{ comment_count }}">
-    <span class="lb-entry-icon"><span data-icon="message"></span></span>
-    <div class="lb-entry-text">
-      <b>گفتگو</b>
-      <span>{% if comment_count %}<b data-comment-count>{{ comment_count }}</b> دیدگاه و پاسخ{% else %}هنوز دیدگاهی نیست؛ اولین نفر باش{% endif %}</span>
-    </div>
-    <span class="sr-chev" data-icon="chevronUp"></span>
-  </button>
-
   {#- Only what nothing else on the page already says: the hero carries the
       counts and the non-default visibility/lifecycle tags, and the plan
       panel carries every date the cadence implies. -#}
@@ -603,7 +598,7 @@
       </div>
       <div class="meta-item">
         <span data-icon="eye"></span>
-        <div><b>{{ visibility_label }}</b><span>دسترسی دیدن</span></div>
+        <div><b>{{ visibility_label }}</b><span>چه کسی می‌بیند</span></div>
       </div>
       {#- Stated on the page rather than only in the join sheet: someone
           weighing whether to join has to be able to read the deal before
@@ -625,6 +620,28 @@
       {% endif %}
     </div>
   </section>
+
+  {#- The way into the conversation, at the foot of «درباره» -- after
+      everything the panel has to say, because it is the one *action* on a
+      panel of description and an action belongs at the end of what it
+      follows, not wedged between two facts. Inside a `.detail-section` like
+      every other block here, so it keeps the page's gutters instead of
+      running edge to edge. Same `.lb-entry` shape as the leaderboard row,
+      but a `<button>`: the conversation is a modal that comes up over this
+      page, so there is no page to navigate to and a chevron pointing away
+      would promise one. -#}
+  <section class="detail-section">
+    <button type="button" class="lb-entry cm-entry glass" aria-haspopup="dialog"
+      data-comments-id="{{ challenge.id }}" data-comments-title="{{ challenge.title }}"
+      data-comments-count="{{ comment_count }}">
+      <span class="lb-entry-icon"><span data-icon="message"></span></span>
+      <div class="lb-entry-text">
+        <b>نظرها</b>
+        <span>{% if comment_count %}<b data-comment-count>{{ comment_count }}</b> نظر و پاسخ{% else %}هنوز نظری نیست؛ اولین نفر باش{% endif %}</span>
+      </div>
+      <span class="sr-chev" data-icon="chevronUp"></span>
+    </button>
+  </section>
 </div>
 
 {#- One panel, two controls: the primary button is whatever the visitor's
@@ -635,7 +652,7 @@
   <div class="cta-row">
     <button class="btn-primary" id="detailCta"></button>
     <button type="button" class="cta-side" id="leaveBtn" hidden
-      aria-label="انصراف از چالش"><span data-icon="x"></span></button>
+      aria-label="ترک چالش"><span data-icon="x"></span></button>
   </div>
 </div>
 
@@ -648,6 +665,9 @@
 
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
 <script src="{{ url_for('static', path='/js/comments.js') }}"></script>
+{% if is_owner %}{#- the manage sheet's two picture fields; Cropper.js itself
+    is fetched only on the first pick -#}
+<script src="{{ url_for('static', path='/js/imagepick.js') }}"></script>{% endif %}
 {#- Loaded for window.jalaliCalendar alone -- this page has no date input to
     enhance, but the history calendar needs the same Jalali month arithmetic
     the picker already owns. -#}
@@ -752,9 +772,9 @@
     cta.disabled = enrolled && !checkingIn && !canQuit;
     leaveBtn.hidden = !checkingIn || !canQuit;
     if (!enrolled) cta.innerHTML = `${icons.check} پیوستن به چالش`;
-    else if (checkingIn) cta.innerHTML = `${icons.check} ثبت نوبت امروز`;
+    else if (checkingIn) cta.innerHTML = `${icons.check} ثبت وعدهٔ امروز`;
     else if (!canQuit) cta.innerHTML = `${icons.lock} چالش اجباری گروه`;
-    else cta.innerHTML = `${icons.x} انصراف از چالش`;
+    else cta.innerHTML = `${icons.x} ترک چالش`;
   }
 
   // Whether joining this challenge is a question or a tap. The server
@@ -796,7 +816,7 @@
     if (busy) return;
     let anonymous = false;
     if (enrolled) {
-      if (!confirm("از این چالش انصراف می‌دی؟")) return;
+      if (!confirm("این چالش را ترک می‌کنی؟")) return;
     } else if (identityAsksJoiner) {
       anonymous = await askJoinIdentity();
       if (anonymous === null) return; // sheet dismissed -- not a join
@@ -841,7 +861,7 @@
   cta.addEventListener("click", () => {
     if (busy) return;
     if (enrolled && todayKey) {
-      openCheckinSheet(todayKey, "ثبت نوبت امروز");
+      openCheckinSheet(todayKey, "ثبت وعدهٔ امروز");
       return;
     }
     toggleEnrollment();
@@ -1039,7 +1059,7 @@
     const stateLabels = {
       completed: "تکمیل‌شده", skipped: "رد شده",
       missed: "ازدست‌رفته", pending: "در انتظار",
-      upcoming: "نوبت پیش رو",
+      upcoming: "وعدهٔ پیش رو",
     };
 
     const grid = calRoot.querySelector(".cal-grid");
@@ -1092,7 +1112,7 @@
           heading + dayMarks.join("") +
           (dayMarks.length
             ? ""
-            : `<p class="cal-day-empty">این چالش در این روز نوبتی نداشت.</p>`);
+            : `<p class="cal-day-empty">این چالش در این روز وعده‌ای نداشت.</p>`);
         window.renderIcons(dayPane);
         window.renderDates(dayPane);
         return;
@@ -1101,7 +1121,7 @@
       const rows = entries.map((e, i) => {
         const bits = [stateLabels[e.state] || e.state];
         if (e.amount) bits.push(`${e.amount} ${goalUnit || ""}`.trim());
-        if (entries.length > 1) bits.unshift(`نوبت ${i + 1}`);
+        if (entries.length > 1) bits.unshift(`وعدهٔ ${i + 1}`);
         const note = e.note
           ? `<div class="cal-note">${e.note.replace(/[<&]/g, (c) =>
               c === "<" ? "&lt;" : "&amp;")}</div>`
@@ -1260,6 +1280,8 @@
       "visibility": challenge.visibility,
       "identity_mode": challenge.identity_mode,
       "lifecycle_status": challenge.lifecycle_status,
+      "image_square": challenge.image_square or "",
+      "image_tall": challenge.image_tall or "",
     } | tojson }};
     const visibilityOptions = {{ visibility_options | tojson }};
     const lifecycleOptions = {{ lifecycle_options | tojson }};
@@ -1307,7 +1329,20 @@
             value: challengeData.description },
           { name: "rules", label: "قوانین", type: "textarea", rows: 3,
             value: challengeData.rules },
-          { name: "visibility", label: "دسترسی دیدن", type: "select",
+          // The two pictures, edited where the rest of the challenge's
+          // authorship is. Two fields rather than one because the surfaces
+          // are two shapes and no single crop is honest in both -- the hint
+          // on each says where it lands, since a picker whose frame you
+          // cannot place is a crop made blind.
+          { name: "image_square", label: "تصویر کارت", type: "image",
+            frame: "challenge_square", value: challengeData.image_square || "",
+            url: {{ (challenge.image_square | media_url) | tojson }},
+            hint: "بالای صفحهٔ چالش و روی کارت‌های فهرست." },
+          { name: "image_tall", label: "تصویر سربرگ", type: "image",
+            frame: "challenge_tall", value: challengeData.image_tall || "",
+            url: {{ (challenge.image_tall | media_url) | tojson }},
+            hint: "نمای کارتی وقتی تمام‌صفحه باز می‌شود." },
+          { name: "visibility", label: "چه کسی می‌بیند", type: "select",
             options: asOptions(visibilityOptions), value: challengeData.visibility },
           ...(canEditIdentity ? [{
             name: "identity_mode", label: "هویت اعضا", type: "select",
@@ -1326,6 +1361,9 @@
             rules: values.rules || null,
             visibility: values.visibility,
             lifecycle_status: values.lifecycle_status,
+            // "" is the sheet's "no picture"; the column's is NULL.
+            image_square: values.image_square || null,
+            image_tall: values.image_tall || null,
           };
           if (canEditIdentity) payload.identity_mode = values.identity_mode;
           const { ok, status, data } = await apiFetch(`/challenges/${challengeId}`, {

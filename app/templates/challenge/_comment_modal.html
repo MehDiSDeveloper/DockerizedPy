@@ -31,7 +31,7 @@
         opens over a list where every card could have been the one tapped. -#}
     <div class="cm-modal-head">
       <span class="cm-grip" aria-hidden="true"></span>
-      <h3 id="cmModalTitle">گفتگو</h3>
+      <h3 id="cmModalTitle">نظرها</h3>
       <span class="cm-count" id="cmTotal" data-total="0"></span>
       <button type="button" class="icon-btn" data-cm-close aria-label="بستن"><span data-icon="x"></span></button>
     </div>
@@ -46,7 +46,7 @@
         <p>هنوز کسی چیزی ننوشته. اولین نفر باش.</p>
       </div>
       <div class="scroll-sentinel" id="cmSentinel" aria-hidden="true"></div>
-      <div class="list-loading" id="cmLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
+      <div class="list-loading" id="cmLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
     </div>
 
     {% if current_user_id %}
@@ -71,7 +71,7 @@
         <button type="button" class="em-btn" id="cmEmojiBtn" aria-label="اموجی"
           aria-expanded="false"><span data-icon="emSmiley"></span></button>
         <textarea id="cmBody" rows="1" maxlength="1000" placeholder="چیزی بنویس..."
-          aria-label="متن دیدگاه"></textarea>
+          aria-label="متن نظر"></textarea>
         <button type="button" class="btn-primary cm-send" id="cmSend" disabled
           aria-label="ارسال"><span data-icon="send"></span></button>
       </div>
@@ -80,7 +80,7 @@
     {#- `next` is stamped by comments.js: this partial is on several screens
         and the way back is wherever the reader opened it from. -#}
     <div class="cm-composer">
-      <a class="btn-primary" id="cmSignIn" href="/views/auth/">برای نوشتن دیدگاه وارد شو</a>
+      <a class="btn-primary" id="cmSignIn" href="/views/auth/">برای نوشتن نظر وارد شو</a>
     </div>
     {% endif %}
   </div>

@@ -17,6 +17,13 @@
   </div>
   <div class="gc-body">
     <h3>{{ g.name }}</h3>
+    {#- Where it sits, when it sits somewhere. The list of a member's groups
+        is flat, so a subgroup that did not name its parent would read as a
+        second organisation with a narrow name. Absent for a top-level group,
+        which is the normal case. -#}
+    {% if parent_names is defined and parent_names.get(g.id) %}
+    <p class="gc-parent"><span data-icon="nest"></span><span>{{ parent_names[g.id] }}</span></p>
+    {% endif %}
     <p>
       <span data-icon="{{ group_kind_icons.get(g.kind, 'catOther') }}"></span>
       <span>{{ group_kind_labels.get(g.kind, 'گروه') }}</span>

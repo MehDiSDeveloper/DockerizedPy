@@ -30,7 +30,7 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="تنظیمات">
+<nav class="crumbs" aria-label="مسیر پیمایش" data-crumb-trail data-crumb-label="تنظیمات">
   <span class="crumb current" aria-current="page">تنظیمات</span>
 </nav>
 {% endblock %}
@@ -50,7 +50,7 @@
     <div class="setting-row glass" data-theme-choice>
       <div class="sr-head">
         <div class="sr-text">
-          <span class="sr-label">پوستهٔ برنامه</span>
+          <span class="sr-label">ظاهر</span>
           <span class="sr-hint">رنگ‌بندی روشن یا تاریک برنامه روی همین دستگاه.</span>
         </div>
         {#- No `.sr-value` here: the segmented control below already spells the
@@ -66,7 +66,7 @@
           The buttons carry no `active` class from the server -- the choice
           lives in localStorage, which only the client can read -- so
           initThemeControls() in app.js paints the current one on load. -#}
-      <div class="seg" role="radiogroup" aria-label="پوستهٔ برنامه">
+      <div class="seg" role="radiogroup" aria-label="ظاهر">
         <button type="button" class="seg-btn" data-theme-option="system" role="radio"
           aria-checked="false">پیش‌فرض دستگاه</button>
         <button type="button" class="seg-btn" data-theme-option="light" role="radio"
@@ -112,6 +112,23 @@
         <div class="sr-text">
           <span class="sr-label">گروه‌های من</span>
           <span class="sr-hint">شرکت، مدرسه یا تیمی که در آن چالش می‌گذارید.</span>
+        </div>
+        <span class="sr-chev" data-icon="chevronLeft"></span>
+      </div>
+    </a>
+  </section>
+
+  {#- «مسیرها» -- one row, pointing at the member's courses. Here for the
+      same reason the «گروه‌ها» row above it is: settings is where somebody
+      looks for the parts of the app that are not one of the four nav
+      destinations, and a second entrance costs one line. -#}
+  <section class="setting-group">
+    <h2>مسیرها</h2>
+    <a class="setting-row glass" href="/views/roadmaps/">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">مسیرهای من</span>
+          <span class="sr-hint">چند چالش پشت سر هم، که قدم‌به‌قدم باز می‌شوند.</span>
         </div>
         <span class="sr-chev" data-icon="chevronLeft"></span>
       </div>
@@ -172,7 +189,7 @@
       a settings screen when they want the version or the terms, so it is
       here rather than back on the profile. -#}
   <section class="setting-group">
-    <h2>دربارهٔ برنامه</h2>
+    <h2>دربارهٔ اپ</h2>
     {#- Hidden until built -- a control that only toasts is worse than no control.
     <div class="setting-row glass" data-coming-soon="بخش دربارهٔ چالش به‌زودی اضافه می‌شود"
       role="button" tabindex="0">

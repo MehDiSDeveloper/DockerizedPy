@@ -7,7 +7,7 @@
   'once': 'یک‌باره',
   'schedule': 'زمان‌بندی‌شده',
   'recurring_days': 'روزهای مشخص',
-  'recurring_quota': 'سهمیه‌ای',
+  'recurring_quota': 'تکرار مدت‌دار',
 } %}
 {% for c in challenges %}
 {% set cadence_label = cadence_labels.get(c.cadence_kind, 'نامشخص') %}
@@ -27,10 +27,21 @@
   {#- THE COVER. This element is the one place a challenge's picture will
       land: there is no image field yet, so it paints the category's own hue,
       glyph and the app's tile texture -- a placeholder that belongs to the
-      challenge rather than a grey box. When the field arrives, an `{% if
-      c.image_url %}<img …>{% endif %}` inside this div is the whole change,
-      and every challenge without a picture keeps exactly what it has now. -#}
-  <div class="explore-thumb">
+      challenge rather than a grey box -- and it is still exactly that for
+      every challenge that has no picture. -#}
+  {%- set cover_square = c.image_square | media_url -%}
+  {%- set cover_tall = c.image_tall | media_url -%}
+  <div class="explore-thumb{{ ' has-cover' if cover_square or cover_tall }}{{ ' has-square' if cover_square }}{{ ' has-tall' if cover_tall }}">
+    {#- The picture, when there is one. Two, because the surfaces have two
+        shapes: the square is the 52px thumb and the rail's 4:3 cover (which
+        crops a band out of it), the tall one is the full-screen reader,
+        which is the shape of the phone it fills. Both are `loading="lazy"`
+        and the one that is not on screen has no layout box, so a list never
+        downloads the full-screen picture it is not going to draw. -#}
+    {% if cover_square %}<img class="et-cover et-sq" src="{{ cover_square }}" alt=""
+      loading="lazy" decoding="async">{% endif %}
+    {% if cover_tall %}<img class="et-cover et-tall" src="{{ cover_tall }}" alt=""
+      loading="lazy" decoding="async">{% endif %}
     <span data-icon="{{ c.category | category_icon }}"></span>
     <span class="cadence-badge" title="{{ cadence_label }}" aria-label="{{ cadence_label }}"
       data-icon="{{ c.cadence_kind | cadence_icon }}"></span>
@@ -69,7 +80,7 @@
             carries its own subject, count and title, so the modal can draw
             its header before a request goes out. -#}
         <span class="cm-btn" role="button" tabindex="0" aria-haspopup="dialog"
-          aria-label="گفتگو" data-comments-id="{{ c.id }}"
+          aria-label="نظرها" data-comments-id="{{ c.id }}"
           data-comments-title="{{ c.title }}"
           data-comments-count="{{ comment_counts.get(c.id, 0) }}">
           <span data-icon="message"></span>
@@ -118,33 +129,30 @@
       <p class="rail-tags">
         <span class="cc-tag"><span data-icon="{{ c.cadence_kind | cadence_icon }}"></span>{{ cadence_label }}</span>
       </p>
-      {#- Short and full ship together, and «بیشتر» swaps which one is
-          displayed. A CSS line-clamp cannot do this: a two-line description
-          is already whole, so the toggle moved nothing and read as broken.
-          The cut is by *characters* (90, about two lines) so the collapsed
-          shape is the same on every card whatever the panel's width, and the
-          control only exists when there is something behind it. -#}
+      {#- Short and full ship together and a tap on the text itself swaps
+          which one is displayed -- the description *is* the control, so
+          there is no «بیشتر» to find. A CSS line-clamp cannot do this: a
+          two-line description is already whole, so the toggle would move
+          nothing. The cut is by *characters* (90, about two lines) so the
+          collapsed shape is the same on every card whatever the panel's
+          width, and the text is only tappable when there is something
+          behind it. -#}
       {% if c.description %}
       {% set desc = c.description | trim %}
       {% if desc | length > 90 %}
-      <p class="rail-desc">
+      {#- role="button" for the same reason the heart is one: this lives
+          inside the card's `<a>`. -#}
+      <p class="rail-desc" role="button" tabindex="0" aria-expanded="false" data-rail-toggle>
         <span class="rd-short">{{ desc[:90] | trim }}…</span>
         {#- The full text scrolls inside itself when it is long; the panel
             behind it must not scroll with it, hence overscroll containment
             in the stylesheet. -#}
         <span class="rd-full">{{ desc }}</span>
       </p>
-      {#- role="button" for the same reason the heart is one: this lives
-          inside the card's `<a>`. -#}
-      <span class="rail-toggle" role="button" tabindex="0" aria-expanded="false" data-rail-toggle>بیشتر</span>
       {% else %}
       <p class="rail-desc is-brief">{{ desc }}</p>
       {% endif %}
       {% endif %}
-      {#- The explicit way out to the challenge's own page. It needs no
-          handler at all: the card *is* that link, so the rail's click
-          handler simply declines to preventDefault on this one. -#}
-      <span class="rail-cta" data-rail-open>صفحه چالش<span data-icon="chevronLeft"></span></span>
     </div>
   </div>
 </a>

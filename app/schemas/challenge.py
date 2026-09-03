@@ -1,8 +1,9 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.media import MEDIA_KEY_MAX_LENGTH, is_media_key
 from app.models.challenge import (
     ChallengeCategory,
     GroupAudience,
@@ -31,6 +32,26 @@ class ChallengeBase(BaseModel):
     lifecycle_status: LifecycleStatus = Field(default=LifecycleStatus.ACTIVE)
     goal_amount: Decimal | None = Field(default=None)
     goal_unit: str | None = Field(max_length=32, default=None)
+    # The two pictures, each a media key from `POST /media/` -- never a path,
+    # and never the bytes themselves: storing a file and choosing what a row
+    # points at are two acts, and keeping them apart is what lets the create
+    # wizard (which has no row yet) and the edit sheet use one picker.
+    image_square: str | None = Field(max_length=MEDIA_KEY_MAX_LENGTH, default=None)
+    image_tall: str | None = Field(max_length=MEDIA_KEY_MAX_LENGTH, default=None)
+
+    @field_validator("image_square", "image_tall")
+    @classmethod
+    def _known_media(cls, value: str | None) -> str | None:
+        """The one gate a picture id passes before it reaches the column.
+
+        Same shape as `schemas/user.py`'s `_known_avatar`: `None` is a real
+        value (no picture), and anything else has to be a key this app's own
+        `app/media.py` minted -- which is what keeps the column from ever
+        holding something that could be read as a path.
+        """
+        if value is not None and not is_media_key(value):
+            raise ValueError("Unknown image")
+        return value
 
 
 class ChallengeCreate(ChallengeBase):
@@ -83,3 +104,24 @@ class ChallengeUpdate(BaseModel):
     cadence: CadenceUnion | None = Field(default=None)
     goal_amount: Decimal | None = Field(default=None)
     goal_unit: str | None = Field(max_length=32, default=None)
+    # The two pictures, each a media key from `POST /media/` -- never a path,
+    # and never the bytes themselves: storing a file and choosing what a row
+    # points at are two acts, and keeping them apart is what lets the create
+    # wizard (which has no row yet) and the edit sheet use one picker.
+    image_square: str | None = Field(max_length=MEDIA_KEY_MAX_LENGTH, default=None)
+    image_tall: str | None = Field(max_length=MEDIA_KEY_MAX_LENGTH, default=None)
+
+    @field_validator("image_square", "image_tall")
+    @classmethod
+    def _known_media(cls, value: str | None) -> str | None:
+        """The one gate a picture id passes before it reaches the column.
+
+        Same shape as `schemas/user.py`'s `_known_avatar`: `None` is a real
+        value (no picture), and anything else has to be a key this app's own
+        `app/media.py` minted -- which is what keeps the column from ever
+        holding something that could be read as a path.
+        """
+        if value is not None and not is_media_key(value):
+            raise ValueError("Unknown image")
+        return value
+

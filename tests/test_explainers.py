@@ -47,6 +47,7 @@ TEMPLATE_MODULES = [
     "app.routers.views.group",
     "app.routers.views.home",
     "app.routers.views.notification",
+    "app.routers.views.roadmap",
     "app.routers.views.settings",
     "app.routers.views.today",
     "app.routers.views.user",

@@ -1,0 +1,35 @@
+{#- «قدم فعلی تو» -- the roadmap's one place on a screen the member opens
+    every day.
+
+    A course that is never seen at the daily level dies: «امروز» shows
+    *occurrences*, and an occurrence says nothing about which step of which
+    course it belongs to, so without this row a roadmap would be a thing you
+    have to remember to go and look at. It renders only when something is
+    actually open, so a member with no courses pays nothing for it.
+
+    Each row answers three things in order -- which course, which challenge,
+    and how far along -- and its tap goes to the *challenge*, because that is
+    where the next action is. The course's own name is the small link above
+    it, for whoever wants the whole picture instead. -#}
+{% for card in roadmap_steps %}
+<div class="rms-row glass">
+  <a class="rms-course" href="/views/roadmaps/{{ card.roadmap_id }}">
+    <span data-icon="route"></span>{{ card.roadmap_title }}
+  </a>
+  {% if card.visible %}
+  <a class="rms-title" href="/views/challenges/{{ card.challenge_id }}">
+    {{ card.title }}<span class="rms-chev" data-icon="chevronLeft"></span>
+  </a>
+  {% else %}
+  <p class="rms-title is-hidden"><span data-icon="lock"></span>{{ card.title }}</p>
+  {% endif %}
+  <p class="rms-rule">{{ card.rule_text }}</p>
+  {% if card.progress %}
+  <div class="rs-bar" role="img"
+    aria-label="{{ card.progress.done }} از {{ card.progress.total }}">
+    <span style="width:{{ card.progress.pct }}%"></span>
+  </div>
+  <p class="rs-count">{{ card.progress.done }} از {{ card.progress.total }}</p>
+  {% endif %}
+</div>
+{% endfor %}

@@ -125,7 +125,33 @@ class Group(AuditBase):
     # from leaving a group with nobody who can administer it.
     owner_id = Column(Integer, ForeignKey("Users.id"), nullable=False)
 
+    # **The group this one sits inside, or NULL for a top-level group.**
+    #
+    # One nullable self-reference is the whole of nesting: a company with two
+    # departments and a team inside one of them is three rows carrying a
+    # parent, not a second table of edges. NULL is the normal state and is
+    # what every group predating this carries.
+    #
+    # **Create-only**, like `Challenge.group_id` and for the same reason:
+    # membership reaches upward through this column (`group_ids_for`), so
+    # re-parenting a group retroactively changes who can see everything ever
+    # published in it. Moving a group is therefore not a PATCH -- it is a
+    # decision somebody has to make again, out loud.
+    #
+    # A cycle would make the ancestry walk in `app/groups.py` non-terminating,
+    # and the only defence needed is that the parent must already exist and
+    # can never change: a group cannot become its own ancestor after the fact.
+    parent_id = Column(
+        Integer, ForeignKey("Groups.id"), nullable=True, index=True
+    )
+
     owner = relationship("User", foreign_keys=[owner_id])
+    parent = relationship("Group", remote_side=[id], back_populates="children")
+    # Not cascaded: deleting a group must not silently destroy the groups
+    # underneath it (and, through them, other people's challenges). The
+    # router refuses to delete a group that still has children, exactly as it
+    # refuses one that still has challenges.
+    children = relationship("Group", back_populates="parent")
     memberships = relationship(
         "GroupMembership", back_populates="group", cascade="all, delete-orphan"
     )

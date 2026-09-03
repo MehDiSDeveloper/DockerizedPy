@@ -21,7 +21,7 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="اعضای چالش">
+<nav class="crumbs" aria-label="مسیر پیمایش" data-crumb-trail data-crumb-label="اعضای چالش">
   <span class="crumb current" aria-current="page">اعضای چالش</span>
 </nav>
 {% endblock %}
@@ -67,7 +67,7 @@
       <p id="cmEmptyText">{{ "عضوی با این مشخصات پیدا نشد." if query else "هنوز کسی در این چالش عضو نشده." }}</p>
     </div>
     <div class="scroll-sentinel" id="cmSentinel" aria-hidden="true"></div>
-    <div class="list-loading" id="cmLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
+    <div class="list-loading" id="cmLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
   </section>
 </div>
 {% endblock %}

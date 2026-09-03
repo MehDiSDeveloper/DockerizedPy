@@ -39,7 +39,7 @@ This only works because `challenge_type`, `recurrence_pattern` and `Enrollments.
 
 **Don't run the suite for every small edit.** Run tests when a change touches a rule documented here (occurrences, auth/visibility, cadence keys, roles) or when something plausibly broke — not after a copy tweak, a style change, or a one-line template edit. Prefer the one relevant test file over the whole suite.
 
-Test files are named after what they pin; read the relevant one before changing a rule below. Nearly every invariant documented here has a test: occurrences, jalali, timezone boundaries, check-in idempotency, challenge lifecycle/status, page & object authorization, roles, admin panel/challenges/participants/profile, home dashboard, list ordering, notifications, anonymity, leaderboard, OTP auth, explainers, tour anchors, and the group subsystem (groups, invites, challenges, visibility, privacy, notifications, requests, leaving).
+Test files are named after what they pin; read the relevant one before changing a rule below. Nearly every invariant documented here has a test: occurrences, jalali, timezone boundaries, check-in idempotency, challenge lifecycle/status, page & object authorization, roles, admin panel/challenges/participants/profile, home dashboard, list ordering, notifications, anonymity, leaderboard, OTP auth, explainers, tour anchors, the group subsystem (groups, invites, challenges, visibility, privacy, notifications, requests, leaving), and the roadmap subsystem (step gating, all six completion rules, the two refusals, the archive skip, the structural lock, both scope filters, invite capacity under concurrency).
 
 ## Configuration
 
@@ -57,7 +57,7 @@ Test files are named after what they pin; read the relevant one before changing 
 
 ### Two router layers over one model set
 
-`app/routers/` is the JSON API (`/challenges`, `/users`, `/enrollments`, `/groups`, `/invites`, `/auth`, `/checkins`, `/today`). `app/routers/views/` is the SSR layer (`/views/...`). Both mounted in `app/main.py`, both hitting the same models. `/` redirects to `/views/today/`.
+`app/routers/` is the JSON API (`/challenges`, `/users`, `/enrollments`, `/groups`, `/invites`, `/roadmaps`, `/roadmap-invites`, `/auth`, `/checkins`, `/today`). `app/routers/views/` is the SSR layer (`/views/...`). Both mounted in `app/main.py`, both hitting the same models. `/` redirects to `/views/today/`.
 
 They are **not** independent: query/visibility logic belongs in the API router and is imported by the view (`views/challenge.py` imports `challenge_visibility_filter`, `fetch_challenge_page` and the page-size constants from `routers/challenge.py`). Only presentation lives in `views/`.
 
@@ -90,7 +90,7 @@ Hand-rolled — no passlib, no JWT, no session store:
 
 Routers derive the acting user from the session, **never** from a path/query/body param. Mutating a challenge or user requires ownership (403 otherwise). Enrollment routes are keyed on `challenge_id` + the session user; there is no client-supplied `user_id` in `routers/enrollment.py`.
 
-**Object-level access is a composed SQL predicate, not a post-load `if`.** There are three such filters and no permissions framework: `challenge_visibility_filter` (`routers/challenge.py`) — visible if public, owned, or enrolled; `profile_visibility_filter` (`routers/user.py`); `group_visibility_filter` (`app/routers/group`). Each is `.where()`-ed in so a miss falls out as "no such row", and each is shared by both front doors. Loosening a rule means editing one function.
+**Object-level access is a composed SQL predicate, not a post-load `if`.** There are four such filters and no permissions framework: `challenge_visibility_filter` (`routers/challenge.py`) — visible if public, owned, enrolled, or a step of a roadmap you are walking; `profile_visibility_filter` (`routers/user.py`); `group_visibility_filter` (`app/groups.py`); `roadmap_visibility_filter` (`app/roadmaps.py`). Each is `.where()`-ed in so a miss falls out as "no such row", and each is shared by both front doors. Loosening a rule means editing one function.
 
 **Profiles are own-only for members, reachable by an operator.** `profile_visibility_filter(viewer)` answers `true()` for a holder of `Perm.USER_VIEW_ANY` and `User.id == viewer.id` otherwise. Both `GET /views/users/{id}` and `GET /users/{id}` compose it. Nothing links a member to another profile and ids are sequential, so a miss is a **404** on both doors. The admin read still answers `UserPublicRead`; the wider `UserAdminRead` is confined to the `Perm.USER_LIST` roster route.
 
@@ -106,17 +106,18 @@ Pages fail *authentication* with a 303 and *authorization* with 404/403; `get_pa
 
 **`GET /users/` is the admin panel's roster** — the one read that ignores `profile_visibility_filter`, gated on `Perm.USER_LIST`, answering `UserAdminRead`. Paginated and filterable (`q`, `role`, `offset`, `limit`) through `fetch_member_page` / `apply_member_filters`, so the panel and the API cannot disagree about what a search matches.
 
-### Roles — three axes, one `can()`
+### Roles — four axes, one `can()`
 
 `app/permissions.py` is the only place a role becomes an answer. Callers ask for a permission, never a role: `can(user, Perm.CHALLENGE_DELETE, challenge=c)`. Policy is the grant maps there, so a new role is a row in a map instead of a sweep for `role == "admin"`. `can()` runs *after* a row is in hand — it does not replace the visibility filters, or the 404-vs-403 split collapses.
 
-Three role columns, **deliberately never merged**:
+Four role sources, **deliberately never merged**:
 
 - **`Users.role`** (`member` | `admin`) — app-wide, "may you run the place". Default `member`.
 - **`Enrollments.role`** (`participant` | `owner`) — one challenge. The creator's auto-enrolment is `owner`.
 - **`GroupMembership.role`** (`member` | `admin` | `owner`) — one group.
+- **`Roadmap.owner_id`** (`owner` | nothing) — one course. The narrowest axis: one role and no membership table of roles to reconcile, and an axis anyway, because an `owner_id ==` comparison spread across a router is precisely what `can()` replaces.
 
-Merging them makes an admin the silent owner of everything. **No app-wide role grants a per-challenge or a `GROUP_*` permission, and no group role grants a `CHALLENGE_*` one**; `tests/test_user_roles.py` and `tests/test_groups.py` parametrize that over both global roles.
+Merging them makes an admin the silent owner of everything. **No app-wide role grants a per-challenge, `GROUP_*` or `ROADMAP_*` permission, and no group role grants a `CHALLENGE_*` one**; `tests/test_user_roles.py` and `tests/test_groups.py` parametrize that over both global roles.
 
 `Challenge.owner_id` / `Group.owner_id` stay the record of ownership; `challenge_role(...)` and `group_role(...)` resolve the column against the membership row — an owner may unenrol from their own challenge, deleting the only row carrying `owner`. The membership handed in is checked to belong to the asker.
 
@@ -415,7 +416,115 @@ The two exits are `.setting-row`s at the foot of the «درباره» panel, eac
 
 **Colour means nothing new**: a group's identity is its emblem and a neutral `.group-chip`. Two things are coloured and both are states — an invite link that still works takes the accent, and «اجباری» takes `--gold`.
 
-**Where it grows.** One challenge in several groups is a join table plus an edit to `group_scope_filter` and `group_ids_for` (every read reaches a group challenge through those two). Sub-teams are a `parent_id` plus a recursive `group_ids_for`. Auto-join by email domain is a column on `Group` and one `apply_standing_audience` call at signup. None is implemented and none needs this design rewritten.
+**Groups nest, and the whole of it is `group_ids_for`.** `Group.parent_id` is a nullable self-FK (NULL = a top-level group, which is every group predating this) and it is **create-only**, for the reason `Challenge.group_id` is: membership reaches upward through that column, so re-parenting would retroactively change who has been able to see everything ever published there. `group_tree()` is one *parameterless* recursive CTE — built once with `lru_cache`, because two differently-seeded CTEs of one name in a statement is a compile error and two names would be the same walk written twice — and reading it by `id` gives a group's ancestry while reading it by `ancestor_id` gives its subtree. `MAX_GROUP_DEPTH` (4) is enforced at creation with a 409; a cycle is impossible because the parent must already exist and can never change.
+
+Two rules come out of that, and they are asymmetric on purpose:
+
+- **Membership reaches upward.** Somebody in a department is in the company: they see its challenges, and `group_member_ids` (the subtree) is what «همه اعضا» means, so a company-wide challenge reaches the departments through both `seed_group_participants` and `apply_standing_audience` — which now applies the standing challenges of the joined group **and every group it sits inside**.
+- **Authority reaches downward, and only authority.** An administrator of a group administers what is inside it; a plain member of the parent gets no reach into a sub-team at all, or a department would not be a room of its own. Inherited authority is **capped at `admin`** by `inherited_role`: `GROUP_DELETE` / `GROUP_TRANSFER` / `GROUP_MANAGE_ADMINS` stay with whoever owns that group, since a subgroup's creator owns what they opened.
+
+`load_group` therefore hands `can()` an **`EffectiveMembership`** (`app/permissions.py`) rather than a row — `standing_in` resolves the caller's rows on the group, its ancestors and its subtree and keeps the strongest. It is an answer, not a record: nothing writes through it, and every route that acts on a *named* member still reads a real row through `_membership_of`, so managing somebody happens on the group their row is on. A **roster and an audience stay two different questions**: the roster screens list the people added *there*, the audience is the subtree.
+
+Creating one is `POST /groups/` with `parent_id` — no second route, because a subgroup *is* a group (its own roster, links, invites and challenges) — gated on `Perm.GROUP_CREATE_SUBGROUP`, the administrator's, beside `GROUP_CREATE_CHALLENGE`. Deleting a group with children is a **409**, like one with challenges and for a wider version of the same reason. The screens: a «زیرگروهی از …» line on the group hero (the way up), a fourth `.dtab` on `/views/groups/{id}` rendered **only when there are children** (the group list's own cards, so a subgroup is entered like any other group), a «ساختار» section on `/views/groups/{id}/manage` whose «+» opens the create sheet, and a parent chip on the flat list of your groups. `tests/test_group_hierarchy.py` pins both directions and where the inheritance stops.
+
+**Where it grows.** One challenge in several groups is a join table plus an edit to `group_scope_filter` and `group_ids_for` (every read reaches a group challenge through those two). Auto-join by email domain is a column on `Group` and one `apply_standing_audience` call at signup. None is implemented and none needs this design rewritten.
+
+### «مسیر» — a course of challenges, where the exit condition belongs to the step
+
+A **roadmap** is a reading order over challenges that already exist: «کتاب بخوان» → «پادکست گوش کن» → «نهال بکار» → «دویدن هفتگی». `app/models/roadmap.py` (five tables), `app/roadmaps.py` (the domain module and the engine), `app/routers/roadmap.py` (the JSON door plus the queries the pages share), `views/roadmap.py` + `templates/roadmap/` (the screens). `app/invites.py` is shared with the group subsystem.
+
+**The problem it had to solve first.** This app has no notion of *finishing a challenge*: `EnrollmentStatus.COMPLETED` is written by no route, `challenge_status` is a challenge-level fact and not a per-person one, and a `recurring_days`/`recurring_quota` challenge with no `end_date` is endless **on purpose** — that is what a habit is. Adding "done" to `Challenge` would put a full stop on the thing designed not to have one.
+
+**So the exit condition belongs to the step, and the challenge is never touched.** `RoadmapStep.completion_rule` is a **discriminated union in a JSON column**, exactly as `Challenge.cadence` is — `app/schemas/completion.py`, keyed on `Field(discriminator="kind")`. The same challenge is "۱۲ بار" in my course and "۴ هفته پشت‌سرهم" in yours. Six members: `challenge_finished`, `count(n)`, `streak(n)`, `amount(target)`, `duration(days)`, `manual`. Adding one is a member there plus a branch in `evaluate_rule` — not a nullable column per rule.
+
+Two of them do not fit every challenge, and both are refused **422 at the write boundary** with a Farsi reason, because the builder is who has to fix it: `challenge_finished` on a cadence with no end (`is_bounded`) would be a step nobody could ever leave, and `amount` on a challenge with no `goal_unit` would sum nothing forever. `rule_refusal` is the one function; the wizard also hides those chips, which is a courtesy and never the gate.
+
+**The builder never reads the words «شرط اتمام».** The wizard asks «این قدم کِی تمام می‌شود؟» and offers chips — «چند بار انجامش بدهد» / «چند نوبت پشت‌سرهم» / «گذشتن چند روز» — then a second sheet for the number that answer needs. Two sheets rather than one, because a single sheet would show a number field that means nothing for three of the six answers. The chip *wording* lives only in that sheet — the server renders whole sentences (`describe_rule`), never chip labels, so a Farsi label map here would be a map with no reader; `RULE_ICONS` is the half that does have one. Adding a rule is four edits: a member in `schemas/completion.py`, a branch in `evaluate_rule`, an icon, and the wizard's chip.
+
+**A challenge is referenced, never copied — and that is the whole integration.** `RoadmapStep.challenge_id` points at the real row; reaching a step writes an ordinary `Enrollment` through `assign_participants` (the same function a group challenge is handed out with, so anonymity resolution and the `ChallengeStats` counter cannot drift between the two ways somebody is put into a challenge). Everything downstream — the occurrence engine, streaks, «امروز», the leaderboard, the backfill window, comments, likes — then works untouched, because nothing about it knows roadmaps exist. **`routers/today.py` is unchanged by this feature and must stay that way**: a locked step is kept out of «امروز» by *having no enrollment at all*, an absence rather than a filter. If that file ever needs a roadmap-shaped clause, the gate has been designed wrong somewhere else.
+
+#### The two scope filters, and why they point in opposite directions
+
+`roadmap_visibility_filter(user_id, listing=…)` is the **fourth** composed visibility clause in the app, after `challenge_visibility_filter`, `profile_visibility_filter` and `group_visibility_filter`, and it follows their rule: `.where()`-ed in, so a miss is a **404** through both front doors. Public / mine / one-I-am-walking, with the group gate `AND`-ed on when the roadmap belongs to one. `listing=True` drops `unlisted` for `listing_visibility_filter`'s reason. One function with a flag rather than two near-identical ones — the difference really is a single value in a single `IN`, and two copies is two places for the group gate to be forgotten.
+
+`roadmap_scope_filter(user_id)` is the other direction and the one that matters: **one more `OR` leg on `challenge_visibility_filter`**, beside "public", "mine" and "enrolled". A group *narrows* what somebody may see, so `group_scope_filter` is a conjunct; a roadmap *widens* it for the person walking it, so this is a leg of the disjunction. The whole rule:
+
+```
+Challenge.id IN (SELECT challenge_id FROM RoadmapSteps
+                 WHERE removed_at IS NULL AND roadmap_id IN <roadmaps I am walking>)
+```
+
+**Putting a private challenge into a public roadmap does not publish it.** The roadmap's visibility and the challenge's are two separate answers and neither rewrites the other. What reaches through is *roadmap enrollment* — the same trade `group_scope_filter`'s third leg makes: you were let into the room, so the rows in the room are readable. Somebody merely **looking** at a public roadmap gets the steps whose challenges they could already see, and a placeholder («چالش خصوصی») for the rest — `visible_challenge_ids` composes `challenge_visibility_filter` itself rather than reimplementing it.
+
+It is deliberately **off `listing_visibility_filter`**: a private challenge two steps ahead is reachable at its own URL and has no business in the app-wide list of things to discover, which is precisely what `unlisted` already means here.
+
+#### The engine: recomputed, never counted up
+
+`refresh_progress` re-reads live `CheckIns` and re-decides every step each time it runs — the rule `compute_streaks` follows, and there is no `+= 1` anywhere in the subsystem. Running it twice is running it once.
+
+The one thing it *writes* that it could not derive again is **`RoadmapStepProgress.unlocked_at`**: when a course reached a step has no other source in the app, it is the clock a `duration` rule counts from, and it is the line a `count`/`amount` rule counts *after* — which is `Roadmap.count_prior_progress = False` made concrete. Somebody who joined that challenge months ago starts the step at zero, so the course means the same thing for everybody walking it. (The column exists so the answer is recorded per roadmap rather than assumed app-wide; it is absent from every write schema, and v1 answers `False` for everybody.)
+
+`unlocked_at` is stored **truncated to the second**, and that is load-bearing rather than tidy: `CheckIn.created_at` is `server_default=func.now()`, which on SQLite has second granularity (the same fact `newest_first`'s id tie-break exists for), so a check-in recorded in the very second a step opened would otherwise read as *earlier* than the unlock and not count — exactly the first check-in somebody makes on a step that just opened.
+
+**There is deliberately no `enrollment_id` on the progress row.** The enrollment a step produced is already uniquely addressed by `(user_id, challenge_id)` — `Enrollments` carries a UNIQUE constraint on that pair — so a copy of the id would be a second name for a fact the database already guarantees, and one a plain `DELETE /enrollments/{id}` would leave dangling (SQLite does not enforce foreign keys in this app). `unlocked_at IS NOT NULL` is what says the enrollment was written, so **somebody who unenrols mid-course is never silently re-enrolled**: the step falls back to `in_progress` and waits for them.
+
+**Where it runs, given there is no job runner** (see `purge_expired_codes`): the two halves are split by what could have changed the answer.
+
+- `advance_after_checkin` runs inside `POST`/`PATCH`/`DELETE /checkins` — **this is where a step actually opens**. A member records a check-in on a challenge page and never goes near the roadmap; if the engine only ran when somebody opened the course, the next step's enrollment would not exist and «امروز» would be silently one step behind. It costs **one indexed query** (`ix_roadmap_steps_challenge`) for a member with no roadmaps, which is almost everybody.
+- Opening `/views/roadmaps/{id}` recomputes too — that is the clock's half, for a `duration` rule that finishes because time passed with nobody touching anything.
+
+**Structure is stages; the UI is a line.** `stage_index` + `order_in_stage` means "these two together, then that one" costs no migration later, while today's builder puts each step in a stage of its own. A stage opens when every `required` step of the one before it is **completed *or* skipped**.
+
+#### The five step states, written twice
+
+`locked` | `available` | `in_progress` | `completed` | `skipped`. `roadmap_step_state(progress)` renders one row, `step_state_filter(state)` is the SQL behind the cross-roadmap question ("what is open for this member", the home card) — **both restricted to the same single input**, the stored `state` with a missing progress row meaning `locked`, exactly as `challenge_status`/`status_filter` are restricted to the same four. Adding an input means adding it to both halves.
+
+`skipped` is the one nobody chooses: when a challenge is archived, `skip_steps_for_challenge` marks every unfinished progress row for its steps `skipped`, refreshes everybody it just unblocked, and tells the **roadmap's builder** through `ROADMAP_STEP_SKIPPED`. Skipped counts as settled for opening the next stage — otherwise one archived challenge would strand everybody behind it forever, for a decision taken by somebody who may not even know the roadmap exists. It is called from `update_challenge`, beside `notify_lifecycle_change`, guarded by the same "only on a real transition" test.
+
+#### Soft gating is the default
+
+`Roadmap.strict` defaults to **`False`**, and the whole of it is `step_is_open(roadmap, state)` — one function the page and the route both ask, so a control and a refusal cannot disagree. With it off, the order is a *suggestion*: the next step still says «هنوز نوبتش نیست» and nothing stops somebody who is ready. With it on, a locked step is genuinely closed. A course somebody built for a friend is abandoned the first time a hard lock refuses something they were ready to do; a taught course needs the lock. Nothing else in the engine branches on it.
+
+**The complement is not optional: every step is visible from the first screen**, with its title, its cadence in words and its condition. Hiding what is ahead makes the course impossible to judge before starting it, which is the one thing somebody deciding whether to start it has to do. The cadence sentence comes from `describe_cadence` — the *same* function `build_cadence_plan` uses for its own `rule` line — so a step and the challenge's own plan card can never word one cadence differently.
+
+#### Editing, once forty people are halfway through
+
+The same precedent the challenge lock sets: `structure_is_locked` is `count_non_owner_enrollments > 0`, the threshold that locks `cadence`/`goal_*`/`identity_mode`. Frozen from the first non-owner: reordering (`POST /roadmaps/{id}/steps/{step_id}/move`), every field of `PATCH .../steps/{step_id}`, and `strict`. **Free regardless**: appending a step (it lands in a stage after everything that exists — nobody has reached there), removing one (`removed_at`, a stamp; it can only ever *unblock* somebody and it destroys no progress row), and everything the course merely *says* (title, description, picture, visibility).
+
+`move` is a route of its own rather than two `PATCH`es of `stage_index` from the page, because a swap is one act: two requests can half-succeed, and the half that lands leaves two steps sharing a stage — a legal shape, and therefore a silent corruption of the order rather than a visible error.
+
+`DELETE /roadmaps/{id}` is refused **409** once anybody else has started, the same call `DELETE /challenges/{id}` makes; archiving is the supported exit. Note what neither destroys: the `Enrollments` and `CheckIns` the course produced belong to the challenges and stay exactly where they are — deleting a roadmap ends the course, never the history. Leaving a roadmap is the same rule (`DELETE /roadmaps/{id}/enroll`) and deliberately **not** the group's «انصراف از همهٔ چالش‌ها»: a group challenge was handed to you and the obligation ends with the membership, while a roadmap step is a challenge you actually started and logged against.
+
+#### A fourth role axis, and a shared invite
+
+`app/permissions.py` grows `ROADMAP_EDIT` / `ROADMAP_DELETE` / `ROADMAP_MANAGE`, granted by `roadmap_role` — one role, written as a map for the reason the other three are, and **no app-wide role grants a `ROADMAP_*` permission**: the same line drawn twice already for groups and challenges. An operator moderates published *challenges*; a course somebody assembled is authored work.
+
+`app/invites.py` is new and is shared: `new_invite_code`, `invite_state` (derived, never stored), `INVITE_STATE_LABELS`, `register_invite_filters`, and **`consume_seat`** — the conditional `UPDATE … SET uses = uses + 1 WHERE <still usable>` plus the `rowcount` check that is the only version of a capacity that survives two people tapping a one-seat link at the same instant. `app/groups.py` re-exports the names its call sites and tests have always imported from it, and `accept_invite` on both sides is now the same statement. A roadmap link has **no `requires_approval` half**: a group is a room whose membership an administrator curates, while a course is either published or it is not, and a queue in front of something nobody has to be admitted to would be a control with nothing to decide.
+
+#### Four notification kinds
+
+`ROADMAP_JOINED` (somebody started your course — actor is the joiner), `ROADMAP_STEP_UNLOCKED`, `ROADMAP_COMPLETED`, `ROADMAP_STEP_SKIPPED`. `Notification.roadmap_id` is cascaded like `challenge_id` and `group_id`, and `NOTIFICATION_META` gains a `{roadmap}` placeholder; every kind gets its switch on `/views/settings/notifications` for free.
+
+The two the engine raises carry **no actor at all** — nobody did this to anybody, the engine recomputed — which is the case `Notification.actor_user_id` is nullable for, and it is why `notify`'s first invariant cannot help here: the member *is* the person whose check-in caused it. `announce_outcome` is the one place they are raised, and joining passes `announce_unlocks=False`: the first stage opens as part of the tap and the member is looking straight at it.
+
+#### The screens
+
+`/views/roadmaps/` (your courses and the public ones — one paged list with a two-button scope, not a second «کشف» page, because the rows are identical and the difference is one clause; the scope defaults to «مال من» for somebody who has courses and «همه» for somebody who has none). `/views/roadmaps/{id}` — «مسیر» / «من» / «درباره» as hash-backed panels, and **none of them pages**: a course is a handful of steps read in one go, like `fetch_child_groups`, so the URL has only the panel to carry. `/views/roadmaps/{id}/manage` — the builder's settings screen, **404** to anybody else, one row per editable value with the value on the row and the mark at the end saying what tapping does. `/views/roadmap-invites/{code}` — the one screen a non-walker sees: title, picture, step count, member count, and **not the steps**.
+
+**The «قدم فعلی تو» card on `/views/home/` is not optional.** «امروز» shows *occurrences*, and an occurrence says nothing about which step of which course it belongs to — a roadmap that is never seen at the daily level dies. It renders only when something is open, so a member with no courses pays one indexed query and no pixels.
+
+Adding a step is a search, so it is a small panel borrowing `createSheet`'s own scrim and slide rather than a sheet field: `createSheet`'s fields are a static form, and the picker queries `GET /challenges/`, which already answers exactly what the builder is allowed to see.
+
+**Colour gains no channel.** Status owns `--st-*` and category owns `--cat-*`; a step's state is shown by the node's shape, its glyph and its words. The one accent is the node of the step that is actually open — not a new meaning, since the accent has meant «this one is live» since the first screen. The connector between nodes fills in as steps settle, so the track *is* the progress bar of the whole course at no extra element.
+
+#### Two deliberate departures from the brief, and why
+
+- **`step_state_filter` has one caller, and it is the home card**, not a `?state=` filter on the step list. The steps of one course are not paged, so there would be no server-side paging for a Python-side filter to be unable to reproduce — which is the entire reason `challenge_status`/`status_filter` are written twice. The cross-roadmap question *is* server-side, so that is where the SQL half earns its place.
+- **`Roadmap` carries one picture, not two.** A challenge has a second, portrait one because the full-screen rail reader is a surface shaped like a phone; a roadmap has no such surface, and a column nothing renders and no route writes is scaffolding pretending to be a feature. When a roadmap grows a reader it is one column and one row in `SHAPES`. Likewise `RoadmapStepProgress` has no `enrollment_id`, for the reason given above.
+
+#### Where it grows
+
+A second role on a course (a co-author) is a row in `ROADMAP_GRANTS`. `count_prior_progress = True` is one branch in `evaluate_rule`'s window. Two steps in one stage — «این دو را با هم انجام بده» — is already the schema and needs only a builder that writes the same `stage_index` twice. A roadmap made of roadmaps is the one thing this design does *not* invite, and that is on purpose: nesting courses is `Group.parent_id`'s problem, and it was solved there.
 
 ### Reactions — the subject is a value, not a table
 
@@ -463,9 +572,35 @@ The control that opens it carries no chrome and the tabs are monochrome stroke i
 
 **Three ways in, and they are the heart's.** A comment control sits wherever a like does — in `.ec-side` on every challenge card (list, rail and the rail's reader, one markup), beside the heart in challenge-detail's hero (`.hero-social`), and as the full-width `.lb-entry` row in «درباره», now a `<button>` with a `chevronUp` because there is no page to navigate to. The card's is a `<span role="button">` for the reason the heart's is: the card is a single `<a>`. Counts come from `social_context` in `views/challenge.py` (the old `like_context`, which now asks `comments.counts_for` alongside the two reaction queries) — one query for a whole page of cards, spread by all four card-rendering routes. Colour stays honest: the bubble takes the neutral ink, because `--mohr` means the heart.
 
+### Uploaded pictures — the column stores an id, the disk stores the bytes
+
+`app/media.py` (the subsystem), `app/routers/media.py` (`POST /media/`), `app/static/js/imagepick.js` + `createSheet`'s `type: "image"` field (the control), `static/vendor/cropper/` (Cropper.js, vendored). Three surfaces have one: `Users.avatar`, `Challenges.image_square`, `Challenges.image_tall`.
+
+**The same contract `app/avatars.py` has.** A column holds a **key** — `<24 hex>.webp`, generated by this app — never a path, a URL or the bytes. `is_media_key` is the only thing that parses one, so a value that reached the column by any route still cannot escape `MEDIA_ROOT`; `media_url` is the one id-to-URL function and answers **`None`** for a non-key, because unlike an avatar "no picture" here means a surface draws something else entirely.
+
+**Nothing a client sends is trusted.** Not the filename (unused — the id is generated), not the content type, not the extension, not the dimensions. Every upload is decoded and re-encoded by Pillow: that strips EXIF (a photograph carries where it was taken), proves the bytes are an image, and caps the file on a disk that is a mounted volume rather than an object store. `SHAPES` is the ceiling per frame and its keys are the *same names* the client's `IMAGE_FRAMES` uses, so the two halves cannot drift.
+
+**Storing a file and choosing what a row points at are two acts.** `POST /media/` answers a key and writes no column; the existing `PATCH /users/{id}` / `PATCH /challenges/{id}` write that key through the validators guarding every other field. That is what lets the create wizard — where there is no row yet — use exactly the same picker as an edit sheet, and it is why there is no `/users/{id}/avatar` route. Signing in is the whole authorisation: an unsaved upload is a 24-random-hex key nobody else can reach, and ownership is checked where it always was, at the PATCH.
+
+**`Users.avatar` holds either kind of id**, catalogue or upload, rather than growing a second column — which is what lets the roster, the leaderboard, a comment and a group's emblem show an uploaded photo through the `| avatar_url` they already had, with no template change and no "which of the two is showing" for each of them to answer.
+
+**There is no `Media` table and no orphan sweep.** A key is a small opaque string in the column that wanted a picture; a row of metadata beside it would have to be kept in step by hand and answers no question the app asks. `discard_replaced` at each write boundary (`update_user`, `update_challenge`) and `discard` on challenge delete cover the common case; an upload nobody ever saved is an orphan, and a sweep is a job this app has no runner for (see `purge_expired_codes`).
+
+**Files are served by a second static mount**, `/media` → `data/media` (beside the database, on the same disk, deliberately not under `app/static/`, which a `COPY . .` rebuilds). `ImmutableStaticFiles` is the opposite trade from `RevalidatedStaticFiles`: a key is generated per upload and never reused, so a URL there names one immutable set of bytes and a roster of forty photographs costs no conditional requests. Keys fan out into a directory per first byte-pair.
+
+**Cropping is client-side, and the crop is the point.** Every surface draws its picture `object-fit:cover`, so an uncropped photo is *silently* cut and the member finds out later; the cropper is that cut made visible and theirs, locked to the frame's own aspect because a shape the layout cannot honour is a promise the app then breaks. Cropper.js is **vendored, not from a CDN** (the avatars' and the emoji catalogue's reason: no outbound network inside the image) and loaded on the *first pick* rather than on page load. The canvas re-encodes to WebP before the request, so ~100KB crosses the network instead of a 6MB phone photo — a courtesy to the connection, never a substitute for the server's own re-encode.
+
+**Two pictures per challenge, because the surfaces are two shapes.** `image_square` is the detail hero's ground *and*, cover-cropped to a band, the rail card's 4:3 cover and the 52px list thumb; `image_tall` is the full-screen reader, which is the shape of the phone it fills. Both ship in **one** card markup and the tall one has no layout box outside the reader, so `loading="lazy"` never fetches it while a list is scrolled. NULL is permanent and legitimate: the picture is painted *inside* `.explore-thumb` rather than replacing it, so the cadence badge, the scrim and the status pill's placement are untouched and a challenge without one keeps exactly the category-coloured cover it always had.
+
+**The hero's picture sits behind the glass**, wearing the same `--hero-fade` mask the pane does, so it dissolves at the edges like everything else in that card instead of arriving as a rectangle; its own scrim (inside the wrapper — an `<img>` has no pseudo-element) is what keeps `--text-*` legible over whatever was photographed, and the pane's backdrop blur drops from 20px to 3px, or the photograph is a smear. Colour gains no channel: status still owns `--st-*` and category `--cat-*`.
+
+**One control, three places.** `window.pickImage(frame)` resolves to `{key, url}` or **null** for every refusal — a dismissed chooser, a cancelled crop, a rejected file — so a caller is one `if` and never a try/catch. It is `createSheet`'s `type: "image"` field in the manage sheet, the same markup inline in the create wizard, and the avatar grid's first tile (`.ap-upload`), where a picture of one's own is ahead of the forty drawn ones because it is the answer most people are looking for.
+
 ### Avatars
 
 40 SVGs in `app/static/img/avatars/`, generated once from DiceBear and **committed, not fetched at render time** — the app must work inside the Docker image with no outbound network. Ten styles, four each: `glyphs`, `cameo`, `marbles`, `clay`, `critters`, `bottts-neutral`, `shapes`, `squircles`, `slice`, `stack` (CC0 except `glyphs`, CC BY 4.0 / Matt Houser, and `bottts-neutral`, free for commercial use / Pablo Stanley). Regenerating one means replacing its file, not editing code.
+
+An uploaded photo lives in this same column as a media key and `avatar_url` resolves both (see «Uploaded pictures» above), so every surface here renders one without knowing the difference.
 
 `app/avatars.py` is the whole subsystem: `AVATAR_IDS` (ordered by style, which is the picker grid's order), `is_valid_avatar`, `avatar_url`, `register_avatar_filters(env)`.
 

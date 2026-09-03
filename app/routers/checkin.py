@@ -19,6 +19,7 @@ from app.models.checkin import CheckIn
 from app.models.enrollment import Enrollment
 from app.models.stats import ChallengeStats
 from app.occurrences import compute_streaks, is_key_writable, local_today
+from app.roadmaps import advance_after_checkin
 from app.schemas.cadence import (
     CadenceUnion,
     OnceCadence,
@@ -305,6 +306,16 @@ async def create_checkin(
     stats.last_checkin_at = now_utc
     stats.updated_at = now_utc
 
+    # A check-in is the event that can open the next step of a roadmap -- see
+    # `advance_after_checkin`. One indexed query for a member with no
+    # roadmaps, and it lands in this transaction like everything else here.
+    await advance_after_checkin(
+        db,
+        user_id=current_user_id,
+        challenge_id=challenge.id,
+        timezone=enrollment.timezone,
+    )
+
     await db.commit()
     await db.refresh(checkin)
     log_event(
@@ -386,6 +397,16 @@ async def update_checkin(
         stats.total_amount = (stats.total_amount or 0) + delta_amount
     stats.updated_at = now_utc
 
+    # A check-in is the event that can open the next step of a roadmap -- see
+    # `advance_after_checkin`. One indexed query for a member with no
+    # roadmaps, and it lands in this transaction like everything else here.
+    await advance_after_checkin(
+        db,
+        user_id=current_user_id,
+        challenge_id=challenge.id,
+        timezone=enrollment.timezone,
+    )
+
     await db.commit()
     log_event(logger, "checkin.deleted", checkin_id=checkin_id, challenge_id=challenge.id)
     await db.refresh(checkin)
@@ -438,5 +459,15 @@ async def delete_checkin(
     if delta_amount:
         stats.total_amount = (stats.total_amount or 0) + delta_amount
     stats.updated_at = now_utc
+
+    # A check-in is the event that can open the next step of a roadmap -- see
+    # `advance_after_checkin`. One indexed query for a member with no
+    # roadmaps, and it lands in this transaction like everything else here.
+    await advance_after_checkin(
+        db,
+        user_id=current_user_id,
+        challenge_id=challenge.id,
+        timezone=enrollment.timezone,
+    )
 
     await db.commit()

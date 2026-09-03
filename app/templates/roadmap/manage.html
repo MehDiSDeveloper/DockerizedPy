@@ -1,0 +1,705 @@
+{% extends "layout.html" %}
+
+{#- Building the course.
+
+    **The manage screen's rule, applied to a roadmap.** It is a settings screen
+    and nothing else: one row per *editable value*, the value itself on the
+    row, and the mark at the end of the row saying what tapping does -- a
+    pencil for "this opens an editor", a chevron for "this opens a page", an
+    icon button for "this happens right here". That is why «مشخصات مسیر» is
+    four rows rather than one row hiding a four-field sheet: a row naming a
+    noun does not read as something you can change.
+
+    The affirmative half of every pair takes `.accent` (`+` add, copy) and the
+    undoing half stays neutral (`✕`), so the screen is scannable for actions
+    without reading a word; what those buttons used to say lives in
+    `aria-label`/`title`. The «؟» explainers stay, because they answer
+    *concepts* rather than what a control does.
+
+    **What is locked, and when.** From the first person other than the builder,
+    the *shape* of the course freezes: no reordering, no rewriting a step's
+    condition. Appending to the end stays free -- nobody has reached there --
+    and so does removing a step, because removal can only ever unblock
+    somebody. The page draws what the routes allow rather than offering
+    controls that answer 409. -#}
+
+{% block topbar_leading %}
+<a href="/views/roadmaps/{{ roadmap.id }}" class="back-btn" data-back aria-label="بازگشت"><span
+    data-icon="chevronRight"></span></a>
+{% endblock %}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر پیمایش" data-crumb-trail data-crumb-label="مدیریت مسیر">
+  <span class="crumb current" aria-current="page">مدیریت مسیر</span>
+</nav>
+{% endblock %}
+
+{% block topbar_action %}{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <p class="hero-eyebrow">{{ roadmap.title }}</p>
+  <h1 class="hero-title">مدیریت مسیر</h1>
+</section>
+
+<div class="settings-page">
+
+  {#- The steps first: they are what a course *is*, and the only thing on this
+      screen somebody is waiting for. Empty is the normal state for a course
+      just created, so the empty line names the next move rather than shouting
+      about a problem. -#}
+  <section class="setting-group">
+    <div class="sg-head">
+      <h2>قدم‌ها{{ explain("roadmap-completion") }}</h2>
+      {% if not is_archived %}
+      <button type="button" class="icon-btn xs accent" id="rmAddStep"
+        aria-label="افزودن قدم جدید" title="افزودن قدم"><span data-icon="plus"></span></button>
+      {% endif %}
+    </div>
+
+    {#- No arithmetic on `member_count`: it counts the people walking the
+        course, and the builder is usually not one of them, so «N نفر دیگر»
+        would print a number that is off by the builder's own enrolment. The
+        lock is a yes/no answer and it is said as one. -#}
+    {% if structure_locked %}
+    <p class="sg-note">چون کسی جز خودت این مسیر را شروع کرده، ترتیب و شرط قدم‌ها
+      قفل شده است. افزودن قدم جدید به انتهای مسیر و برداشتن یک قدم هنوز ممکن
+      است.</p>
+    {% endif %}
+
+    <div id="rmSteps">
+      {% for s in steps %}
+      <div class="setting-row glass compact rm-step-row" data-step-id="{{ s.id }}">
+        <div class="sr-head">
+          <span class="rs-node sm" aria-hidden="true">{{ s.index }}</span>
+          <div class="sr-text">
+            <span class="sr-label">{{ s.title }}</span>
+            <span class="sr-hint">{{ s.rule_text }}{% if not s.required %} · دلخواه{% endif %}</span>
+          </div>
+          <div class="sr-actions">
+            {% if not structure_locked and not is_archived %}
+            {#- Up/down rather than drag: a course is read top-to-bottom on a
+                phone, and one tap that swaps two rows is a thing a thumb can
+                do. The route swaps both rows in one transaction, so the order
+                can never half-move. -#}
+            <button type="button" class="icon-btn xs" data-move="up" aria-label="یک قدم بالاتر"
+              title="بالاتر"{{ ' disabled' if loop.first }}><span data-icon="chevronUp"></span></button>
+            <button type="button" class="icon-btn xs" data-move="down" aria-label="یک قدم پایین‌تر"
+              title="پایین‌تر"{{ ' disabled' if loop.last }}><span data-icon="chevronDown"></span></button>
+            <button type="button" class="icon-btn xs" data-edit-step aria-label="ویرایش شرط این قدم"
+              title="ویرایش"><span data-icon="edit"></span></button>
+            {% endif %}
+            {% if not is_archived %}
+            <button type="button" class="icon-btn xs" data-remove-step
+              aria-label="برداشتن این قدم از مسیر" title="برداشتن"><span data-icon="x"></span></button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="sg-note" id="rmNoSteps" {{ 'hidden' if steps }}>هنوز قدمی اضافه نکرده‌ای.
+      هر قدم یک چالش است — چالش خودت یا چالشی عمومی از دیگران.</p>
+  </section>
+
+  {#- «لینک‌ها». A roadmap has no request queue and no approval half, unlike a
+      group's links: a course is either published or it is not, and a queue in
+      front of something nobody has to be admitted to would be a control with
+      nothing to decide. Each row states the two things a link is: how much of
+      it is used up, and whether it still works -- the state derived
+      (`invite_state`), never stored. -#}
+  <section class="setting-group">
+    <div class="sg-head">
+      <h2>لینک‌های دعوت{{ explain("roadmap-invite") }}</h2>
+      <button type="button" class="icon-btn xs accent" id="rmNewInvite"
+        aria-label="ساختن لینک دعوت جدید" title="لینک جدید"><span data-icon="plus"></span></button>
+    </div>
+    <div id="rmInvites">
+      {% for i in invites %}
+      <div class="setting-row glass compact invite-row" data-invite-id="{{ i.id }}"
+        data-invite-code="{{ i.code }}" data-invite-state="{{ i.state }}">
+        <div class="sr-head">
+          <div class="mi-icon"><span data-icon="link"></span></div>
+          <div class="sr-text">
+            <span class="sr-label">{{ i.label or 'لینک مسیر' }}</span>
+            <span class="sr-hint">{% if i.max_uses %}{{ i.uses }} از {{ i.max_uses }}{% else %}{{ i.uses }}
+              نفر · نامحدود{% endif %}{% if i.expires_at %} · تا <span
+                data-jalali="{{ i.expires_at.isoformat() }}"
+                data-jalali-format="day-month">{{ i.expires_at.strftime('%Y-%m-%d') }}</span>{% endif %}</span>
+          </div>
+          <span class="invite-pill is-{{ i.state }}">{{ invite_state_labels[i.state] }}</span>
+          <div class="sr-actions">
+            {% if i.state == 'active' %}
+            <button type="button" class="icon-btn xs" data-revoke aria-label="غیرفعال کردن این لینک"
+              title="غیرفعال کردن"><span data-icon="x"></span></button>
+            {% endif %}
+            <button type="button" class="icon-btn xs accent" data-copy aria-label="کپی این لینک"
+              title="کپی"><span data-icon="copy"></span></button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="sg-note" id="rmNoInvites" {{ 'hidden' if invites }}>هنوز لینکی نساخته‌ای.</p>
+  </section>
+
+  {#- The course's own record. One row per field, each showing what it holds
+      now and ending in a pencil: a row that displays its value is a row whose
+      purpose the reader can see. -#}
+  <section class="setting-group">
+    <div class="sg-head"><h2>مشخصات مسیر</h2></div>
+
+    <div class="setting-row glass compact" role="button" tabindex="0" data-edit="image">
+      <div class="sr-head">
+        <div class="sr-text"><span class="sr-label">تصویر</span></div>
+        {% set cover = roadmap.image_square | media_url %}
+        {% if cover %}
+        <img class="sr-emblem" src="{{ cover }}" alt="" width="30" height="30">
+        {% else %}
+        <span class="sr-value muted">ندارد</span>
+        {% endif %}
+        <span class="sr-edit" data-icon="edit"></span>
+      </div>
+    </div>
+
+    <div class="setting-row glass compact" role="button" tabindex="0" data-edit="title">
+      <div class="sr-head">
+        <div class="sr-text"><span class="sr-label">نام</span></div>
+        <span class="sr-value">{{ roadmap.title }}</span>
+        <span class="sr-edit" data-icon="edit"></span>
+      </div>
+    </div>
+
+    <div class="setting-row glass compact" role="button" tabindex="0" data-edit="description">
+      <div class="sr-head">
+        <div class="sr-text"><span class="sr-label">توضیح</span></div>
+        <span class="sr-value{{ '' if roadmap.description else ' muted' }}">{% if roadmap.description %}{{
+          roadmap.description | truncate(30, true, '…') }}{% else %}ندارد{% endif %}</span>
+        <span class="sr-edit" data-icon="edit"></span>
+      </div>
+    </div>
+
+    <div class="setting-row glass compact" role="button" tabindex="0" data-edit="visibility">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">چه کسانی ببینند</span>
+          <span class="sr-hint">«با لینک» یعنی در فهرست عمومی نمی‌آید و فقط با لینک تو باز
+            می‌شود.</span>
+        </div>
+        <span class="sr-value">{{ {'public': 'همه', 'unlisted': 'با لینک', 'private': 'فقط خودم'}[roadmap.visibility] }}</span>
+        <span class="sr-edit" data-icon="edit"></span>
+      </div>
+    </div>
+
+    {#- The one field here that is *structural*, so it disappears once people
+        are walking rather than offering an editor that answers 409. -#}
+    <div class="setting-row glass compact{{ '' if not structure_locked }}"
+      {% if not structure_locked %}role="button" tabindex="0" data-edit="strict"{% endif %}>
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">ترتیب قدم‌ها</span>
+          <span class="sr-hint">{% if structure_locked %}بعد از شروع دیگران قابل تغییر
+            نیست.{% else %}«پیشنهادی» یعنی قدم بعدی هم باز است و فقط نشان می‌دهد وعده‌اش
+            نرسیده.{% endif %}</span>
+        </div>
+        <span class="sr-value">{{ 'اجباری' if roadmap.strict else 'پیشنهادی' }}</span>
+        {% if not structure_locked %}<span class="sr-edit" data-icon="edit"></span>{% endif %}
+      </div>
+    </div>
+  </section>
+
+  {#- The exits, apart from everything above: a builder must never be one
+      mis-tap from ending somebody else's run. Archiving is the *normal* one --
+      it takes the course off every listing and leaves every walk intact --
+      and deleting is refused outright once anybody else has started, the same
+      409 `DELETE /challenges/{id}` answers. -#}
+  <section class="setting-group">
+    <div class="sg-head"><h2>وضعیت مسیر</h2></div>
+    <div class="setting-row glass compact" role="button" tabindex="0" id="rmArchive">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">{{ 'بازگرداندن مسیر' if is_archived else 'بایگانی مسیر' }}</span>
+          <span class="sr-hint">{% if is_archived %}دوباره در فهرست‌ها می‌آید و کسی می‌تواند
+            شروعش کند.{% else %}از فهرست‌ها برداشته می‌شود و کسی نمی‌تواند شروعش کند. چیزی
+            پاک نمی‌شود و کسانی که در راه‌اند ادامه می‌دهند.{% endif %}</span>
+        </div>
+        <span class="sr-value">{{ 'بایگانی‌شده' if is_archived else 'فعال' }}</span>
+        <span class="sr-chev" data-icon="chevronLeft"></span>
+      </div>
+    </div>
+    <div class="setting-row glass compact danger-row" role="button" tabindex="0" id="rmDelete">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">حذف مسیر</span>
+          <span class="sr-hint">فقط تا وقتی کسی جز خودت مسیر را شروع نکرده باشد.</span>
+        </div>
+        <span class="sr-edit" data-icon="trash"></span>
+      </div>
+    </div>
+  </section>
+</div>
+
+{#- The challenge picker. A panel of its own rather than a `createSheet`
+    field, because picking a challenge is a *search* -- and `createSheet`'s
+    fields are a static form. It borrows the sheet's own scrim and panel so it
+    is the same object the rest of the app opens, and it queries
+    `GET /challenges/`, which already answers exactly what the builder is
+    allowed to see. -#}
+<div class="sheet-backdrop" id="rmPickBackdrop" hidden></div>
+<div class="sheet" id="rmPickSheet" role="dialog" aria-modal="true" aria-label="انتخاب چالش" hidden>
+  <div class="sheet-panel glass">
+    <div class="sheet-head">
+      <h3>کدام چالش؟</h3>
+      <button type="button" class="icon-btn" id="rmPickClose" aria-label="بستن"
+        data-icon="x"></button>
+    </div>
+    <div class="sheet-body">
+      <div class="search-bar">
+        <span data-icon="search"></span>
+        <input type="text" id="rmPickSearch" placeholder="جستجو در چالش‌ها..." />
+      </div>
+      <div class="rm-pick-list" id="rmPickList"></div>
+      <p class="sg-note" id="rmPickEmpty" hidden>چالشی پیدا نشد.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script src="{{ url_for('static', path='/js/imagepick.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const ROADMAP_ID = {{ roadmap.id }};
+
+    // ---- «این قدم کِی تمام می‌شود؟» -------------------------------------
+    // The builder never reads the words «شرط اتمام» or a rule's code: they
+    // are asked one question and given the answers as chips. This is the
+    // client's own copy of the Farsi map in `app/roadmaps.py`, exactly as the
+    // challenge wizard keeps its own copy of the cadence labels (CLAUDE.md,
+    // D7) -- adding a rule means editing both.
+    const RULES = [
+      { value: "count",    label: "چند بار انجامش بدهد", icon: "check",
+        number: { label: "چند بار؟", min: 1, max: 1000, value: 12, field: "n" } },
+      { value: "streak",   label: "چند وعدهٔ پشت‌سرهم", icon: "flame",
+        number: { label: "چند وعدهٔ پشت‌سرهم؟", min: 1, max: 400, value: 7, field: "n" } },
+      { value: "duration", label: "گذشتن چند روز", icon: "clock",
+        number: { label: "چند روز؟", min: 1, max: 365, value: 30, field: "days" } },
+      { value: "amount",   label: "رسیدن به مقدار مشخص", icon: "chart",
+        number: { label: "مجموع چقدر؟", min: 1, max: 999999, value: 100, field: "target" },
+        needsUnit: true },
+      { value: "challenge_finished", label: "تا وقتی خود چالش تمام شود", icon: "seal",
+        needsBounded: true },
+      { value: "manual",   label: "وقتی خودت بگویی تمام شد", icon: "tap" },
+    ];
+
+    // Whether a challenge ever reaches «تمام شده» on its own. The mirror of
+    // `app.roadmaps.is_bounded`, and only ever used to *hide* a chip -- the
+    // server refuses the same combination with a 422 and a Farsi reason, so
+    // this is a courtesy and never the gate.
+    function isBounded(c) {
+      if (c.due_date) return true;
+      const kind = (c.cadence && c.cadence.kind) || "once";
+      if (kind === "once" || kind === "schedule") return true;
+      return Boolean(c.cadence && c.cadence.end_date);
+    }
+
+    function ruleOptionsFor(challenge) {
+      return RULES.filter((r) => {
+        if (r.needsBounded && !isBounded(challenge)) return false;
+        if (r.needsUnit && !challenge.goal_unit) return false;
+        return true;
+      });
+    }
+
+    // Two sheets, not one: the first asks *which kind* of ending, the second
+    // asks the number that kind needs. A single sheet would have to show a
+    // number field that means nothing for three of the six answers.
+    function askRule(challenge, { current = null, onDone }) {
+      const options = ruleOptionsFor(challenge);
+      createSheet({
+        title: "این قدم کِی تمام می‌شود؟",
+        explainHtml: {{ explain("roadmap-completion") | tojson }},
+        confirmLabel: "بعدی",
+        fields: [
+          { name: "kind", label: "شرط تمام شدن", type: "chips",
+            value: (current && current.kind) || options[0].value,
+            options: options.map((r) => ({ value: r.value, label: r.label, icon: r.icon })) },
+          { name: "note", label: "یادداشت", maxlength: 300, value: (current && current.note) || "",
+            placeholder: "اختیاری",
+            hint: "یک جمله دربارهٔ اینکه چرا این قدم اینجاست." },
+        ],
+        onConfirm: (values) => {
+          const rule = RULES.find((r) => r.value === values.kind) || RULES[0];
+          const note = values.note.trim() || null;
+          if (!rule.number) {
+            onDone({ kind: rule.value }, note);
+            return true;
+          }
+          const unit = rule.needsUnit && challenge.goal_unit ? ` (${challenge.goal_unit})` : "";
+          createSheet({
+            title: rule.label,
+            confirmLabel: "ثبت",
+            fields: [
+              { name: "n", label: rule.number.label + unit, type: "number", required: true,
+                value: String((current && current[rule.number.field]) || rule.number.value) },
+            ],
+            onConfirm: (v2) => {
+              const n = Number(v2.n);
+              if (!Number.isFinite(n) || n < rule.number.min || n > rule.number.max) {
+                showToast(`عددی بین ${rule.number.min} و ${rule.number.max} بگذار`);
+                return false;
+              }
+              onDone({ kind: rule.value, [rule.number.field]: n }, note);
+              return true;
+            },
+          });
+          return true;
+        },
+      });
+    }
+
+    // ---- the challenge picker -------------------------------------------
+    const pickBackdrop = document.getElementById("rmPickBackdrop");
+    const pickSheet = document.getElementById("rmPickSheet");
+    const pickList = document.getElementById("rmPickList");
+    const pickSearch = document.getElementById("rmPickSearch");
+    const pickEmpty = document.getElementById("rmPickEmpty");
+    let pickResults = [];
+
+    function closePicker() {
+      pickBackdrop.hidden = true;
+      pickSheet.hidden = true;
+    }
+    pickBackdrop.addEventListener("click", closePicker);
+    document.getElementById("rmPickClose").addEventListener("click", closePicker);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !pickSheet.hidden) closePicker();
+    });
+
+    async function loadChallenges(q) {
+      const p = new URLSearchParams({ limit: "20" });
+      if (q) p.set("q", q);
+      const { ok, data } = await apiFetch(`/challenges/?${p.toString()}`);
+      pickResults = ok && Array.isArray(data) ? data : [];
+      pickList.innerHTML = pickResults
+        .map(
+          (c, i) =>
+            `<button type="button" class="rm-pick-item" data-index="${i}">` +
+            `<b>${escapeText(c.title)}</b>` +
+            `<span>${escapeText(c.category || "")}</span></button>`
+        )
+        .join("");
+      pickEmpty.hidden = pickResults.length > 0;
+    }
+
+    function escapeText(text) {
+      const el = document.createElement("span");
+      el.textContent = text == null ? "" : String(text);
+      return el.innerHTML;
+    }
+
+    pickSearch.addEventListener("input", debounce(() => loadChallenges(pickSearch.value.trim()), 300));
+
+    pickList.addEventListener("click", (e) => {
+      const btn = e.target.closest(".rm-pick-item");
+      if (!btn) return;
+      const challenge = pickResults[Number(btn.dataset.index)];
+      closePicker();
+      askRule(challenge, {
+        onDone: async (rule, note) => {
+          const { ok, status, data } = await apiFetch(`/roadmaps/${ROADMAP_ID}/steps`, {
+            method: "POST",
+            body: { challenge_id: challenge.id, completion_rule: rule, note },
+          });
+          if (!ok) {
+            // 422 carries the server's own Farsi reason -- an endless
+            // cadence, or an amount rule on a challenge with no unit. It is
+            // the one refusal the builder can actually fix.
+            showToast(
+              (status === 422 && data && data.detail) ||
+                (status === 409 ? "این چالش همین حالا در مسیر هست" : "افزودن قدم انجام نشد")
+            );
+            return;
+          }
+          window.location.reload();
+        },
+      });
+    });
+
+    const addStepBtn = document.getElementById("rmAddStep");
+    if (addStepBtn) {
+      addStepBtn.addEventListener("click", async () => {
+        pickBackdrop.hidden = false;
+        pickSheet.hidden = false;
+        pickSearch.value = "";
+        pickList.innerHTML = "";
+        await loadChallenges("");
+        renderIcons(pickSheet);
+        pickSearch.focus();
+      });
+    }
+
+    // ---- one step's own controls ----------------------------------------
+    document.getElementById("rmSteps").addEventListener("click", async (e) => {
+      const row = e.target.closest("[data-step-id]");
+      if (!row) return;
+      const stepId = row.dataset.stepId;
+
+      const move = e.target.closest("[data-move]");
+      if (move) {
+        move.disabled = true;
+        const { ok, data } = await apiFetch(
+          `/roadmaps/${ROADMAP_ID}/steps/${stepId}/move?direction=${move.dataset.move}`,
+          { method: "POST" }
+        );
+        if (!ok) {
+          move.disabled = false;
+          showToast((data && data.detail) || "جابه‌جایی انجام نشد");
+          return;
+        }
+        // The numbers, the arrows' disabled states and the order all move
+        // together -- reload rather than patch four derived things by hand.
+        window.location.reload();
+        return;
+      }
+
+      if (e.target.closest("[data-remove-step]")) {
+        createSheet({
+          title: "برداشتن قدم",
+          fields: [
+            { type: "note", text: "این قدم از مسیر برداشته می‌شود و قدم‌های بعدی منتظرش نمی‌مانند.", tone: "danger" },
+            { type: "note", text: "چالشش دست‌نخورده می‌ماند و هرکس واردش شده در آن می‌ماند؛ فقط دیگر بخشی از این مسیر نیست." },
+          ],
+          confirmLabel: "لغو",
+          onConfirm: async () => true,
+          danger: {
+            label: "بردار",
+            onClick: async () => {
+              const { ok } = await apiFetch(
+                `/roadmaps/${ROADMAP_ID}/steps/${stepId}`, { method: "DELETE" }
+              );
+              if (!ok) { showToast("انجام نشد"); return false; }
+              window.location.reload();
+              return true;
+            },
+          },
+        });
+        return;
+      }
+
+      if (e.target.closest("[data-edit-step]")) {
+        // Editing needs the challenge behind the step, and the row does not
+        // carry it -- one read of the step list is cheaper than putting a
+        // whole challenge into a data attribute on every row.
+        const { ok, data } = await apiFetch(`/roadmaps/${ROADMAP_ID}/steps`);
+        if (!ok) { showToast("انجام نشد"); return; }
+        const step = (data || []).find((s) => String(s.id) === stepId);
+        if (!step) { showToast("این قدم دیگر نیست"); return; }
+        const { ok: cOk, data: challenge } = await apiFetch(`/challenges/${step.challenge_id}`);
+        if (!cOk) { showToast("چالش این قدم در دسترس نیست"); return; }
+        askRule(challenge, {
+          current: { ...step.completion_rule, note: step.note },
+          onDone: async (rule, note) => {
+            const { ok: pOk, status, data: err } = await apiFetch(
+              `/roadmaps/${ROADMAP_ID}/steps/${stepId}`,
+              { method: "PATCH", body: { completion_rule: rule, note } }
+            );
+            if (!pOk) {
+              showToast((status === 422 && err && err.detail) || "ویرایش انجام نشد");
+              return;
+            }
+            window.location.reload();
+          },
+        });
+      }
+    });
+
+    // ---- invite links ----------------------------------------------------
+    function inviteUrl(code) {
+      return `${window.location.origin}/views/roadmap-invites/${code}`;
+    }
+
+    async function copyText(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast("لینک کپی شد");
+      } catch {
+        showToast("کپی نشد؛ لینک را دستی بردار");
+      }
+    }
+
+    document.getElementById("rmNewInvite").addEventListener("click", () => {
+      createSheet({
+        title: "لینک دعوت جدید",
+        confirmLabel: "بساز",
+        explainHtml: {{ explain("roadmap-invite") | tojson }},
+        fields: [
+          { name: "label", label: "نام لینک", maxlength: 60, placeholder: "اختیاری",
+            hint: "فقط برای خودت، تا لینک‌ها را از هم تشخیص بدهی." },
+          { name: "max_uses", label: "ظرفیت", type: "number", placeholder: "نامحدود",
+            hint: "خالی بگذاری یعنی هر تعداد نفر." },
+        ],
+        onConfirm: async (values) => {
+          const max = values.max_uses.trim();
+          const { ok, data } = await apiFetch(`/roadmaps/${ROADMAP_ID}/invites`, {
+            method: "POST",
+            body: {
+              label: values.label.trim() || null,
+              max_uses: max ? Number(max) : null,
+            },
+          });
+          if (!ok) { showToast("ساخت لینک انجام نشد"); return false; }
+          await copyText(inviteUrl(data.code));
+          window.location.reload();
+          return true;
+        },
+      });
+    });
+
+    document.getElementById("rmInvites").addEventListener("click", async (e) => {
+      const row = e.target.closest(".invite-row");
+      if (!row) return;
+      if (e.target.closest("[data-copy]")) {
+        await copyText(inviteUrl(row.dataset.inviteCode));
+        return;
+      }
+      if (e.target.closest("[data-revoke]")) {
+        createSheet({
+          title: "غیرفعال کردن لینک",
+          fields: [
+            { type: "note", text: "هرکسی این لینک را دارد دیگر نمی‌تواند با آن وارد مسیر شود.", tone: "danger" },
+            { type: "note", text: "کسانی که تا الان با آن وارد شده‌اند در مسیر می‌مانند." },
+          ],
+          confirmLabel: "لغو",
+          onConfirm: async () => true,
+          danger: {
+            label: "غیرفعال کن",
+            onClick: async () => {
+              const { ok } = await apiFetch(
+                `/roadmaps/${ROADMAP_ID}/invites/${row.dataset.inviteId}`,
+                { method: "DELETE" }
+              );
+              if (!ok) { showToast("انجام نشد"); return false; }
+              window.location.reload();
+              return true;
+            },
+          },
+        });
+      }
+    });
+
+    // ---- the roadmap's own record ---------------------------------------
+    // One row, one field, one PATCH. A four-field sheet behind a single
+    // «مشخصات» row is what this screen's whole shape rejects.
+    async function patchRoadmap(body) {
+      const { ok, status, data } = await apiFetch(`/roadmaps/${ROADMAP_ID}`, {
+        method: "PATCH",
+        body,
+      });
+      if (!ok) {
+        showToast((status === 409 && data && data.detail) || "ذخیره نشد");
+        return false;
+      }
+      window.location.reload();
+      return true;
+    }
+
+    const EDITORS = {
+      title: () => ({
+        title: "نام مسیر",
+        fields: [{ name: "title", label: "نام", required: true, maxlength: 60,
+          value: {{ roadmap.title | tojson }} }],
+        onConfirm: (v) => patchRoadmap({ title: v.title.trim() }),
+      }),
+      description: () => ({
+        title: "توضیح مسیر",
+        fields: [{ name: "description", label: "توضیح", type: "textarea", rows: 4,
+          maxlength: 1000, value: {{ (roadmap.description or "") | tojson }} }],
+        onConfirm: (v) => patchRoadmap({ description: v.description.trim() || null }),
+      }),
+      visibility: () => ({
+        title: "چه کسانی ببینند",
+        fields: [{ name: "visibility", label: "دیده‌شدن", type: "chips",
+          value: {{ roadmap.visibility | tojson }},
+          options: [
+            { value: "public", label: "همه", icon: "eye" },
+            { value: "unlisted", label: "با لینک", icon: "link" },
+            { value: "private", label: "فقط خودم", icon: "lock" },
+          ] }],
+        onConfirm: (v) => patchRoadmap({ visibility: v.visibility }),
+      }),
+      strict: () => ({
+        title: "ترتیب قدم‌ها",
+        explainHtml: {{ explain("roadmap-order") | tojson }},
+        fields: [{ name: "strict", label: "ترتیب", type: "chips",
+          value: {{ ('strict' if roadmap.strict else 'soft') | tojson }},
+          options: [
+            { value: "soft", label: "پیشنهادی", icon: "route" },
+            { value: "strict", label: "اجباری", icon: "lock" },
+          ] }],
+        onConfirm: (v) => patchRoadmap({ strict: v.strict === "strict" }),
+      }),
+      image: () => ({
+        title: "تصویر مسیر",
+        fields: [{ name: "image_square", label: "تصویر", type: "image",
+          frame: "roadmap_square",
+          value: {{ (roadmap.image_square or "") | tojson }},
+          url: {{ ((roadmap.image_square | media_url) or "") | tojson }} }],
+        onConfirm: (v) => patchRoadmap({ image_square: v.image_square || null }),
+      }),
+    };
+
+    document.querySelectorAll("[data-edit]").forEach((row) => {
+      row.addEventListener("click", () => {
+        const build = EDITORS[row.dataset.edit];
+        if (build) createSheet({ confirmLabel: "ذخیره", ...build() });
+      });
+    });
+
+    // ---- archive / delete -------------------------------------------------
+    document.getElementById("rmArchive").addEventListener("click", () => {
+      const archived = {{ 'true' if is_archived else 'false' }};
+      createSheet({
+        title: archived ? "بازگرداندن مسیر" : "بایگانی مسیر",
+        fields: [{
+          type: "note",
+          text: archived
+            ? "مسیر دوباره در فهرست‌ها می‌آید و هرکسی می‌تواند شروعش کند."
+            : "مسیر از فهرست‌ها برداشته می‌شود و کسی نمی‌تواند شروعش کند. کسانی که در راه‌اند ادامه می‌دهند و چیزی پاک نمی‌شود.",
+        }],
+        confirmLabel: archived ? "برگردان" : "بایگانی کن",
+        onConfirm: () =>
+          patchRoadmap({ lifecycle_status: archived ? "active" : "archived" }),
+      });
+    });
+
+    document.getElementById("rmDelete").addEventListener("click", () => {
+      createSheet({
+        title: "حذف مسیر",
+        fields: [
+          { type: "note", text: "مسیر و همهٔ قدم‌ها و لینک‌هایش برای همیشه پاک می‌شوند.", tone: "danger" },
+          { type: "note", text: "چالش‌ها و هرچه هرکسی در آن‌ها ثبت کرده سر جایش می‌ماند — مسیر فقط ترتیبشان بود." },
+          { type: "note", text: "اگر کسی جز خودت این مسیر را شروع کرده باشد، حذف ممکن نیست؛ به‌جایش بایگانی‌اش کن." },
+        ],
+        confirmLabel: "لغو",
+        onConfirm: async () => true,
+        danger: {
+          label: "حذف مسیر",
+          onClick: async () => {
+            const { ok, status, data } = await apiFetch(`/roadmaps/${ROADMAP_ID}`, {
+              method: "DELETE",
+            });
+            if (!ok) {
+              showToast((status === 409 && data && data.detail) || "حذف انجام نشد");
+              return false;
+            }
+            window.location.href = "/views/roadmaps/";
+            return true;
+          },
+        },
+      });
+    });
+  });
+</script>
+{% endblock %}

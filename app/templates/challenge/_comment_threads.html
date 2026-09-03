@@ -12,7 +12,26 @@
 
     A comment names its author and shows their avatar and nothing else: the
     conversation does not link to a profile, so `profile_visibility_filter`
-    stays exactly as wide as it was (CLAUDE.md, the leaderboard). -#}
+    stays exactly as wide as it was (CLAUDE.md, the leaderboard).
+
+    **Two messenger conventions are borrowed here, and both are decided in
+    this file rather than in CSS**, because both are questions about the rows
+    themselves and only the template can see the row before it:
+
+    * **Consecutive messages from one person are one block** (Telegram). The
+      avatar and the name are the answer to «who is talking», and repeating
+      them under the same person's second sentence answers a question nobody
+      asked -- so a grouped message keeps only its bubble, and an empty
+      avatar-width spacer keeps every bubble on the same reading edge.
+    * **A reply steps in one level and the rail steps with it** (Instagram).
+      The rail hangs from under the root's avatar, so the indent is not a
+      margin somebody has to measure by eye -- it is a line drawn from the
+      message being answered down past every answer to it.
+
+    Grouping is computed against `loop.previtem`, so it can never disagree
+    with the order the rows are actually rendered in, and it simply stops at a
+    page boundary: the first row of page two is never grouped, which is the
+    honest answer when the row above it came from another request. -#}
 {% macro comment_body(c) %}
 {% if c.body %}<p class="cm-text">{{ c.body }}</p>{% endif %}
 {#- The sticker is rendered from its id through `sticker_char`, never from
@@ -20,17 +39,29 @@
 {% if c.sticker %}<span class="cm-sticker" aria-hidden="true">{{ c.sticker | sticker_char }}</span>{% endif %}
 {% endmacro %}
 
-{% macro comment(c, is_reply) %}
-<div class="cm{{ ' cm-reply' if is_reply }}" data-comment-id="{{ c.id }}">
+{% macro comment(c, is_reply, grouped) %}
+<div class="cm{{ ' cm-reply' if is_reply }}{{ ' is-grouped' if grouped }}" data-comment-id="{{ c.id }}">
+  {#- The spacer is not decoration: without it a grouped bubble slides back to
+      the rail and the block stops reading as one person's turn. -#}
+  {% if grouped %}
+  <span class="cm-av is-ghost" aria-hidden="true"></span>
+  {% else %}
   <span class="cm-av"><img src="{{ c.user.avatar | avatar_url }}" alt=""
       loading="lazy" width="{{ 28 if is_reply else 34 }}" height="{{ 28 if is_reply else 34 }}"></span>
+  {% endif %}
   <div class="cm-main">
-    <div class="cm-head">
-      <b>{{ c.user.name }}</b>
-      <span class="cm-when" data-jalali="{{ c.created_at.isoformat() }}"
-        data-jalali-format="day-month">{{ c.created_at.isoformat() }}</span>
+    <div class="cm-bubble">
+      {#- Said once per block. The time goes with the name for the same
+          reason: it dates the turn, not each sentence in it. -#}
+      {% if not grouped %}
+      <div class="cm-head">
+        <b>{{ c.user.name }}</b>
+        <span class="cm-when" data-jalali="{{ c.created_at.isoformat() }}"
+          data-jalali-format="day-month">{{ c.created_at.isoformat() }}</span>
+      </div>
+      {% endif %}
+      {{ comment_body(c) }}
     </div>
-    {{ comment_body(c) }}
     <div class="cm-actions">
       {#- Both actions carry their own id, and one delegated listener on the
           page reads it: threads arrive by infinite scroll, so a per-button
@@ -47,15 +78,20 @@
 {% endmacro %}
 
 {% for thread in threads %}
-<article class="cm-thread">
-  {{ comment(thread.comment, false) }}
+{#- Two roots join only when nothing stood between them: a previous thread
+    that carried replies has already changed the subject. -#}
+{% set root_grouped = not loop.first
+  and loop.previtem.replies | length == 0
+  and loop.previtem.comment.user_id == thread.comment.user_id %}
+<article class="cm-thread{{ ' is-grouped' if root_grouped }}">
+  {{ comment(thread.comment, false, root_grouped) }}
   {% if thread.replies %}
   <div class="cm-replies">
     {% for reply in thread.replies %}
     {#- Everything past the preview is rendered and hidden, so «پاسخ‌های
         بیشتر» is a toggle rather than a second request. -#}
     <div class="cm-reply-slot"{{ ' hidden' if loop.index0 >= thread.preview }}>
-      {{ comment(reply, true) }}
+      {{ comment(reply, true, not loop.first and loop.previtem.user_id == reply.user_id) }}
     </div>
     {% endfor %}
     {% if thread.extra_replies %}

@@ -20,7 +20,7 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="مدیریت چالش‌ها">
+<nav class="crumbs" aria-label="مسیر پیمایش" data-crumb-trail data-crumb-label="مدیریت چالش‌ها">
   <span class="crumb current" aria-current="page">مدیریت چالش‌ها</span>
 </nav>
 {% endblock %}
@@ -74,7 +74,7 @@
       <p id="acEmptyText">{{ "چالشی با این مشخصات پیدا نشد." if (query or active_status != "all") else "هنوز چالشی ساخته نشده." }}</p>
     </div>
     <div class="scroll-sentinel" id="acSentinel" aria-hidden="true"></div>
-    <div class="list-loading" id="acLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
+    <div class="list-loading" id="acLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
   </section>
 </div>
 {% endblock %}
@@ -217,7 +217,7 @@
           },
           {
             name: "visibility",
-            label: "دسترسی دیدن",
+            label: "چه کسی می‌بیند",
             type: "chips",
             options: chipsFrom(visibilityLabels),
             value: row.dataset.challengeVisibility,

@@ -20,13 +20,18 @@ from app.models.checkin import CheckIn
 from app.models.enrollment import Enrollment, EnrollmentStatus
 from app.models.user import User
 from app.occurrences import local_today, week_start
+from app.roadmaps import register_roadmap_filters
 from app.routers.challenge import DEFAULT_TIMEZONE, STATUS_FINISHED, status_filter
 from app.routers.today import get_today_items
+from app.routers.views.roadmap import home_roadmap_card
 
 router = APIRouter(prefix="/views/home", tags=["home-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 register_explainer_filters(templates.env)
 register_icon_filters(templates.env)
+# The «قدم فعلی تو» card wears the roadmap's own Farsi labels, so this
+# environment owes the same registration the roadmap screens make.
+register_roadmap_filters(templates.env)
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
@@ -303,6 +308,10 @@ async def home(
         "home/index.html",
         {
             "title": "خانه",
+            # Empty for a member with no roadmaps, and the section is not
+            # rendered at all then -- so this costs one indexed query and no
+            # pixels to everybody who has never opened a course.
+            "roadmap_steps": await home_roadmap_card(db, user_id=current_user_id),
             "request": request,
             "user": db_user,
             "dash": dashboard,

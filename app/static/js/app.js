@@ -30,6 +30,9 @@ const icons = {
   // The end of a row that opens a sheet *upwards* rather than a page:
   // «chevronLeft» promises somewhere to go, this promises something to come up.
   chevronUp: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>`,
+  // Its mirror, and the pair is what a reorder control is: two arrows that
+  // mean «higher» and «lower» in a list, not «open» and «close».
+  chevronDown: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>`,
   calendar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>`,
   filter: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M7 12h10M10 19h4"/></svg>`,
   logout: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>`,
@@ -45,6 +48,9 @@ const icons = {
   refresh: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 11a8.5 8.5 0 00-14.6-5.1L3 8.8"/><path d="M3.5 13a8.5 8.5 0 0014.6 5.1L21 15.2"/><path d="M3 4.2v4.6h4.6M21 19.8v-4.6h-4.6"/></svg>`,
   target: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>`,
   chart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>`,
+  // The empty frame — «no picture yet», distinct from `camera`, which is the
+  // action of choosing one.
+  image: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-6 6-2-2-5 5"/></svg>`,
   camera: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>`,
   // A finger over a target: the one glyph in the set that means "tap this".
   // The tour's handover step is its only caller -- a step that waits for the
@@ -74,6 +80,16 @@ const icons = {
   // A domino mask -- anonymity, and deliberately not `eyeOff`, which the
   // visibility grid already spends on «فقط با لینک». One glyph, one meaning.
   mask: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8.5c0 4.2-3.2 8-5.6 8-1.5 0-2.5-1.2-3.4-1.2s-1.9 1.2-3.4 1.2C6.2 16.5 3 12.7 3 8.5c0-1.6 1.1-2.6 3-2.6 1.6 0 2.9.6 4.1 1.4.7.5 1.1.7 1.9.7s1.2-.2 1.9-.7c1.2-.8 2.5-1.4 4.1-1.4 1.9 0 3 1 3 2.6z"/><path d="M7.3 10.2h2.2M14.5 10.2h2.2"/></svg>`,
+  // «زیرگروهی از …» -- a branch turning up into the group above. Mirrored
+  // for RTL by pointing the corner the way the text runs.
+  // «مسیر» -- a path with stops on it. Three nodes on a winding line rather
+  // than a signpost or a map pin: the thing being named is the *order*, and
+  // the stops are what a member taps.
+  route: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="5" r="2.5"/><circle cx="5.5" cy="12" r="2.5"/><circle cx="18.5" cy="19" r="2.5"/><path d="M16 5.6H10a2.9 2.9 0 000 5.8h4a2.9 2.9 0 010 5.8H8"/></svg>`,
+  // The open shackle beside `lock`'s closed one: a step that has opened is
+  // the same object as one that has not, in the other state.
+  unlock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 017.5-1.9"/></svg>`,
+  nest: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 20v-7a4 4 0 00-4-4H5"/><path d="M9 5l-4 4 4 4"/></svg>`,
   building: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V6a2 2 0 012-2h7a2 2 0 012 2v15"/><path d="M15 10h3a2 2 0 012 2v9"/><path d="M2 21h20"/><path d="M8 8h.01M11 8h.01M8 12h.01M11 12h.01M8 16h.01M11 16h.01M18 14h.01M18 17h.01"/></svg>`,
   school: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L2 8l10 5 10-5z"/><path d="M6 10.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5"/><path d="M21 8.5V14"/></svg>`,
   link: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 13.5a4 4 0 005.7 0l3-3a4 4 0 10-5.7-5.7l-1.3 1.3"/><path d="M13.5 10.5a4 4 0 00-5.7 0l-3 3a4 4 0 105.7 5.7l1.3-1.3"/></svg>`,
@@ -781,7 +797,7 @@ function createSheet({
     // chips and avatars are their own grid of controls, so they drop the
     // boxed input shell every other field type wears (see .field-chips /
     // .field-avatars in styles.css).
-    wrap.className = f.type === "chips" || f.type === "avatars"
+    wrap.className = ["chips", "avatars", "image"].includes(f.type)
       ? `field field-${f.type}`
       : "field";
     const label = document.createElement("label");
@@ -839,7 +855,8 @@ function createSheet({
       group.className = "avatar-pick sheet-avatars";
       group.setAttribute("role", "radiogroup");
       group.setAttribute("aria-label", f.label);
-      const tiles = (f.options || []).map((o) => {
+      const tiles = [];
+      function addTile(o) {
         const tile = document.createElement("button");
         tile.type = "button";
         tile.className = "ap-item";
@@ -857,9 +874,37 @@ function createSheet({
           input.value = input.value === o.value ? "" : o.value;
           paintAvatars();
         });
-        group.appendChild(tile);
+        tiles.push(tile);
         return tile;
-      });
+      }
+      // A picture of one's own is the *first* tile, ahead of the forty
+      // drawn ones: it is the answer most people are looking for when they
+      // tap their avatar, and a grid that opens on strangers reads as the
+      // only offer. `f.upload` is `{label, onPick}` -- `onPick` resolves to
+      // {value, url} (a media key and its URL) or null, so this field knows
+      // nothing about uploading; see static/js/imagepick.js.
+      if (f.upload) {
+        const up = document.createElement("button");
+        up.type = "button";
+        up.className = "ap-item ap-upload";
+        up.setAttribute("aria-label", f.upload.label || "آپلود عکس");
+        up.innerHTML = '<span data-icon="camera"></span>';
+        up.addEventListener("click", async () => {
+          up.disabled = true;
+          try {
+            const picked = await f.upload.onPick();
+            if (!picked) return;
+            const tile = addTile({ value: picked.value, url: picked.url, label: f.upload.label });
+            group.insertBefore(tile, up.nextSibling);
+            input.value = picked.value;
+            paintAvatars();
+          } finally {
+            up.disabled = false;
+          }
+        });
+        group.appendChild(up);
+      }
+      (f.options || []).forEach((o) => group.appendChild(addTile(o)));
       // The grid scrolls, and 40 tiles is well past one screen, so the first
       // paint (which runs before the sheet is in the DOM -- hence the rAF)
       // brings the current pick into view instead of opening on strangers.
@@ -884,6 +929,63 @@ function createSheet({
       }
       chipSyncers.push(paintAvatars);
       fieldInput.appendChild(group);
+    } else if (f.type === "image") {
+      // A picture, as one row of a form. Same trade as "chips"/"avatars": a
+      // hidden input holds the value -- here a media key, or "" for none --
+      // so `collectValues` stays a plain read and the caller PATCHes the
+      // column exactly as it would any other field. Uploading is
+      // `window.pickImage` (static/js/imagepick.js), which the page must
+      // have loaded; this field knows only that it hands back {key, url}.
+      // `f.frame` names the crop, `f.url` the picture already stored.
+      input = document.createElement("input");
+      input.type = "hidden";
+      const box = document.createElement("div");
+      box.className = "ipf";
+      const preview = document.createElement("div");
+      preview.className = `ipf-preview is-${f.frame === "challenge_tall" ? "tall" : "square"}`;
+      const acts = document.createElement("div");
+      acts.className = "ipf-acts";
+      const pickBtn = document.createElement("button");
+      pickBtn.type = "button";
+      pickBtn.className = "cc-btn ghost sm";
+      const clearBtn = document.createElement("button");
+      clearBtn.type = "button";
+      clearBtn.className = "cc-btn ghost sm ipf-clear";
+      clearBtn.textContent = "حذف";
+      acts.appendChild(pickBtn);
+      acts.appendChild(clearBtn);
+      box.appendChild(preview);
+      box.appendChild(acts);
+
+      let url = f.url || "";
+      function paintImage() {
+        const has = Boolean(input.value);
+        preview.innerHTML = has
+          ? `<img src="${url}" alt="">`
+          : '<span data-icon="image"></span>';
+        renderIcons(preview);
+        pickBtn.textContent = has ? "تغییر عکس" : "انتخاب عکس";
+        clearBtn.hidden = !has;
+      }
+      pickBtn.addEventListener("click", async () => {
+        pickBtn.disabled = true;
+        try {
+          const picked = await window.pickImage(f.frame);
+          if (!picked) return;
+          url = picked.url;
+          input.value = picked.key;
+          paintImage();
+        } finally {
+          pickBtn.disabled = false;
+        }
+      });
+      clearBtn.addEventListener("click", () => {
+        input.value = "";
+        url = "";
+        paintImage();
+      });
+      chipSyncers.push(paintImage);
+      fieldInput.appendChild(box);
     } else if (f.type === "textarea") {
       input = document.createElement("textarea");
       if (f.rows) input.rows = f.rows;

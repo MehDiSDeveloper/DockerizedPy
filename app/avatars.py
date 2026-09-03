@@ -13,10 +13,16 @@ and a value that is not in ``AVATAR_IDS`` can never turn into a path on disk.
 ``is_valid_avatar`` is that gate and every write goes through it; the schema
 validator in ``schemas/user.py`` is the single place it is applied.
 
+An uploaded picture lives in this same column as a media key (see
+``app/media.py``): ``avatar_url`` resolves both, so every surface in the app
+renders one without knowing the difference.
+
 ``None`` is a legitimate, permanent state -- every account that predates this
 column has it, and picking is optional at signup -- so ``avatar_url`` answers
 the shadowed-head placeholder rather than raising.
 """
+
+from app.media import is_media_key, media_url
 
 # Grouped by DiceBear style, four per style: the picker renders them in this
 # order, so the grid reads as ten families rather than forty unrelated tiles.
@@ -39,14 +45,25 @@ _AVATAR_SET = frozenset(AVATAR_IDS)
 # colour, so it reads as *unset* rather than as a quieter kind of avatar.
 DEFAULT_AVATAR_ID = "_default"
 
-# Longest id today is 24 chars; the column is sized well past that so a new
-# style with a longer name is a data change, not a migration.
+# Longest catalogue id today is 24 chars and an uploaded key is 29; the column
+# is sized well past both, so a new style with a longer name is a data change
+# rather than a migration.
 AVATAR_ID_MAX_LENGTH = 60
 
 
 def is_valid_avatar(value: str | None) -> bool:
-    """True for ``None`` (no pick) or an id that has a file behind it."""
-    return value is None or value in _AVATAR_SET
+    """True for ``None`` (no pick) or an id that has a file behind it.
+
+    Two kinds of id share this column, and this is the only gate either one
+    passes through. A *catalogue* id names one of the committed SVGs; a
+    *media* key (`app.media`) names a picture the member uploaded. Keeping
+    them in one column rather than adding a second is what lets every surface
+    that already renders `x.avatar | avatar_url` -- the roster, the
+    leaderboard, a comment, a group's emblem -- show an uploaded photo with
+    no change at all, and what keeps "which of the two is showing" from
+    becoming a question every one of them has to answer.
+    """
+    return value is None or value in _AVATAR_SET or is_media_key(value)
 
 
 def avatar_url(value: str | None) -> str:
@@ -55,6 +72,9 @@ def avatar_url(value: str | None) -> str:
     Anything unknown -- ``None``, or an id whose file was retired without a
     data migration -- resolves to the placeholder rather than a broken image.
     """
+    uploaded = media_url(value)
+    if uploaded is not None:
+        return uploaded
     avatar_id = value if value in _AVATAR_SET else DEFAULT_AVATAR_ID
     return f"/static/img/avatars/{avatar_id}.svg"
 

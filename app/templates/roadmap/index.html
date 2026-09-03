@@ -1,0 +1,191 @@
+{% extends "layout.html" %}
+
+{#- «مسیرها» -- the courses you built or are walking, and the public ones.
+
+    **One list, one scope switch, no second «کشف» page.** The rows are
+    identical either way and the difference really is one clause in the query
+    (`fetch_roadmap_page(scope=…)`), so a second screen would be a second
+    thing to keep in step for no gain -- the same call the challenge list's
+    «مال من» makes.
+
+    Reached from the profile menu and the settings screen, not from the bottom
+    nav: the nav is the four things every member does, and a member who has
+    never opened a course would pay a tab for something they never use. -#}
+
+{% block topbar_leading %}
+<a href="/views/users/{{ current_user_id }}" class="back-btn" data-back data-back-optional
+  aria-label="بازگشت"><span data-icon="chevronRight"></span></a>
+{% endblock %}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر پیمایش" data-crumb-trail data-crumb-label="مسیرها">
+  <span class="crumb current" aria-current="page">مسیرها</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <p class="hero-eyebrow">قدم به قدم</p>
+  <h1 class="hero-title">مسیرها{{ explain("roadmap") }}</h1>
+</section>
+
+<section>
+  <div class="search-bar">
+    <span data-icon="search"></span>
+    <input type="text" id="rmSearch" placeholder="جستجوی مسیر..." value="{{ query }}" />
+  </div>
+
+  <div class="seg-row">
+    <div class="seg" id="rmScopeSeg" role="tablist" aria-label="کدام مسیرها">
+      <button class="seg-btn{{ ' active' if active_scope == 'mine' }}" data-scope="mine"
+        role="tab" aria-selected="{{ 'true' if active_scope == 'mine' else 'false' }}">مال من</button>
+      <button class="seg-btn{{ ' active' if active_scope == 'all' }}" data-scope="all"
+        role="tab" aria-selected="{{ 'true' if active_scope == 'all' else 'false' }}">همه</button>
+    </div>
+    {{ explain("roadmap-order") }}
+  </div>
+
+  <div class="rm-list" id="rmList" data-page-size="{{ page_size }}"
+    data-initial-count="{{ roadmaps|length }}" data-has-more="{{ 'true' if has_more else 'false' }}">
+    {% include "roadmap/_roadmap_cards.html" %}
+  </div>
+
+  {#- The empty state says what a مسیر *is*, because somebody who has never
+      seen one cannot be expected to guess that it is made of challenges they
+      already know. -#}
+  <div class="empty" id="rmEmpty" {{ 'hidden' if roadmaps }}>
+    <span data-icon="route"></span>
+    <p>هنوز مسیری اینجا نیست.<br>
+      مسیر چند چالش است که پشت سر هم چیده می‌شوند؛ هر قدم وقتی وعده‌اش شد باز
+      می‌شود و چالشش به «امروز» تو اضافه می‌شود.</p>
+    <p class="empty-hint">می‌توانی مسیر خودت را بسازی، یا با لینکی که کسی برایت
+      فرستاده وارد مسیر او شوی.</p>
+  </div>
+
+  <div class="scroll-sentinel" id="rmSentinel" aria-hidden="true"></div>
+  <div class="list-loading" id="rmLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
+</section>
+
+<button type="button" class="fab" id="rmCreate" aria-label="ساخت مسیر جدید">
+  <span data-icon="plus"></span>
+</button>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script src="{{ url_for('static', path='/js/imagepick.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const listEl = document.getElementById("rmList");
+    const emptyEl = document.getElementById("rmEmpty");
+    const search = document.getElementById("rmSearch");
+    const scopeSeg = document.getElementById("rmScopeSeg");
+    const state = {
+      scope: {{ active_scope | tojson }},
+      q: search.value.trim(),
+    };
+
+    function params() {
+      const p = new URLSearchParams();
+      p.set("scope", state.scope);
+      if (state.q) p.set("q", state.q);
+      return p;
+    }
+
+    const scroller = createInfiniteScroller({
+      container: listEl,
+      sentinel: document.getElementById("rmSentinel"),
+      loadingEl: document.getElementById("rmLoading"),
+      emptyEl: emptyEl,
+      pageSize: Number(listEl.dataset.pageSize) || 20,
+      initialOffset: Number(listEl.dataset.initialCount) || 0,
+      initialHasMore: listEl.dataset.hasMore === "true",
+      buildUrl: (offset, limit) => {
+        const p = params();
+        p.set("offset", offset);
+        p.set("limit", limit);
+        return `/views/roadmaps/fragment?${p.toString()}`;
+      },
+      onEmpty: () => { emptyEl.hidden = false; },
+    });
+
+    function apply() {
+      emptyEl.hidden = true;
+      // The scope and the search live in the query string, so a filtered list
+      // stays a link somebody can send.
+      history.replaceState(null, "", `?${params().toString()}`);
+      scroller.reset();
+    }
+
+    Array.from(scopeSeg.querySelectorAll(".seg-btn")).forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.dataset.scope === state.scope) return;
+        state.scope = btn.dataset.scope;
+        Array.from(scopeSeg.querySelectorAll(".seg-btn")).forEach((b) => {
+          const on = b.dataset.scope === state.scope;
+          b.classList.toggle("active", on);
+          b.setAttribute("aria-selected", on ? "true" : "false");
+        });
+        apply();
+      });
+    });
+
+    search.addEventListener("input", debounce(() => {
+      state.q = search.value.trim();
+      apply();
+    }, 300));
+
+    // Creating a roadmap is a `createSheet` over `POST /roadmaps/`, not a
+    // page: it asks three short questions, and the *steps* are added
+    // afterwards on the course's own management screen -- a wizard that asked
+    // for the challenges up front would be a wizard nobody could finish
+    // without already knowing which challenges they meant.
+    document.getElementById("rmCreate").addEventListener("click", () => {
+      createSheet({
+        title: "مسیر جدید",
+        confirmLabel: "بساز",
+        explainHtml: {{ explain("roadmap") | tojson }},
+        fields: [
+          { name: "title", label: "نام مسیر", required: true, maxlength: 60,
+            placeholder: "مثلاً: سی روز آرام‌تر" },
+          { name: "description", label: "توضیح", type: "textarea", rows: 3, maxlength: 1000,
+            placeholder: "اختیاری",
+            hint: "کسی که مسیر را باز می‌کند اول همین را می‌خواند." },
+          { name: "visibility", label: "چه کسانی ببینند؟", type: "chips", value: "public",
+            hint: "«با لینک» یعنی در فهرست عمومی نمی‌آید و فقط با لینک تو باز می‌شود.",
+            options: [
+              { value: "public", label: "همه", icon: "eye" },
+              { value: "unlisted", label: "با لینک", icon: "link" },
+              { value: "private", label: "فقط خودم", icon: "lock" },
+            ] },
+          { name: "strict", label: "ترتیب قدم‌ها", type: "chips", value: "soft",
+            hint: "«پیشنهادی» یعنی قدم‌های بعدی هم باز است و فقط نشان می‌دهد وعده‌اش نرسیده.",
+            options: [
+              { value: "soft", label: "پیشنهادی", icon: "route" },
+              { value: "strict", label: "اجباری", icon: "lock" },
+            ] },
+        ],
+        onConfirm: async (values) => {
+          const { ok, data } = await apiFetch("/roadmaps/", {
+            method: "POST",
+            body: {
+              title: values.title.trim(),
+              description: values.description.trim() || null,
+              visibility: values.visibility || "public",
+              strict: values.strict === "strict",
+            },
+          });
+          if (!ok) {
+            showToast("ساخت مسیر انجام نشد");
+            return false;
+          }
+          // Straight to the management screen: a course with no steps is not
+          // a course yet, and the next thing to do is add the first one.
+          window.location.href = `/views/roadmaps/${data.id}/manage`;
+          return true;
+        },
+      });
+    });
+  });
+</script>
+{% endblock %}

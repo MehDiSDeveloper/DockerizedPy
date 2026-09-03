@@ -10,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.auth import LoginRequired, clear_session_cookie
-from app.config import BASE_DIR, settings
+from app.config import BASE_DIR, MEDIA_ROOT, settings
 from app.explainers import register_explainer_filters
 from app.logging_config import configure_logging, log_event
 from app.middleware import RequestLogMiddleware
@@ -21,9 +21,11 @@ from app.routers import (
     comment,
     enrollment,
     group,
+    media,
     notification,
     otp,
     reaction,
+    roadmap,
     today,
     user,
 )
@@ -33,6 +35,7 @@ from app.routers.views import challenge as challenge_views
 from app.routers.views import group as group_views
 from app.routers.views import home as home_views
 from app.routers.views import notification as notification_views
+from app.routers.views import roadmap as roadmap_views
 from app.routers.views import settings as settings_views
 from app.routers.views import today as today_views
 from app.routers.views import user as user_views
@@ -85,6 +88,22 @@ class RevalidatedStaticFiles(StaticFiles):
     def file_response(self, *args, **kwargs):
         response = super().file_response(*args, **kwargs)
         response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+class ImmutableStaticFiles(StaticFiles):
+    """The opposite trade from the class above, for the opposite kind of file.
+
+    A media key is generated per upload and never reused, so a URL under
+    `/media/` names one immutable set of bytes: replacing a picture mints a
+    new key and the old URL stops being referenced. That makes a long
+    `immutable` cache exactly right -- and it is what keeps a roster of forty
+    photographs from costing forty conditional requests on every page.
+    """
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         return response
 
 
@@ -154,7 +173,12 @@ app.include_router(checkin.router)
 app.include_router(notification.router)
 app.include_router(reaction.router)
 app.include_router(comment.router)
+app.include_router(roadmap.router)
+# The invite landing is its own prefix: whoever holds a code must not need
+# the roadmap's id, which is the whole reason a code exists.
+app.include_router(roadmap.invite_router)
 app.include_router(today.router)
+app.include_router(media.router)
 
 app.include_router(admin_views.router)
 app.include_router(auth_views.router)
@@ -163,9 +187,12 @@ app.include_router(group_views.router)
 app.include_router(group_views.invite_router)
 app.include_router(home_views.router)
 app.include_router(notification_views.router)
+app.include_router(roadmap_views.router)
+app.include_router(roadmap_views.invite_router)
 app.include_router(settings_views.router)
 app.include_router(today_views.router)
 app.include_router(user_views.router)
 app.mount("/static", RevalidatedStaticFiles(directory=BASE_DIR / "static"), name="static")
+app.mount("/media", ImmutableStaticFiles(directory=MEDIA_ROOT), name="media")
 # Uncommenting the line below also requires re-adding `import debugpy` above.
 # debugpy.listen(("0.0.0.0", 5678))

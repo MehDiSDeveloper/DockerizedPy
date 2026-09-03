@@ -17,7 +17,7 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="{{ group.name }}">
+<nav class="crumbs" aria-label="مسیر پیمایش" data-crumb-trail data-crumb-label="{{ group.name }}">
   <span class="crumb current" aria-current="page">{{ group.name }}</span>
 </nav>
 {% endblock %}
@@ -51,6 +51,13 @@
     <span class="cc-tag {{ 'accent' if my_role in ('owner', 'admin') else '' }}">{{ group_role_labels.get(my_role, 'عضو') }}</span>
   </div>
   <h1>{{ group.name }}</h1>
+  {#- The way up. A subgroup with no link back to the group it is inside is a
+      dead end -- and the parent is also the answer to "why can I see this",
+      so it is said on the hero rather than buried in «درباره». -#}
+  {% if parent_group %}
+  <p class="gh-parent"><span data-icon="nest"></span><a
+      href="/views/groups/{{ parent_group.id }}">زیرگروهی از {{ parent_group.name }}</a></p>
+  {% endif %}
   <div class="detail-stats">
     <div><b>{{ member_count }}</b><span>عضو</span></div>
     <div><b>{{ challenges | length }}{{ '+' if has_more else '' }}</b><span>چالش</span></div>
@@ -68,6 +75,16 @@
     aria-controls="panel-members" aria-selected="false">
     <span data-icon="users"></span>اعضا
   </button>
+  {#- A fourth tab, and only when the group actually has something inside it:
+      most groups are flat, and a tab that is always empty is a question the
+      reader has to answer before they can ignore it. The tab strip's JS is
+      generic (`.dtab` + `data-panel`), so this costs nothing but the markup. -#}
+  {% if children %}
+  <button type="button" class="dtab" role="tab" id="tab-subgroups" data-panel="subgroups"
+    aria-controls="panel-subgroups" aria-selected="false">
+    <span data-icon="building"></span>زیرگروه‌ها
+  </button>
+  {% endif %}
   <button type="button" class="dtab" role="tab" id="tab-about" data-panel="about"
     aria-controls="panel-about" aria-selected="false">
     <span data-icon="info"></span>درباره
@@ -121,7 +138,7 @@
   </div>
 
   <div class="scroll-sentinel" id="gcSentinel" aria-hidden="true"></div>
-  <div class="list-loading" id="gcLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
+  <div class="list-loading" id="gcLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
 </div>
 
 {# ========================= پنل: اعضا ========================= #}
@@ -147,6 +164,29 @@
   </div>
 </div>
 
+{# ========================= پنل: زیرگروه‌ها ========================= #}
+{% if children %}
+<div class="tab-panel" id="panel-subgroups" role="tabpanel" aria-labelledby="tab-subgroups"
+  tabindex="-1" hidden>
+  <div class="settings-page">
+    <section class="setting-group">
+      <div class="section-head">
+        <h2>{{ children | length }} زیرگروه{{ explain("subgroup") }}</h2>
+      </div>
+      {#- The same card the groups list draws, over the same two facts. A
+          subgroup is a group: it has its own page, its own roster and its own
+          links, so the way into it is the way into any other. Direct children
+          only -- what is inside *them* is read on their own page. -#}
+      <div class="group-list">
+        {% with groups = children, member_counts = child_counts %}
+        {% include "group/_group_cards.html" %}
+        {% endwith %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endif %}
+
 {# ========================= پنل: درباره ========================= #}
 <div class="tab-panel" id="panel-about" role="tabpanel" aria-labelledby="tab-about" tabindex="-1"
   hidden>
@@ -161,8 +201,15 @@
     <h2>جزئیات</h2>
     <dl class="fact-list">
       <div class="fact"><dt>نوع</dt><dd>{{ group_kind_labels.get(group.kind, 'گروه') }}</dd></div>
+      {% if parent_group %}
+      <div class="fact"><dt>داخل گروه</dt><dd><a
+            href="/views/groups/{{ parent_group.id }}">{{ parent_group.name }}</a></dd></div>
+      {% endif %}
+      {% if children %}
+      <div class="fact"><dt>زیرگروه‌ها</dt><dd>{{ children | length }}</dd></div>
+      {% endif %}
       <div class="fact"><dt>تعداد اعضا</dt><dd>{{ member_count }}</dd></div>
-      <div class="fact"><dt>نقش تو</dt><dd>{{ group_role_labels.get(my_role, 'عضو') }}</dd></div>
+      <div class="fact"><dt>نقش</dt><dd>{{ group_role_labels.get(my_role, 'عضو') }}</dd></div>
       <div class="fact"><dt>ساخته شد</dt><dd data-jalali="{{ group.created_at.isoformat() }}"
           data-jalali-format="day-month-year">{{ group.created_at.strftime('%Y-%m-%d') }}</dd></div>
     </dl>
@@ -198,8 +245,8 @@
       <div class="setting-row glass danger-row" role="button" tabindex="0" id="grLeaveChallenges">
         <div class="sr-head">
           <div class="sr-text">
-            <span class="sr-label">انصراف از چالش‌های گروه</span>
-            <span class="sr-hint">از همهٔ چالش‌های این گروه یک‌جا انصراف می‌دهی و عضو گروه
+            <span class="sr-label">ترک همهٔ چالش‌ها</span>
+            <span class="sr-hint">همهٔ چالش‌های این گروه را یک‌جا ترک می‌کنی و عضو گروه
               می‌مانی. سابقهٔ ثبت‌شده‌ات در آن چالش‌ها پاک می‌شود.</span>
           </div>
           <span class="sr-value">{{ my_optional | length + my_mandatory | length }} چالش</span>
@@ -233,9 +280,9 @@
         <div class="sr-head">
           <div class="sr-text">
             <span class="sr-label">خروج از گروه</span>
-            <span class="sr-hint">{% if my_optional or my_mandatory %}با خروج، از همهٔ
-              چالش‌های این گروه هم انصراف ثبت می‌شود.{% else %}دیگر چالش‌های این گروه را
-              نمی‌بینی.{% endif %} برای برگشتن به لینک دعوت تازه نیاز داری.</span>
+            <span class="sr-hint">{% if my_optional or my_mandatory %}با خروج، همهٔ
+              چالش‌های این گروه هم ترک می‌شود.{% else %}دیگر چالش‌های این گروه را
+              نمی‌بینی.{% endif %} برای برگشتن به لینک دعوت جدید نیاز داری.</span>
           </div>
           <span class="sr-chev" data-icon="chevronLeft"></span>
         </div>
@@ -379,8 +426,8 @@
         const notes = [{
           type: "note",
           text: OPTIONAL.length
-            ? `از ${countLine(OPTIONAL)} انصراف می‌دهی. سابقهٔ ثبت‌شده‌ات پاک می‌شود و برگشت‌پذیر نیست.`
-            : "چالشی نیست که بتوانی همین حالا از آن انصراف بدهی.",
+            ? `${countLine(OPTIONAL)} را ترک می‌کنی. سابقهٔ ثبت‌شده‌ات پاک می‌شود و برگشت‌پذیر نیست.`
+            : "چالشی نیست که بتوانی همین حالا آن را ترک کنی.",
           tone: OPTIONAL.length ? "danger" : undefined,
         }];
         // Named, not silently skipped: a member who presses "همه" and finds
@@ -397,12 +444,12 @@
           text: "عضو گروه می‌مانی و چالش‌های تازهٔ گروه همچنان به تو می‌رسد.",
         });
         createSheet({
-          title: "انصراف از چالش‌های گروه",
+          title: "ترک همهٔ چالش‌ها",
           fields: notes,
-          confirmLabel: "بی‌خیال",
+          confirmLabel: "لغو",
           onConfirm: async () => true,
           danger: OPTIONAL.length ? {
-            label: "انصراف از همه",
+            label: "ترک همهٔ چالش‌ها",
             onClick: async () => {
               const { ok, data } = await apiFetch(`/groups/{{ group.id }}/enrollments`, {
                 method: "DELETE",
@@ -429,17 +476,17 @@
         const notes = [{
           type: "note",
           text: total
-            ? `با خروج از گروه، از ${total} چالش این گروه هم انصراف ثبت می‌شود — چالش‌های اجباری هم — و هرچه در آن‌ها ثبت کرده‌ای پاک می‌شود.`
-            : "از گروه خارج می‌شوی. چالشی در این گروه نداری که از آن انصراف ثبت شود.",
+            ? `با خروج از گروه، ${total} چالش این گروه هم ترک می‌شود — چالش‌های اجباری هم — و هرچه در آن‌ها ثبت کرده‌ای پاک می‌شود.`
+            : "از گروه خارج می‌شوی. چالشی در این گروه نداری که ترکش کنی.",
           tone: total ? "danger" : undefined,
         }, {
           type: "note",
-          text: "بعد از خروج، چالش‌های این گروه را نمی‌بینی و برای برگشتن به لینک دعوت تازه نیاز داری.",
+          text: "بعد از خروج، چالش‌های این گروه را نمی‌بینی و برای برگشتن به لینک دعوت جدید نیاز داری.",
         }];
         createSheet({
           title: "خروج از گروه",
           fields: notes,
-          confirmLabel: "بی‌خیال",
+          confirmLabel: "لغو",
           onConfirm: async () => true,
           danger: {
             label: "خروج از گروه",

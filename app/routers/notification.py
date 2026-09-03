@@ -66,6 +66,7 @@ ROW_OPTIONS = (
     selectinload(Notification.actor),
     selectinload(Notification.challenge),
     selectinload(Notification.group),
+    selectinload(Notification.roadmap),
 )
 
 

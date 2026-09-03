@@ -27,14 +27,14 @@
   <section class="stats">
     <div class="stat-card glass accent" data-tour="today-count">
       <span class="stat-num" id="todayCount">{{ total_count }}</span>
-      <span class="stat-label">مانده برای امروز</span>
+      <span class="stat-label">مانده تا پایان امروز</span>
     </div>
   </section>
 
   <!-- today's occurrences -->
   <section>
     <div class="section-head">
-      <h2>نوبت‌های امروز{{ explain("today-list") }}</h2>
+      <h2>وعده‌های امروز{{ explain("today-list") }}</h2>
     </div>
 
     <div class="challenge-list" id="todayList"
@@ -48,7 +48,7 @@
       <p>امروز چیزی برای ثبت نداری. یه نفس بکش 🎉</p>
     </div>
     <div class="scroll-sentinel" id="todaySentinel" aria-hidden="true"></div>
-    <div class="list-loading" id="todayLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
+    <div class="list-loading" id="todayLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
   </section>
 {% endblock %}
 
@@ -112,7 +112,7 @@
 
         card.remove();
         scroller.notifyRemoved();
-        showToast(state === "completed" ? "ثبت شد ✅" : "رد شد");
+        showToast(state === "completed" ? "ثبت شد ✅" : "انجام ندادم");
         if (countEl) countEl.textContent = Math.max(0, Number(countEl.textContent) - 1);
         if (!listEl.querySelector("[data-today-item]")) {
           emptyEl.hidden = false;

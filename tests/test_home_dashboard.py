@@ -84,8 +84,8 @@ async def test_home_page_renders_for_an_account_with_nothing(
     assert response.status_code == 200, response.text
     # The ring is replaced by its empty line, and the focus section -- which
     # would be four bars of zero -- is dropped entirely rather than shown flat.
-    assert "امروز نوبتی نداری" in response.text
-    assert "تمرکز تو" not in response.text
+    assert "امروز وعده‌ای نداری" in response.text
+    assert "تمرکز" not in response.text
 
 
 @pytest.mark.asyncio

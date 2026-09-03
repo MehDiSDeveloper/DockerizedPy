@@ -37,7 +37,7 @@
   </div>
   {#- Unread is spelled out, not just tinted -- the same rule the status pill
       follows: colour alone cannot carry a meaning. -#}
-  {% if not n.read_at %}<span class="notif-new">تازه</span>{% endif %}
+  {% if not n.read_at %}<span class="notif-new">جدید</span>{% endif %}
   {% if n.challenge %}<span class="sr-chev" data-icon="chevronLeft"></span>{% endif %}
 </div>
 {% endmacro %}

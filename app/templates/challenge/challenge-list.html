@@ -61,9 +61,9 @@
 <div class="seg-row view-row">
   <div class="seg" id="clViewSeg" role="tablist" aria-label="حالت نمایش">
     <button class="seg-btn" data-view="rail" role="tab" aria-selected="false"><span
-        data-icon="camera"></span>ریل</button>
+        data-icon="camera"></span>کارتی</button>
     <button class="seg-btn" data-view="list" role="tab" aria-selected="false"><span
-        data-icon="list"></span>لیست</button>
+        data-icon="list"></span>فهرستی</button>
   </div>
 </div>
 
@@ -87,7 +87,7 @@
     <p id="clEmptyText">{{ "چالشی با این مشخصات پیدا نشد." if (active_category or query or active_mine != "all" or active_status != "all") else "هنوز چالشی ثبت نشده." }}</p>
   </div>
   <div class="scroll-sentinel" id="clSentinel" aria-hidden="true"></div>
-  <div class="list-loading" id="clLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
+  <div class="list-loading" id="clLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
 </section>
 
 {#- The full-screen reader's own close control. It lives outside the list
@@ -192,7 +192,7 @@
         const clear = document.createElement("button");
         clear.type = "button";
         clear.className = "filter-tag clear";
-        clear.textContent = "پاک کردن همه";
+        clear.textContent = "پاک کردن فیلترها";
         clear.addEventListener("click", clearHiddenFilters);
         activeFilters.appendChild(clear);
       }
@@ -300,7 +300,7 @@
         title: "فیلترها",
         fields,
         confirmLabel: "نمایش نتایج",
-        skipLabel: "پاک کردن",
+        skipLabel: "پاک کردن فیلترها",
         onSkip: clearHiddenFilters,
         onConfirm: (values) => {
           state.cat = values.cat || ALL_CATEGORIES;
@@ -389,10 +389,6 @@
       // «لیست» is the card exactly as it was: the anchor wins and this
       // listener has no opinion.
       if (!isRail()) return;
-      // The one control that *is* meant to open the challenge's page. The
-      // card is already that link, so letting the default through is the
-      // whole implementation.
-      if (e.target.closest("[data-rail-open]")) return;
       // The social controls act on the card, not through it: they carry
       // their own handlers and must not also open the reader or navigate.
       if (e.target.closest("[data-like-subject], [data-comments-id]")) {
@@ -401,13 +397,13 @@
       }
       const card = e.target.closest(".challenge-card");
       if (!card) return;
-      // The description: collapsed and full ship as two spans in the card,
-      // so this is a class toggle and nothing here reads or rewrites text.
+      // The description is its own control: collapsed and full ship as two
+      // spans in the card, so a tap on the text is a class toggle and
+      // nothing here reads or rewrites it.
       const toggle = e.target.closest("[data-rail-toggle]");
       if (toggle) {
         e.preventDefault();
         const open = card.classList.toggle("desc-open");
-        toggle.textContent = open ? "کمتر" : "بیشتر";
         toggle.setAttribute("aria-expanded", open ? "true" : "false");
         return;
       }
@@ -419,7 +415,7 @@
       openImmersive(card);
     });
 
-    // `.rail-toggle` is a span (it lives inside the card's own <a>), so it
+    // The description carries role="button" inside the card's own <a>, so it
     // gets the keyboard activation a real button would have had for free.
     listEl.addEventListener("keydown", e => {
       if (e.key !== "Enter" && e.key !== " ") return;

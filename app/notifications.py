@@ -117,27 +117,27 @@ NOTIFICATION_META: dict[str, dict[str, str]] = {
     },
     NotificationKind.CHALLENGE_ARCHIVED.value: {
         "title": "چالش بایگانی شد",
-        "text": "چالش «{challenge}» بایگانی شد و نوبت تازه‌ای نخواهد داشت.",
+        "text": "چالش «{challenge}» بایگانی شد و وعدهٔ تازه‌ای نخواهد داشت.",
         "icon": "seal",
         "hint": "وقتی چالشی که در آن هستی بایگانی می‌شود.",
     },
     NotificationKind.CHALLENGE_ACTIVATED.value: {
         "title": "چالش فعال شد",
-        "text": "چالش «{challenge}» فعال شد؛ از حالا نوبت‌هایش شمرده می‌شود.",
+        "text": "چالش «{challenge}» فعال شد؛ از حالا وعده‌هایش شمرده می‌شود.",
         "icon": "flame",
         "hint": "وقتی چالشی که در آن هستی دوباره فعال می‌شود.",
     },
     NotificationKind.CHALLENGE_COMMENTED.value: {
-        "title": "دیدگاه تازه",
-        "text": "{actor} زیر چالش «{challenge}» دیدگاهی گذاشت.",
+        "title": "نظر تازه",
+        "text": "{actor} زیر چالش «{challenge}» نظری گذاشت.",
         "icon": "message",
-        "hint": "وقتی کسی زیر یکی از چالش‌های تو دیدگاه می‌گذارد.",
+        "hint": "وقتی کسی زیر یکی از چالش‌های تو نظر می‌گذارد.",
     },
     NotificationKind.COMMENT_REPLIED.value: {
-        "title": "پاسخ به دیدگاه تو",
-        "text": "{actor} به دیدگاه تو در چالش «{challenge}» پاسخ داد.",
+        "title": "پاسخ به نظر تو",
+        "text": "{actor} به نظر تو در چالش «{challenge}» پاسخ داد.",
         "icon": "reply",
-        "hint": "وقتی کسی به دیدگاه تو پاسخ می‌دهد.",
+        "hint": "وقتی کسی به نظر تو پاسخ می‌دهد.",
     },
     # ---- Groups ---------------------------------------------------------
     # Every one of these is something that happens *to* a member because
@@ -196,6 +196,34 @@ NOTIFICATION_META: dict[str, dict[str, str]] = {
         "icon": "lock",
         "hint": "وقتی در یک چالش اجباری گروه ثبت می‌شوی.",
     },
+    # ---- Roadmaps -------------------------------------------------------
+    # A step opening is the one event in this app that happens with nobody
+    # touching anything: the member finished the step before it and the engine
+    # opened the next. It is therefore the kind this feed exists for.
+    NotificationKind.ROADMAP_JOINED.value: {
+        "title": "هم‌مسیر تازه",
+        "text": "{actor} مسیر «{roadmap}» را شروع کرد.",
+        "icon": "route",
+        "hint": "وقتی کسی یکی از مسیرهای تو را شروع می‌کند.",
+    },
+    NotificationKind.ROADMAP_STEP_UNLOCKED.value: {
+        "title": "قدم تازه باز شد",
+        "text": "قدم بعدی مسیر «{roadmap}» باز شد: چالش «{challenge}».",
+        "icon": "unlock",
+        "hint": "وقتی قدم بعدی یکی از مسیرهایت باز می‌شود.",
+    },
+    NotificationKind.ROADMAP_COMPLETED.value: {
+        "title": "مسیر تمام شد",
+        "text": "همهٔ قدم‌های مسیر «{roadmap}» را تمام کردی.",
+        "icon": "trophy",
+        "hint": "وقتی آخرین قدم یکی از مسیرهایت را تمام می‌کنی.",
+    },
+    NotificationKind.ROADMAP_STEP_SKIPPED.value: {
+        "title": "قدمی از مسیرت رد شد",
+        "text": "چالش «{challenge}» بایگانی شد، پس قدمش در مسیر «{roadmap}» رد شد تا مسیر متوقف نماند.",
+        "icon": "seal",
+        "hint": "وقتی چالشِ یکی از قدم‌های مسیر تو بایگانی می‌شود.",
+    },
 }
 
 # What an unknown kind renders as. A row written by a newer version of the
@@ -217,6 +245,7 @@ FALLBACK_META = {
 UNKNOWN_ACTOR = "یکی از اعضا"
 UNKNOWN_CHALLENGE = "یک چالش"
 UNKNOWN_GROUP = "یک گروه"
+UNKNOWN_ROADMAP = "یک مسیر"
 
 
 def notification_meta(notification: Notification) -> dict[str, str]:
@@ -245,8 +274,11 @@ def notification_text(notification: Notification) -> str:
         notification.challenge.title if notification.challenge else UNKNOWN_CHALLENGE
     )
     group = notification.group.name if notification.group else UNKNOWN_GROUP
+    roadmap = (
+        notification.roadmap.title if notification.roadmap else UNKNOWN_ROADMAP
+    )
     return notification_meta(notification)["text"].format(
-        actor=actor, challenge=challenge, group=group
+        actor=actor, challenge=challenge, group=group, roadmap=roadmap
     )
 
 
@@ -337,6 +369,7 @@ def _add(
     actor_user_id: int | None,
     challenge_id: int | None,
     group_id: int | None,
+    roadmap_id: int | None,
     muted: set[str],
     anonymous_actor: bool = False,
 ) -> Notification | None:
@@ -360,6 +393,7 @@ def _add(
         actor_user_id=None if anonymous_actor else actor_user_id,
         challenge_id=challenge_id,
         group_id=group_id,
+        roadmap_id=roadmap_id,
     )
     db.add(notification)
     return notification
@@ -373,6 +407,7 @@ async def notify(
     actor_user_id: int | None = None,
     challenge_id: int | None = None,
     group_id: int | None = None,
+    roadmap_id: int | None = None,
     anonymous_actor: bool = False,
 ) -> Notification | None:
     """Raise one notification, unless its recipient caused it or muted it.
@@ -390,6 +425,7 @@ async def notify(
         actor_user_id=actor_user_id,
         challenge_id=challenge_id,
         group_id=group_id,
+        roadmap_id=roadmap_id,
         muted=muted,
         anonymous_actor=anonymous_actor,
     )
@@ -403,6 +439,7 @@ async def notify_many(
     actor_user_id: int | None = None,
     challenge_id: int | None = None,
     group_id: int | None = None,
+    roadmap_id: int | None = None,
     anonymous_actor: bool = False,
 ) -> list[Notification]:
     """:func:`notify` for a broadcast -- every participant of a challenge.
@@ -423,6 +460,7 @@ async def notify_many(
             actor_user_id=actor_user_id,
             challenge_id=challenge_id,
             group_id=group_id,
+            roadmap_id=roadmap_id,
             muted=mutes.get(user_id, set()),
             anonymous_actor=anonymous_actor,
         )

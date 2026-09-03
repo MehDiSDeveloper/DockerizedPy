@@ -520,6 +520,16 @@ ul{list-style:none; margin:0; padding:0;}
    the theme -- a presentation attribute cannot read a custom property */
 .brand-mark svg{width:20px; height:20px; color:var(--on-accent);}
 
+/* Every icon in the app is an inline <svg> injected into a [data-icon] span
+   by renderIcons(). An inline svg sits on a text baseline, so its span is a
+   line box tall enough for a descender that is never drawn -- which is what
+   pushed the glyph a couple of pixels above centre in every round control
+   (.fab, .icon-btn, .back-btn). Making the wrapper a flex box removes the
+   line box entirely; inline-flex so the icons that sit beside text in a row
+   keep flowing as they did. */
+[data-icon]{display:inline-flex; align-items:center; justify-content:center;}
+[data-icon] > svg{display:block;}
+
 .icon-btn{
   position:relative;
   width:40px; height:40px; border-radius:50%;
@@ -679,6 +689,21 @@ ul{list-style:none; margin:0; padding:0;}
 }
 .challenge-card.completed{border-color:rgba(var(--mohr-rgb),0.25);}
 .challenge-card.completed .cc-title{padding-inline-end:60px;}
+
+/* «لیست» wears the same glass the rail card does: the opaque pane is dropped
+   so the page ground reads through, and only the hairline, the sheen and a
+   whisper of blur are left to say there is a surface here at all. */
+.challenge-list:not(.rail) .challenge-card.glass{
+  background:transparent;
+  backdrop-filter:blur(1.4px); -webkit-backdrop-filter:blur(1.4px);
+  /* with no pane behind it the edge is the whole object, so it is lit twice:
+     the sheen along the top and a hairline of the same light all round,
+     bleeding a little outside -- glass catching light, not a neon tube */
+  border-color:color-mix(in srgb, var(--glass-sheen) 45%, var(--border));
+  box-shadow:inset 0 1px 0 var(--glass-sheen),
+             inset 0 0 12px -6px var(--glass-sheen),
+             0 0 10px -4px var(--glass-sheen);
+}
 
 /* --- empty state --- */
 .empty{
@@ -1175,6 +1200,41 @@ body[data-admin-scope] .crumb.current{
   color:var(--text-1);
 }
 .cadence-badge svg{width:11px; height:11px;}
+
+/* --- the challenge's own picture ---------------------------------------
+   One element, three sizes: the 52px list thumb, the rail's 4:3 cover and
+   the reader's full screen. The picture is painted *inside* `.explore-thumb`
+   rather than replacing it, so everything already hung off that element --
+   the cadence badge, the rail's scrim, the status pill's placement -- keeps
+   working, and a challenge with no picture keeps exactly the
+   category-coloured placeholder it has always had.
+
+   `object-fit:cover` is the crop the member already saw and approved in the
+   picker (static/js/imagepick.js), which is the whole reason that step
+   exists: an uncropped photo is cut here silently. */
+.explore-thumb > .et-cover{
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:cover; border-radius:inherit; display:block;
+}
+/* the category glyph is the placeholder, so it goes when there is something
+   to place; the tile texture goes with it, being noise over a photograph */
+.explore-thumb.has-cover > [data-icon]:not(.cadence-badge){display:none;}
+.challenge-list.rail .explore-thumb.has-cover::before{display:none;}
+/* The tall one has no layout box outside the reader, so `loading="lazy"`
+   never fetches it while a list is being scrolled -- which is the whole
+   reason both can ship in one markup. */
+.et-tall{display:none;}
+.explore-thumb.has-tall:not(.has-square) .et-tall{display:block;}
+.challenge-list.is-immersive .has-tall .et-tall{display:block;}
+.challenge-list.is-immersive .has-tall .et-sq{display:none;}
+/* over a photograph the scrim has to carry the body's ink on its own, so it
+   runs deeper and starts higher than it does over a flat gradient */
+.challenge-list.rail .explore-thumb.has-cover::after{
+  background:linear-gradient(to top, var(--bg-2) 8%, rgba(0,0,0,0.28) 55%, transparent 85%);
+}
+.challenge-list.is-immersive .explore-thumb.has-cover::after{
+  background:linear-gradient(to top, var(--bg-2) 20%, rgba(0,0,0,0.34) 62%, transparent 88%);
+}
 .detail-icon .cadence-badge{
   inset-block-end:-4px; inset-inline-start:-4px;
   width:22px; height:22px;
@@ -1250,11 +1310,39 @@ body[data-admin-scope] .crumb.current{
   mask-image:var(--hero-fade);
 }
 .detail-hero::before{
-  content:""; position:absolute; inset:0; border-radius:inherit;
+  content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
   background:radial-gradient(60% 80% at 50% -10%, rgba(var(--accent-rgb),0.18), transparent 70%);
   -webkit-mask-image:var(--hero-fade);
   mask-image:var(--hero-fade);
 }
+/* THE HERO'S PICTURE. It sits behind the glass pane (`::after`, z-index:-1)
+   and wears the same --hero-fade mask, so it dissolves at the edges exactly
+   like everything else in this card instead of arriving as a rectangle stuck
+   onto the page. Its own scrim is inside the wrapper -- an <img> has no
+   pseudo-element -- and is what keeps --text-* ink legible over whatever was
+   photographed, in both themes, without a second palette. */
+.hero-cover{
+  position:absolute; inset:0; z-index:-2; border-radius:inherit;
+  overflow:hidden; pointer-events:none;
+  -webkit-mask-image:var(--hero-fade);
+  mask-image:var(--hero-fade);
+}
+.hero-cover img{width:100%; height:100%; object-fit:cover; display:block;}
+/* The pane over it thins out: a 20px backdrop blur is right over the page's
+   own ground and turns a photograph into a smear. The rim, the mask and the
+   fade are untouched -- only how much of the picture the glass keeps. Opacity
+   is denser at the centre (85%) and, via --hero-fade, thins toward the edges
+   (down to ~50%) so the photo is never fully hidden and gets glassier at the
+   rim. */
+.detail-hero.has-cover.glass::after{
+  background:
+    linear-gradient(color-mix(in srgb, var(--glass) 85%, transparent),
+                    color-mix(in srgb, var(--glass) 85%, transparent)) padding-box,
+    var(--hero-rim) border-box;
+  backdrop-filter:blur(3px) saturate(120%);
+  -webkit-backdrop-filter:blur(3px) saturate(120%);
+}
+
 .detail-icon{
   width:56px; height:56px; border-radius:16px; margin:0 auto 14px;
   display:grid; place-items:center; position:relative; z-index:1;
@@ -2003,7 +2091,10 @@ a.admin-stat{text-decoration:none; color:inherit;}
   padding:3px 9px; border-radius:999px;
   font-size:10.5px; font-weight:700; white-space:nowrap;
   color:var(--st);
-  background:color-mix(in srgb, var(--st) 14%, transparent);
+  /* glass, like the card it rides on: a gradient fading to nothing rather
+     than a flat fill. The word, the icon and the edge are what carry it. */
+  background:linear-gradient(145deg, color-mix(in srgb, var(--st) 13%, transparent), transparent);
+  backdrop-filter:blur(1.4px); -webkit-backdrop-filter:blur(1.4px);
   border:1px solid color-mix(in srgb, var(--st) 34%, transparent);
 }
 .status-pill svg{width:11px; height:11px;}
@@ -2036,7 +2127,7 @@ a.admin-stat{text-decoration:none; color:inherit;}
 
 /* the explore card's thumb: tinted fill, hairline and icon, all one hue */
 [data-cat] .explore-thumb{
-  background:linear-gradient(145deg, rgba(var(--cat-rgb),0.24), rgba(var(--cat-rgb),0.07));
+  background:linear-gradient(145deg, rgba(var(--cat-rgb),0.13), rgba(var(--cat-rgb),0));
   box-shadow:inset 0 0 0 1px rgba(var(--cat-rgb),0.20);
   color:var(--cat);
 }
@@ -2112,6 +2203,80 @@ a.admin-stat{text-decoration:none; color:inherit;}
   display:block; background:transparent; border:none; padding:0;
 }
 .sheet-chips{padding:0; gap:8px;}
+
+/* --- «انتخاب عکس» ---------------------------------------------------
+   One control wherever a picture is chosen: the create wizard's two fields,
+   the manage sheet's two, and (as `.ap-upload`) the first tile of the avatar
+   grid. The preview is drawn *at the frame's own aspect*, so the shape is the
+   explanation and no label has to say "square" twice. */
+.field-image .field-input{display:block; background:transparent; border:none; padding:0;}
+.ipf-pair{display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start;}
+.ipf{display:flex; flex-direction:column; gap:8px;}
+.ipf .field-note{margin:0;}
+.ipf-preview{
+  position:relative; overflow:hidden;
+  border-radius:14px; background:var(--fill-1);
+  box-shadow:inset 0 0 0 1px var(--border);
+  display:grid; place-items:center; color:var(--text-3);
+}
+.ipf-preview.is-square{aspect-ratio:1/1;}
+.ipf-preview.is-tall{aspect-ratio:9/16;}
+.ipf-preview img{width:100%; height:100%; object-fit:cover; display:block;}
+.ipf-preview svg{width:26px; height:26px; opacity:.7;}
+/* Inside a sheet the picture is one row among six, so it lies down: a
+   full-width preview there pushes «ذخیره» off the screen and makes one
+   optional field look like the form. In the wizard, where the two frames
+   *are* the question, they stay upright and side by side. */
+.field-image .ipf{flex-direction:row; align-items:center;}
+.field-image .ipf-preview{flex:0 0 84px; width:84px;}
+.field-image .ipf-acts{flex:1; flex-direction:column; align-items:stretch;}
+.ipf-acts{display:flex; gap:8px;}
+.ipf-acts button{flex:1; white-space:nowrap;}
+.ipf-clear[hidden]{display:none;}
+/* the destructive half of the pair stays neutral while the affirmative half
+   carries the accent -- the same rule the manage screen's rows follow */
+.ipf-clear{color:var(--text-3);}
+
+/* A picture of one's own, first in the avatar grid: the answer most people
+   are looking for when they tap their avatar. It is a tile like the forty
+   beside it, marked out by the accent rather than by a different shape. */
+.ap-item.ap-upload{
+  display:grid; place-items:center;
+  color:var(--fayrouzeh);
+  background:rgba(var(--accent-rgb),0.10);
+  box-shadow:inset 0 0 0 1px rgba(var(--accent-rgb),0.30);
+}
+.ap-item.ap-upload svg{width:22px; height:22px;}
+
+/* --- the crop step ------------------------------------------------------
+   Full-screen, above every sheet: it *is* the task while it is open, and a
+   crop box the size of a form field cannot be aimed with a thumb. It borrows
+   `createSheet`'s own scrim and panel so it reads as one more of this app's
+   sheets rather than as the library's own furniture. */
+.ip-modal{position:fixed; inset:0; z-index:75; display:flex; align-items:flex-end;}
+.ip-modal .sheet-backdrop{z-index:0;}
+.ip-panel{
+  position:relative; z-index:1;
+  width:100%; max-width:var(--shell-max); margin-inline:auto;
+  border-radius:22px 22px 0 0; padding:16px 16px calc(16px + env(safe-area-inset-bottom));
+  max-height:92dvh; display:flex; flex-direction:column;
+  animation:sheetSlideUp .2s var(--ease);
+}
+.ip-hint{margin:0 0 10px; font-size:12px; color:var(--text-3); line-height:1.9;}
+.ip-stage{
+  flex:1; min-height:0; border-radius:16px; overflow:hidden;
+  background:var(--fill-1); margin-bottom:14px;
+}
+/* Cropper measures the source image, then builds its own canvas out of
+   copies of it. The child combinator is load-bearing: a bare `.ip-stage img`
+   also hits those copies and overrides the sizes the library just computed,
+   which leaves a correctly-built cropper drawing nothing. */
+.ip-stage > img{display:block; max-width:100%; height:52dvh;}
+/* The library ships its own greys; these repoint the three parts that show
+   through to the app's own tokens, so the crop reads in both themes. */
+.ip-stage .cropper-view-box{outline-color:var(--fayrouzeh);}
+.ip-stage .cropper-line, .ip-stage .cropper-point{background-color:var(--fayrouzeh);}
+.ip-stage .cropper-modal{background-color:#000; opacity:.55;}
 
 /* ==========================================================================
    Challenge detail | panels, personal ring, occurrence strip
@@ -2381,7 +2546,7 @@ a.admin-stat{text-decoration:none; color:inherit;}
 }
 
 /* four figures, so two rows of two rather than .mine-grid's three-up: the
-   labels here are phrases («بهترین رشتهٔ فعلی»), not the single words the
+   labels here are phrases («بهترین زنجیرهٔ فعلی»), not the single words the
    challenge-detail tiles carry, and a third column wraps every one of them */
 .mine-grid.pairs{grid-template-columns:repeat(2,1fr);}
 
@@ -2606,8 +2771,22 @@ a.admin-stat{text-decoration:none; color:inherit;}
      sits on a surface that is already frosted, so a second translucent pane
      only muddies it -- and the arrow below overlaps this background by half
      its width, which shows as a seam the moment either one is see-through. */
-  background:var(--bg-1); border:1px solid var(--border-strong);
-  box-shadow:var(--shadow-lift);
+  /* The frame is what makes the callout findable: this is the only pane on
+     the screen that *moves* between steps, so a neutral hairline leaves the
+     member hunting for where the sentence went.
+
+     It is warm (--mohr) while the ring outside stays the cool accent, and the
+     split is deliberate: two panes in one colour read as one object and the
+     eye stops separating them, whereas a warm frame around a cool ring reads
+     as *the pair* -- the ring points, the framed pane speaks. Warm also puts
+     nothing at risk here, since the tour paints no status and no category.
+
+     The halo is listed before --shadow-lift so the panel still casts its own
+     depth over the glow rather than under it. */
+  background:var(--bg-1); border:2px solid rgba(var(--mohr-rgb),0.85);
+  box-shadow:0 0 0 5px rgba(var(--mohr-rgb),0.18),
+             0 0 34px 4px rgba(var(--mohr-rgb),0.38),
+             var(--shadow-lift);
   /* Hidden until the first measurement lands, or the callout is visibly
      dragged from the corner to its place on every step. */
   opacity:0; transition:opacity .18s var(--ease);
@@ -2617,7 +2796,9 @@ a.admin-stat{text-decoration:none; color:inherit;}
 .tour-arrow{
   position:absolute; width:calc(var(--tour-arrow) * 2); height:calc(var(--tour-arrow) * 2);
   margin-left:calc(var(--tour-arrow) * -1);
-  background:var(--bg-1); border:1px solid var(--border-strong);
+  /* Same weight and colour as the panel's frame, or the tip reads as a
+     separate scrap pinned to an accented pane. */
+  background:var(--bg-1); border:2px solid rgba(var(--mohr-rgb),0.85);
   transform:rotate(45deg); border-radius:3px;
 }
 /* Only the two edges facing away from the callout are drawn; the other two
@@ -2626,11 +2807,11 @@ a.admin-stat{text-decoration:none; color:inherit;}
    which two of its edges end up facing the target has nothing to do with the
    writing direction. */
 .tour-pop[data-arrow="top"] .tour-arrow{
-  top:calc(var(--tour-arrow) * -1 + 1px);
+  top:calc(var(--tour-arrow) * -1 + 2px);
   border-right:none; border-bottom:none;
 }
 .tour-pop[data-arrow="bottom"] .tour-arrow{
-  bottom:calc(var(--tour-arrow) * -1 + 1px);
+  bottom:calc(var(--tour-arrow) * -1 + 2px);
   border-left:none; border-top:none;
 }
 .tour-pop[data-arrow="none"] .tour-arrow{display:none;}
@@ -2918,6 +3099,13 @@ a.seg-btn.active{color:var(--on-accent);}
 .group-hero{text-align:center;}
 .gh-emblem{width:72px; height:72px; margin:0 auto 10px;}
 .gh-emblem img{width:72px; height:72px; display:block;}
+/* «زیرگروهی از …» -- the way back up out of a subgroup. Neutral ink and the
+   hero's own small type: it is a fact about where you are, not a state, so it
+   takes no colour channel (status keeps `--st-*`, category `--cat-*`). */
+.gh-parent{display:flex; align-items:center; justify-content:center; gap:6px;
+  margin:2px 0 8px; font-size:12px; color:var(--text-3);}
+.gh-parent [data-icon]{width:14px; height:14px; flex-shrink:0;}
+.gh-parent a{color:var(--text-2); text-decoration:none;}
 
 /* --- the group chip on a challenge card / the detail hero ---
    A tag, not a colour: see the section note above. It reads as tappable
@@ -3239,16 +3427,16 @@ a.seg-btn.active{color:var(--on-accent);}
   background: none;
   color: var(--mohr);
   font: inherit;
-  font-size: .78rem;
+  font-size: .72rem;
   line-height: 1;
   cursor: pointer;
   /* The press squeeze is global (`initPressFeedback`); only its depth is
      tuned here, which is why there is no `:active` rule. */
   --press-scale: .88;
 }
-.like-btn [data-icon] { width: 16px; height: 16px; display: inline-flex; }
-.like-btn [data-icon] svg { width: 100%; height: 100%; }
-.like-btn b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.like-btn [data-icon] { width: 13px; height: 13px; display: inline-flex; }
+.like-btn [data-icon] svg { width: 100%; height: 100%; stroke-width: 1.6; }
+.like-btn b { font-weight: 600; font-variant-numeric: tabular-nums; }
 .like-btn.is-liked { color: var(--mohr-dim); }
 
 /* The heart alone grows, not the row: a control that resizes shifts the card
@@ -3265,7 +3453,7 @@ a.seg-btn.active{color:var(--on-accent);}
 
 /* The hero's copy: same control, sized for a page rather than a card. */
 .like-btn.lg { font-size: .95rem; gap: 7px; }
-.like-btn.lg [data-icon] { width: 20px; height: 20px; }
+.like-btn.lg [data-icon] { width: 17px; height: 17px; }
 
 /* --- the conversation's control -----------------------------------------
    The heart's twin: same geometry, same press depth, same «icon and a number
@@ -3277,20 +3465,45 @@ a.seg-btn.active{color:var(--on-accent);}
   display: inline-flex; align-items: center; gap: 5px;
   padding: 2px; border: 0; background: none;
   color: var(--text-3);
-  font: inherit; font-size: .78rem; line-height: 1;
+  font: inherit; font-size: .72rem; line-height: 1;
   cursor: pointer;
   --press-scale: .88;
 }
-.cm-btn [data-icon] { width: 16px; height: 16px; display: inline-flex; }
-.cm-btn [data-icon] svg { width: 100%; height: 100%; }
-.cm-btn b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.cm-btn [data-icon] { width: 13px; height: 13px; display: inline-flex; }
+.cm-btn [data-icon] svg { width: 100%; height: 100%; stroke-width: 1.6; }
+.cm-btn b { font-weight: 600; font-variant-numeric: tabular-nums; }
 .cm-btn.lg { font-size: .95rem; gap: 7px; }
-.cm-btn.lg [data-icon] { width: 20px; height: 20px; }
+.cm-btn.lg [data-icon] { width: 17px; height: 17px; }
 
 /* The hero's row: the two things a viewer does *to* a challenge, side by
    side. A row rather than two margins, so neither control has to know the
    other exists. */
-.hero-social { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; }
+.hero-social {
+  position: relative; z-index: 1;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 14px; padding-top: 12px;
+}
+/* The line that separates «how is it going» from «what can I do about it».
+   A gradient, not a border, for the reason `.detail-stats`' dividers are one:
+   this sits in the pane's faded tail, and a hairline at full strength there
+   draws the edge the card is busy dissolving. */
+.hero-social::before {
+  content: ""; position: absolute; top: 0; inset-inline: 12%; height: 1px;
+  background: linear-gradient(to left, transparent, var(--border), transparent);
+}
+/* Sized as a tap target rather than a run of text: on a page (unlike on a
+   card) these are the only two things to hit, and a bare 17px glyph is under
+   every touch-target minimum there is. The pill stays invisible at rest --
+   «icon and a number, no chrome» is the rule both controls are drawn by --
+   and only lights up under the finger. */
+.hero-social .like-btn.lg,
+.hero-social .cm-btn.lg {
+  padding: 8px 16px; border-radius: 999px;
+  min-height: 40px;
+  transition: background .16s var(--ease), color .16s var(--ease);
+}
+.hero-social .like-btn.lg.is-pressed,
+.hero-social .cm-btn.lg.is-pressed { background: var(--fill-1); }
 
 /* --- on an explore card -------------------------------------------------
    Status and like stack in one column at the card's outer edge (left, in
@@ -3311,9 +3524,11 @@ a.seg-btn.active{color:var(--on-accent);}
    above the nav exactly like `.sticky-cta` (the same geometry tokens, so it
    clears the nav the same way), and the emoji keyboard below.
 
-   A thread is *one* card with its replies indented inside it rather than a
-   card per comment: the replies belong to the question, and a flat list of
-   equal cards loses the only structure one level of threading buys.
+   A comment is a *bubble* and a thread is the block they sit in: grouping
+   consecutive messages from one person is something bubbles can show and a
+   single card around a whole thread cannot. The replies keep their one indent
+   and gain the rail that hangs from the message they answer, which is the
+   only structure one level of threading buys.
 
    No new colour. The send button takes the accent because it is the page's
    one primary action, «حذف» takes the `--danger-text` it takes everywhere
@@ -3380,13 +3595,21 @@ button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
 .lb-entry-text [data-comment-count]{display:inline;}
 
 /* --- the list ------------------------------------------------------------ */
-.cm-list{display:flex; flex-direction:column; gap:10px; padding:0 16px;}
-.cm-thread{
-  padding:12px 13px; border-radius:var(--radius-lg);
-  background:var(--glass); border:1px solid var(--border);
-}
+/* Two messenger conventions, and the geometry is all either of them is:
+   consecutive messages from one person read as one turn (Telegram), and an
+   answer steps in one level with the rail stepping in beside it (Instagram).
+   Which rows those are is decided in `_comment_threads.html` -- only the
+   template can see the row above -- so everything here keys off one class.
 
-.cm{display:flex; gap:10px; align-items:flex-start;}
+   Spacing is margins rather than a `gap`, because the two distances are the
+   whole point: 12px says «somebody else is speaking», 2px says «still them».
+   A gap can only say one of the two. */
+.cm-list{display:flex; flex-direction:column; padding:0 16px;}
+.cm-thread{margin-top:12px;}
+.cm-thread:first-child{margin-top:0;}
+.cm-thread.is-grouped{margin-top:2px;}
+
+.cm{display:flex; gap:8px; align-items:flex-start;}
 /* An opaque ground behind every avatar, like every other surface that renders
    one: several of the styles ship transparent. */
 .cm-av{
@@ -3394,15 +3617,39 @@ button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
   flex-shrink:0; background:var(--bg-1); display:block;
 }
 .cm-av img{width:100%; height:100%; object-fit:cover; display:block;}
-.cm-main{min-width:0; flex:1;}
-.cm-head{display:flex; align-items:baseline; gap:8px;}
+/* A grouped message keeps the avatar's *room* and not the avatar: without it
+   the bubble slides back to the reading edge and the block stops being one
+   person's turn. */
+.cm-av.is-ghost{background:none;}
+
+/* The column the bubble lives in. `align-items:flex-start` is what keeps a
+   three-word comment three words wide instead of a full-width band. */
+.cm-main{
+  min-width:0; flex:1;
+  display:flex; flex-direction:column; align-items:flex-start;
+}
+
+/* The bubble is the surface a comment now *is*, rather than a card holding a
+   whole thread: grouping is a thing bubbles can show and a card cannot. The
+   corner facing the avatar is cut short on every one of them, so a block of
+   them reads as pointing at the same person. */
+.cm-bubble{
+  max-width:100%; padding:7px 11px;
+  border-radius:var(--radius-md);
+  border-start-start-radius:6px;
+  background:var(--glass); border:1px solid var(--border);
+}
+
+.cm-head{display:flex; align-items:baseline; gap:8px; margin-bottom:1px;}
 .cm-head b{
   font-size:12.5px; font-weight:700; min-width:0;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
+/* It dates the turn, not each sentence in it, so it rides with the name and a
+   grouped bubble carries none. */
 .cm-when{font-size:10.5px; color:var(--text-3); flex-shrink:0;}
 .cm-text{
-  margin:3px 0 0; font-size:13px; line-height:1.95;
+  margin:0; font-size:13px; line-height:1.9;
   /* Line breaks the writer typed are line breaks, and a pasted URL wraps
      instead of widening the card. */
   white-space:pre-wrap; overflow-wrap:anywhere;
@@ -3411,7 +3658,7 @@ button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
    writes one any more -- the keyboard types into the text. */
 .cm-sticker{display:inline-block; font-size:26px; line-height:1.3; margin-top:2px;}
 
-.cm-actions{display:flex; gap:14px; margin-top:5px;}
+.cm-actions{display:flex; gap:14px; margin-top:3px; padding-inline-start:4px;}
 .cm-act{
   display:inline-flex; align-items:center; gap:4px;
   background:none; border:0; padding:2px;
@@ -3421,17 +3668,24 @@ button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
 .cm-act svg{width:13px; height:13px;}
 .cm-act.danger{color:var(--danger-text);}
 
-/* Logical properties, not left/right: the rail runs down the reading edge and
-   this page is RTL. */
+/* The step in, and the rail that steps with it. Logical properties, not
+   left/right: the rail runs down the reading edge and this page is RTL.
+   `margin-inline-start` puts it under the middle of the root's 34px avatar,
+   so the indent is not a number somebody chose -- it is a line dropped from
+   the message being answered, past every answer to it. */
 .cm-replies{
-  margin-top:10px; padding-inline-start:13px;
-  border-inline-start:1px solid var(--border);
-  display:flex; flex-direction:column; gap:10px;
+  display:flex; flex-direction:column;
+  margin-inline-start:17px;
+  padding-inline-start:20px;
+  border-inline-start:1.5px solid var(--border);
 }
+.cm-reply{margin-top:10px;}
+.cm-reply.is-grouped{margin-top:2px;}
 .cm-reply .cm-av{width:28px; height:28px;}
 .cm-reply .cm-text{font-size:12.5px;}
+.cm-reply .cm-bubble{background:var(--fill-1);}
 .cm-more{
-  align-self:flex-start; padding:2px;
+  align-self:flex-start; margin-top:8px; padding:2px;
   background:none; border:0; color:var(--fayrouzeh);
   font:inherit; font-size:11.5px; font-weight:700; cursor:pointer;
 }
@@ -3594,11 +3848,39 @@ button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
      on the cover. Its texture and scrim ride inside this same layer. */
   z-index:-1;
   width:100%; height:auto; aspect-ratio:4/3; border-radius:0;
-  /* the 52px thumb's tint is a hint beside a title; at cover size it has to
-     be the thing that tells two challenges apart across a scroll, so the
-     same one hue runs deeper. Still one hue and still the category's own. */
-  background:linear-gradient(160deg, rgba(var(--cat-rgb, var(--accent-rgb)),0.42), rgba(var(--cat-rgb, var(--accent-rgb)),0.10));
 }
+/* No picture: nothing is drawn at all except a flat 20% wash in the
+   category's own hue and the glyph on top of it. No gradient, no tile
+   texture, no scrim -- the card is a sheet of tinted glass and the page
+   ground behind it reads through at the remaining 80%. */
+.challenge-list.rail .explore-thumb:not(.has-cover){
+  background:linear-gradient(145deg,
+    rgba(var(--cat-rgb, var(--accent-rgb)),0.12), rgba(var(--cat-rgb, var(--accent-rgb)),0));
+}
+/* ...which only works if the pane itself stops painting. `.glass` puts an
+   opaque-ish sheet under every card; a coverless rail card drops it and keeps
+   the rest of the primitive (hairline, sheen, blur), so the one paint left on
+   the card is the tint above. The blur stays: transparent is not the same as
+   absent, and the glass is what keeps the body's text legible over whatever
+   the ground happens to be. */
+.challenge-list.rail .challenge-card:has(.explore-thumb:not(.has-cover)){
+  background:transparent;
+  /* a 20px blur is itself opaque-ish -- it erases the ground it is meant to
+     show -- so a coverless card keeps only a whisper of it */
+  backdrop-filter:blur(1.4px); -webkit-backdrop-filter:blur(1.4px);
+  /* with no pane behind it the edge is the whole object, so it is lit twice:
+     the sheen along the top and a hairline of the same light all round,
+     bleeding a little outside -- glass catching light, not a neon tube */
+  border-color:color-mix(in srgb, var(--glass-sheen) 45%, var(--border));
+  box-shadow:inset 0 1px 0 var(--glass-sheen),
+             inset 0 0 12px -6px var(--glass-sheen),
+             0 0 10px -4px var(--glass-sheen);
+}
+.challenge-list.rail .explore-thumb:not(.has-cover)::before{display:none;}
+/* no photo behind it, so the base rail scrim (meant to carry text over a
+   variable-luminance picture) is dropped -- it read as an opaque dark box
+   sitting on top of the 20% tint and swallowed it entirely */
+.challenge-list.rail .explore-thumb:not(.has-cover)::after{background:none;}
 .challenge-list.rail .explore-thumb > [data-icon]:not(.cadence-badge) svg{
   width:60px; height:60px; opacity:.9;
 }
@@ -3687,9 +3969,13 @@ button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
 .challenge-list.is-immersive{
   position:fixed; inset:0; z-index:50;
   padding:0; gap:0; margin:0;
-  background:var(--bg-0);
+  background:transparent;
   overflow-y:auto; overscroll-behavior:contain;
   scroll-snap-type:y mandatory;
+  /* the reader is a sheet of glass over the page it opened from, not a second
+     opaque ground -- otherwise a coverless card's 4% tint has nothing behind
+     it to show through to */
+  backdrop-filter:blur(1.4px); -webkit-backdrop-filter:blur(1.4px);
   /* the panels are the only scroll indicator this view needs */
   scrollbar-width:none;
 }
@@ -3734,7 +4020,7 @@ button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
    description already short enough to fit is clamped to nothing and the
    control then appears to do nothing at all. */
 .explore-body .rail-desc{
-  display:block; margin:0;
+  display:block; margin:0; cursor:pointer;
   font-size:12.5px; line-height:1.9; color:var(--text-2);
 }
 .rd-full{display:none;}
@@ -3743,28 +4029,9 @@ button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
    card's controls off the panel -- contained, or that scroll chains into the
    snap container and moves to the next challenge. */
 .challenge-card.desc-open .rd-full{
-  display:block; max-height:34vh;
+  display:block; max-height:50vh;
   overflow-y:auto; overscroll-behavior:contain;
 }
-.rail-toggle{
-  display:inline-block; margin-top:6px;
-  padding:3px 10px; border-radius:999px;
-  background:rgba(var(--accent-rgb),0.12);
-  font-size:11.5px; font-weight:700; color:var(--fayrouzeh); cursor:pointer;
-  --press-scale:.9;
-}
-/* the explicit way to the challenge's own page — the one tap in this view
-   that leaves it, so it is the only filled control on the panel */
-.rail-cta{
-  /* flex rather than inline-flex: it takes a line of its own, below the
-     description's «بیشتر», instead of trailing it */
-  display:flex; width:fit-content; align-items:center; gap:5px; margin-top:12px;
-  padding:9px 16px; border-radius:999px;
-  font-size:12.5px; font-weight:700;
-  background:var(--fayrouzeh); color:var(--on-accent);
-  box-shadow:var(--glow-accent); cursor:pointer;
-}
-.rail-cta svg{width:14px; height:14px;}
 
 /* .icon-btn is display:grid, which beats the UA's [hidden]{display:none} --
    the same trap .list-loading documents above. */
@@ -3778,3 +4045,256 @@ button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
 /* the status edge is drawn by the card's own ::before, which the cover — a
    positioned child later in tree order — would otherwise paint over */
 .challenge-list.rail .challenge-card[data-status]::before{z-index:2;}
+
+/* ==========================================================================
+   مسیر | a course made of challenges
+   --------------------------------------------------------------------------
+   Built almost entirely out of primitives that already carry meaning
+   elsewhere -- .glass, .detail-hero and its picture, .setting-row, the ring,
+   .cc-tag -- so a shape a member learned on the challenge or group screens
+   means the same thing here.
+
+   **Colour gains no channel.** Status owns --st-* and category owns --cat-*,
+   and a step's state is not a third meaning riding on either: it is shown by
+   the node's shape, its glyph and its words. The one exception is the accent
+   on the step that is actually open, and that is not a new meaning at all --
+   the accent has meant «this one is live» everywhere in this app since the
+   first screen.
+   ========================================================================== */
+
+/* --- the roadmap card (roadmap/_roadmap_cards.html) --- */
+.rm-list{display:flex; flex-direction:column; gap:10px;}
+.rm-card{
+  display:flex; align-items:center; gap:12px; padding:12px;
+  border-radius:var(--radius-md); text-decoration:none; color:inherit;
+  --press-scale:.985;
+}
+/* The cover: a picture when there is one, and the route glyph on an
+   accent-tinted ground when there is not. A placeholder that belongs to the
+   thing rather than a grey box -- the same trade .explore-thumb makes. */
+.rm-cover{
+  position:relative; flex:none; width:52px; height:52px; overflow:hidden;
+  border-radius:var(--radius-sm); display:grid; place-items:center;
+  background:rgba(var(--accent-rgb),0.14); color:var(--fayrouzeh);
+  box-shadow:inset 0 0 0 1px rgba(var(--accent-rgb),0.22);
+}
+.rm-cover svg{width:22px; height:22px;}
+.rm-cover img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
+/* With a picture the glyph steps back to a corner mark, so the cover is the
+   photograph and not a photograph with a symbol stamped on it. */
+.rm-cover.has-cover svg{
+  position:absolute; inset-block-end:3px; inset-inline-end:3px;
+  width:13px; height:13px; color:var(--on-accent);
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.55));
+}
+.rm-cover.lg{width:84px; height:84px; margin:0 auto 14px; border-radius:var(--radius-md);}
+.rm-cover.lg svg{width:34px; height:34px;}
+
+.rm-body{flex:1; min-width:0;}
+.rm-body h3{
+  margin:0 0 4px; font-size:14px; font-weight:800; color:var(--text-1);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.rm-meta{
+  margin:0; display:flex; align-items:center; flex-wrap:wrap; gap:4px 6px;
+  font-size:11.5px; color:var(--text-3);
+}
+.rm-meta svg{width:13px; height:13px;}
+.rm-meta span + span{margin-inline-end:6px;}
+.rm-tags{margin:6px 0 0; display:flex; flex-wrap:wrap; gap:5px;}
+.rm-tags:empty{display:none;}
+.rm-chev{flex:none; color:var(--text-3);}
+.rm-chev svg{width:16px; height:16px;}
+/* The one place the accent appears in this list, meaning what it always
+   means: this is the live one. */
+.rm-card.is-walking{box-shadow:inset 2px 0 0 var(--fayrouzeh), var(--shadow-soft);}
+
+/* --- the course's hero --- */
+.rm-mark{
+  position:relative; z-index:1; width:56px; height:56px; margin:0 auto 12px;
+  border-radius:18px; display:grid; place-items:center;
+  background:rgba(var(--accent-rgb),0.16); color:var(--fayrouzeh);
+  box-shadow:inset 0 0 0 1px rgba(var(--accent-rgb),0.28);
+}
+.rm-mark svg{width:26px; height:26px;}
+.rm-owner{
+  position:relative; z-index:1; margin:0 0 10px;
+  font-size:12px; color:var(--text-3);
+}
+
+/* --- the track: what makes this a course and not a list -------------------
+   One node per step on a single line, so the eye reads the order before it
+   reads any title. The connector is drawn by each step's ::before rather than
+   by a background on the list, so it stops correctly at the last node
+   whatever the count. */
+.rm-track{list-style:none; margin:0; padding:0 20px;}
+.rm-step{position:relative; padding-inline-start:38px; padding-bottom:12px;}
+.rm-step::before{
+  content:""; position:absolute; inset-block-start:26px; inset-block-end:0;
+  inset-inline-start:13px; width:2px; border-radius:1px; background:var(--track);
+}
+.rm-step:last-child::before{display:none;}
+/* A settled step's connector is filled: the line itself becomes the progress
+   bar of the whole course, at no extra element. */
+.rm-step.is-completed::before,
+.rm-step.is-skipped::before{background:rgba(var(--accent-rgb),0.45);}
+
+.rs-node{
+  position:absolute; inset-inline-start:0; inset-block-start:2px;
+  width:28px; height:28px; border-radius:50%;
+  display:grid; place-items:center; z-index:1;
+  font-size:12.5px; font-weight:800; font-variant-numeric:tabular-nums;
+  background:var(--fill-2); color:var(--text-3);
+  box-shadow:inset 0 0 0 1px var(--border-strong);
+}
+.rs-node svg{width:15px; height:15px;}
+.rm-step.is-available .rs-node,
+.rm-step.is-in_progress .rs-node{
+  background:linear-gradient(145deg, var(--fayrouzeh), var(--fayrouzeh-dim));
+  color:var(--on-accent); box-shadow:var(--glow-accent);
+}
+.rm-step.is-completed .rs-node{
+  background:rgba(var(--accent-rgb),0.18); color:var(--fayrouzeh);
+  box-shadow:inset 0 0 0 1px rgba(var(--accent-rgb),0.42);
+}
+/* Skipped is settled but not achieved, so it takes the neutral outline the
+   check-in legend already uses for the same idea rather than a warning hue. */
+.rm-step.is-skipped .rs-node{
+  background:var(--fill-mute); color:var(--text-3);
+  box-shadow:inset 0 0 0 1px var(--border-strong);
+}
+/* The compact node the management screen's step rows carry. */
+.rs-node.sm{position:static; width:24px; height:24px; font-size:11.5px; flex:none;}
+
+.rs-card{padding:12px 14px; border-radius:var(--radius-md);}
+.rm-step.is-locked .rs-card{opacity:.72;}
+.rs-head{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  margin-bottom:6px;
+}
+.rs-num{font-size:11px; color:var(--text-3); font-weight:700;}
+.rs-state{
+  display:inline-flex; align-items:center; gap:4px;
+  font-size:10.5px; font-weight:700; color:var(--text-3);
+  padding:3px 8px; border-radius:999px;
+  background:var(--fill-1); border:1px solid var(--border);
+}
+.rs-state svg{width:12px; height:12px;}
+.rm-step.is-available .rs-state,
+.rm-step.is-in_progress .rs-state{
+  color:var(--fayrouzeh); background:rgba(var(--accent-rgb),0.12);
+  border-color:rgba(var(--accent-rgb),0.34);
+}
+.rs-card h3{margin:0 0 6px; font-size:14.5px; font-weight:800; line-height:1.6;}
+.rs-card h3 a{color:var(--text-1); text-decoration:none;}
+.rs-hidden{display:inline-flex; align-items:center; gap:6px; color:var(--text-3);}
+.rs-hidden svg{width:14px; height:14px;}
+
+.rs-meta{margin:0; display:flex; flex-direction:column; gap:4px;}
+.rs-line{
+  display:flex; align-items:center; gap:6px;
+  font-size:11.5px; color:var(--text-2); line-height:1.9;
+}
+.rs-line svg{width:13px; height:13px; flex:none; color:var(--text-3);}
+.rs-note{
+  margin:8px 0 0; padding-inline-start:9px; font-size:11.5px; line-height:1.9;
+  color:var(--text-3); border-inline-start:2px solid var(--border-strong);
+}
+
+/* The share, at the width of the card. A filled track means one thing across
+   the app, so this is the bar the collective-progress row already uses. */
+.rs-bar{
+  margin-top:10px; height:6px; border-radius:999px;
+  background:var(--track); overflow:hidden;
+}
+.rs-bar > span{
+  display:block; height:100%; border-radius:inherit;
+  background:linear-gradient(90deg, var(--fayrouzeh), var(--fayrouzeh-dim));
+}
+.rs-count{
+  margin:5px 0 0; font-size:10.5px; color:var(--text-3);
+  font-variant-numeric:tabular-nums;
+}
+
+.rs-actions{
+  display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:10px;
+}
+.rs-actions:empty{display:none;}
+.rs-wait{
+  flex:1 1 100%; margin:0; display:flex; align-items:center; gap:6px;
+  font-size:11px; color:var(--text-3); line-height:1.8;
+}
+.rs-wait svg{width:13px; height:13px; flex:none;}
+.rs-go{
+  display:inline-flex; align-items:center; gap:5px;
+  font-size:12px; font-weight:700; color:var(--fayrouzeh); text-decoration:none;
+}
+.rs-go svg{width:14px; height:14px;}
+.rs-done{
+  display:inline-flex; align-items:center; gap:5px; cursor:pointer;
+  padding:7px 12px; border-radius:var(--radius-sm);
+  border:1px solid rgba(var(--accent-rgb),0.4);
+  background:rgba(var(--accent-rgb),0.14); color:var(--fayrouzeh);
+  font-family:inherit; font-size:12px; font-weight:800;
+}
+.rs-done svg{width:14px; height:14px;}
+.rs-done:disabled{opacity:.5; cursor:default;}
+
+/* --- the «من» panel --- */
+.rm-current-title{margin:0 0 4px; font-size:14.5px; font-weight:800;}
+.rm-current-rule{margin:0 0 12px; font-size:12px; color:var(--text-2);}
+.rm-finished{text-align:center;}
+.rm-finished svg{width:34px; height:34px; color:var(--gold);}
+.rm-finished p{margin:8px 0 0; font-size:13px; font-weight:700;}
+
+/* --- the management screen's step rows --- */
+.rm-step-row .sr-head{align-items:center; gap:10px;}
+.rm-step-row .sr-actions{gap:2px;}
+.icon-btn.xs:disabled{opacity:.32; cursor:default;}
+
+/* --- the challenge picker (roadmap/manage.html) ---
+   Its own panel rather than a createSheet field, because picking a challenge
+   is a search and a sheet's fields are a static form. It borrows the sheet's
+   scrim, panel and slide, so it is the same object the rest of the app
+   opens. */
+/* `.sheet` is `display:flex` and `.sheet-backdrop` is `display:block`, and a
+   class rule beats the UA's `[hidden]{display:none}` -- the same trap
+   `.list-loading` and `.icon-btn.rail-close` document above. Every sheet
+   `createSheet` builds is added and removed from the DOM, so this only ever
+   matters for one that ships in the markup and toggles `hidden`: the
+   roadmap's challenge picker. */
+.sheet[hidden], .sheet-backdrop[hidden]{display:none;}
+
+.rm-pick-list{display:flex; flex-direction:column; gap:6px; max-height:46vh; overflow-y:auto;}
+.rm-pick-item{
+  display:flex; align-items:baseline; gap:8px; text-align:start; cursor:pointer;
+  padding:11px 12px; border-radius:var(--radius-sm);
+  border:1px solid var(--border); background:var(--fill-1);
+  color:var(--text-1); font-family:inherit;
+}
+.rm-pick-item b{font-size:13px; font-weight:700; flex:1; min-width:0;}
+.rm-pick-item span{font-size:10.5px; color:var(--text-3); flex:none;}
+
+/* --- «قدم فعلی تو» on the home dashboard --- */
+.rms-list{display:flex; flex-direction:column; gap:8px;}
+.rms-row{padding:12px 14px; border-radius:var(--radius-md);}
+.rms-course{
+  display:inline-flex; align-items:center; gap:5px;
+  font-size:11px; font-weight:700; color:var(--text-3); text-decoration:none;
+}
+.rms-course svg{width:12px; height:12px;}
+.rms-title{
+  display:flex; align-items:center; gap:6px; margin:5px 0 0;
+  font-size:14px; font-weight:800; color:var(--text-1); text-decoration:none;
+}
+.rms-title.is-hidden{color:var(--text-3); font-weight:700;}
+.rms-title svg{width:14px; height:14px;}
+.rms-chev{margin-inline-start:auto; color:var(--text-3);}
+.rms-rule{margin:4px 0 0; font-size:11.5px; color:var(--text-2);}
+
+/* --- the invite landing's dead-link line --- */
+.invite-dead{
+  display:flex; align-items:center; justify-content:center; gap:7px;
+  margin:16px 0 8px; font-size:12.5px; color:var(--danger-text);
+}
+.invite-dead svg{width:15px; height:15px;}

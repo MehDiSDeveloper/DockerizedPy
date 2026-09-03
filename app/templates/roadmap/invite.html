@@ -1,0 +1,99 @@
+{% extends "layout.html" %}
+
+{#- The one roadmap screen somebody outside the course ever sees.
+
+    It shows the title, the picture, how many steps and how many people -- and
+    **not the steps**. Whoever holds the code is not walking the course yet, so
+    `roadmap_scope_filter` grants them nothing, and a preview listing the
+    challenges would turn a forwarded link into a way to read a private one.
+    The same call the group invite landing makes, for the same reason.
+
+    A dead link is not a dead end either: a revoked, expired or full one says
+    which, rather than offering a button that answers 409 on tap -- the trade
+    the login screen's resend countdown makes. There is no second door here
+    (a roadmap has no request queue: a course is either published or it is
+    not), so a dead link is honestly the end of the road, and the page says so
+    and offers the list instead. -#}
+
+{% block topbar_leading %}
+<a href="/views/roadmaps/" class="back-btn" data-back data-back-optional
+  aria-label="بازگشت"><span data-icon="chevronRight"></span></a>
+{% endblock %}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر پیمایش" data-crumb-trail data-crumb-label="دعوت به مسیر">
+  <span class="crumb current" aria-current="page">دعوت به مسیر</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+{%- set cover = roadmap.image_square | media_url -%}
+<div class="invite-card glass">
+  <div class="rm-cover lg{{ ' has-cover' if cover }}">
+    {% if cover %}<img src="{{ cover }}" alt="" decoding="async">{% endif %}
+    <span data-icon="route"></span>
+  </div>
+
+  <p class="invite-eyebrow">دعوت به یک مسیر</p>
+  <h1>{{ roadmap.title }}</h1>
+  {% if owner %}<p class="rm-owner">ساختهٔ {{ owner.name }}</p>{% endif %}
+
+  <div class="detail-stats">
+    <div><b>{{ step_count }}</b><span>قدم</span></div>
+    <div><b>{{ member_count }}</b><span>نفر</span></div>
+  </div>
+
+  {% if roadmap.description %}
+  <p class="invite-desc">{{ roadmap.description }}</p>
+  {% endif %}
+
+  {#- One control, and which one it is comes from the server rather than from
+      a tap that fails. -#}
+  {% if already_member %}
+  <a class="btn-primary" href="/views/roadmaps/{{ roadmap.id }}">
+    <span data-icon="route"></span>همین حالا در این مسیری
+  </a>
+  {% elif is_usable %}
+  <button type="button" class="btn-primary" id="rmAccept">
+    <span data-icon="check"></span>شروع این مسیر
+  </button>
+  {% else %}
+  <p class="invite-dead">
+    <span data-icon="lock"></span>
+    {% if state == 'revoked' %}این لینک غیرفعال شده است.
+    {% elif state == 'expired' %}مهلت این لینک تمام شده است.
+    {% elif state == 'full' %}ظرفیت این لینک پر شده است.
+    {% else %}این مسیر فعلاً باز نیست.{% endif %}
+  </p>
+  <a class="auth-alt" href="/views/roadmaps/">دیدن مسیرهای دیگر</a>
+  {% endif %}
+
+  <p class="invite-note">با شروع مسیر، قدم اول برایت باز می‌شود و در چالشش
+    ثبت‌نام می‌شوی؛ وعده‌هایش از همان لحظه در «امروز» تو می‌آید. هر وقت خواستی
+    می‌توانی از مسیر خارج شوی.{{ explain("roadmap") }}</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const accept = document.getElementById("rmAccept");
+    if (!accept) return;
+    accept.addEventListener("click", async () => {
+      accept.disabled = true;
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+      const { ok, data } = await apiFetch(
+        `/roadmap-invites/{{ code }}/accept?timezone=${encodeURIComponent(tz)}`,
+        { method: "POST" }
+      );
+      if (!ok) {
+        accept.disabled = false;
+        showToast((data && data.detail) || "شروع مسیر انجام نشد");
+        return;
+      }
+      window.location.href = `/views/roadmaps/{{ roadmap.id }}`;
+    });
+  });
+</script>
+{% endblock %}

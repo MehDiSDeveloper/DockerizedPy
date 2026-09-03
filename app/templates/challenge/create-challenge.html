@@ -70,6 +70,34 @@
         <input type="number" id="cDays" placeholder="۳۰" min="1" />
       </div>
     </div>
+    {#- The two pictures, optional and side by side so their *shapes* are the
+        explanation -- the square is what the challenge's own page and the
+        list cards wear, the tall one is the full-screen reader. A challenge
+        with neither keeps the category-coloured cover it has always had,
+        which is why this asks rather than requires. Same markup and the same
+        `window.pickImage` the edit sheet uses (`.ipf` in styles.css), so a
+        picture chosen here and one changed later are one control. -#}
+    <div class="field">
+      <label>تصویر چالش (اختیاری)</label>
+      <div class="ipf-pair">
+        <div class="ipf" data-ipf="image_square" data-ipf-frame="challenge_square">
+          <div class="ipf-preview is-square"><span data-icon="image"></span></div>
+          <div class="ipf-acts">
+            <button type="button" class="cc-btn ghost sm" data-ipf-pick>انتخاب عکس</button>
+            <button type="button" class="cc-btn ghost sm ipf-clear" data-ipf-clear hidden>حذف</button>
+          </div>
+          <p class="field-note">تصویر کارت — صفحهٔ چالش و کارت‌ها</p>
+        </div>
+        <div class="ipf" data-ipf="image_tall" data-ipf-frame="challenge_tall">
+          <div class="ipf-preview is-tall"><span data-icon="image"></span></div>
+          <div class="ipf-acts">
+            <button type="button" class="cc-btn ghost sm" data-ipf-pick>انتخاب عکس</button>
+            <button type="button" class="cc-btn ghost sm ipf-clear" data-ipf-clear hidden>حذف</button>
+          </div>
+          <p class="field-note">تصویر سربرگ — نمای کارتی</p>
+        </div>
+      </div>
+    </div>
     <button class="btn-primary" data-next>مرحلهٔ بعد <span data-icon="chevronLeft"></span></button>
   </div>
 
@@ -81,7 +109,7 @@
     </div>
 
     <div class="field" style="margin-top:18px;">
-      <label>دسترسی دیدن{{ explain("challenge-visibility") }}</label>
+      <label>چه کسی می‌بیند{{ explain("challenge-visibility") }}</label>
       <div class="category-grid" id="visibilityGrid"></div>
     </div>
 
@@ -151,7 +179,7 @@
 
     <!-- recurring_days -->
     <div class="field" id="recurringDaysFields" style="margin-top:18px; display:none;">
-      <label>الگوی تکرار</label>
+      <label>نوع تکرار</label>
       <div class="category-grid" id="modeGrid"></div>
 
       <div id="weekdaysField" style="margin-top:14px; display:none;">
@@ -160,7 +188,7 @@
       </div>
 
       <div id="nField" style="margin-top:14px; display:none;">
-        <label id="nLabel">فاصلهٔ تکرار</label>
+        <label id="nLabel">نوع تکرار</label>
         <div class="field-input">
           <span data-icon="clock"></span>
           <input type="number" id="cN" min="1" max="120" value="1" />
@@ -178,7 +206,7 @@
 
     <!-- recurring_quota -->
     <div class="field" id="quotaFields" style="margin-top:18px; display:none;">
-      <label>بازهٔ سهمیه</label>
+      <label>بازهٔ تکرار</label>
       <div class="category-grid" id="periodGrid"></div>
 
       <div style="margin-top:14px;">
@@ -276,6 +304,9 @@
    It keeps each <input>'s value in the same ISO format, so the payload
    builders further down read `.value` exactly as before. #}
 <script src="{{ url_for('static', path='/js/jalali-picker.js') }}"></script>
+{# The picture picker. Cropper.js is fetched only on the first pick, so a
+   wizard finished without a picture downloads none of it. #}
+<script src="{{ url_for('static', path='/js/imagepick.js') }}"></script>
 
 <script>
 document.getElementById("wizardCloseBtn").addEventListener("click", () => {
@@ -374,7 +405,7 @@ const cadenceKinds = [
   { value: "once", label: "یک‌باره", icon: "cadenceOnce" },
   { value: "schedule", label: "زمان‌بندی‌شده", icon: "cadenceSchedule" },
   { value: "recurring_days", label: "روزهای مشخص", icon: "cadenceDays" },
-  { value: "recurring_quota", label: "سهمیه‌ای", icon: "cadenceQuota" },
+  { value: "recurring_quota", label: "تکرار مدت‌دار", icon: "cadenceQuota" },
 ];
 let selectedCadenceKind = "once";
 
@@ -740,6 +771,39 @@ function buildDueDate() {
   return dueDate.toISOString();
 }
 
+// -------------------- the two pictures --------------------
+// One key per field, filled by the picker and sent with the payload below.
+const pickedImages = { image_square: null, image_tall: null };
+
+document.querySelectorAll("[data-ipf]").forEach((box) => {
+  const name = box.dataset.ipf;
+  const preview = box.querySelector(".ipf-preview");
+  const pick = box.querySelector("[data-ipf-pick]");
+  const clear = box.querySelector("[data-ipf-clear]");
+
+  function paint(url) {
+    preview.innerHTML = url ? `<img src="${url}" alt="">` : '<span data-icon="image"></span>';
+    renderIcons(preview);
+    pick.textContent = url ? "تغییر عکس" : "انتخاب عکس";
+    clear.hidden = !url;
+  }
+  pick.addEventListener("click", async () => {
+    pick.disabled = true;
+    try {
+      const picked = await window.pickImage(box.dataset.ipfFrame);
+      if (!picked) return;
+      pickedImages[name] = picked.key;
+      paint(picked.url);
+    } finally {
+      pick.disabled = false;
+    }
+  });
+  clear.addEventListener("click", () => {
+    pickedImages[name] = null;
+    paint(null);
+  });
+});
+
 document.getElementById("publishBtn").addEventListener("click", async () => {
   const payload = {
     title: document.getElementById("cTitle").value.trim(),
@@ -751,6 +815,12 @@ document.getElementById("publishBtn").addEventListener("click", async () => {
     identity_mode: selectedIdentity,
     cadence: buildCadence(),
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    // Media keys from `POST /media/`, uploaded the moment they were cropped;
+    // null when nothing was picked. The pictures exist before the challenge
+    // does, which is exactly why the upload route answers a key instead of
+    // writing a column -- there is no row here yet to write to.
+    image_square: pickedImages.image_square,
+    image_tall: pickedImages.image_tall,
   };
 
   if (IN_GROUP) {

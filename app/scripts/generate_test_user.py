@@ -101,6 +101,7 @@ NOTES = [
 # closed window and `pending` for one that is still open -- that is how the
 # fixture gets pending/missed states without storing them.
 
+
 def _perfect(i, total):
     return "completed"
 
@@ -191,6 +192,7 @@ QUOTA_POLICIES = {
 # the fixture
 # ---------------------------------------------------------------------------
 
+
 def build_specs(now: datetime, today: date) -> list[dict]:
     """Every challenge in the fixture, spelled out.
 
@@ -198,6 +200,7 @@ def build_specs(now: datetime, today: date) -> list[dict]:
     (None = not enrolled, which is what makes the discovery/enroll paths
     testable). `peers` are extra participants: (index, policy, days_ago).
     """
+
     def at(days: int, hour: int = 9, minute: int = 0) -> datetime:
         """A UTC instant `days` from today at a local Tehran wall time."""
         return datetime.combine(
@@ -215,15 +218,27 @@ def build_specs(now: datetime, today: date) -> list[dict]:
             ),
             "rules": "ثبت روزانه تا پایان همان روز. مسافت را به کیلومتر وارد کن.",
             "category": ChallengeCategory.FITNESS,
-            "cadence": RecurringDaysCadence(mode="weekdays", weekdays=[0, 1, 2, 3, 4, 5, 6]),
+            "cadence": RecurringDaysCadence(
+                mode="weekdays", weekdays=[0, 1, 2, 3, 4, 5, 6]
+            ),
             "visibility": Visibility.PUBLIC.value,
             "lifecycle": LifecycleStatus.ACTIVE.value,
             "due_days": 45,
             "goal": (Decimal(400), "کیلومتر"),
             "owner": "me",
             "created_days_ago": 90,
-            "me": {"policy": "today_open", "tz": TZ_TEHRAN, "start": 84, "status": "active"},
-            "peers": [(0, "mostly", 80), (1, "spotty", 60), (2, "perfect", 40), (3, "sparse", 30)],
+            "me": {
+                "policy": "today_open",
+                "tz": TZ_TEHRAN,
+                "start": 84,
+                "status": "active",
+            },
+            "peers": [
+                (0, "mostly", 80),
+                (1, "spotty", 60),
+                (2, "perfect", 40),
+                (3, "sparse", 30),
+            ],
         },
         # -- 2. broken streak: long history, last three windows empty
         {
@@ -239,7 +254,12 @@ def build_specs(now: datetime, today: date) -> list[dict]:
             "goal": None,
             "owner": 0,
             "created_days_ago": 75,
-            "me": {"policy": "streak_broken", "tz": TZ_TEHRAN, "start": 70, "status": "active"},
+            "me": {
+                "policy": "streak_broken",
+                "tz": TZ_TEHRAN,
+                "start": 70,
+                "status": "active",
+            },
             "peers": [(1, "perfect", 70), (4, "mostly", 50)],
         },
         # -- 3. every N days + unlisted + a goal measured in minutes
@@ -256,7 +276,12 @@ def build_specs(now: datetime, today: date) -> list[dict]:
             "goal": (Decimal(600), "دقیقه"),
             "owner": 1,
             "created_days_ago": 65,
-            "me": {"policy": "spotty", "tz": TZ_TEHRAN, "start": 60, "status": "active"},
+            "me": {
+                "policy": "spotty",
+                "tz": TZ_TEHRAN,
+                "start": 60,
+                "status": "active",
+            },
             "peers": [(2, "mostly", 55)],
         },
         # -- 4. every N weeks, private, mine, nobody else -> deletable
@@ -273,7 +298,12 @@ def build_specs(now: datetime, today: date) -> list[dict]:
             "goal": None,
             "owner": "me",
             "created_days_ago": 60,
-            "me": {"policy": "perfect", "tz": TZ_TEHRAN, "start": 56, "status": "active"},
+            "me": {
+                "policy": "perfect",
+                "tz": TZ_TEHRAN,
+                "start": 56,
+                "status": "active",
+            },
             "peers": [],
         },
         # -- 5. every N (Jalali) months
@@ -290,7 +320,12 @@ def build_specs(now: datetime, today: date) -> list[dict]:
             "goal": None,
             "owner": 2,
             "created_days_ago": 110,
-            "me": {"policy": "recent_only", "tz": TZ_TEHRAN, "start": 100, "status": "active"},
+            "me": {
+                "policy": "recent_only",
+                "tz": TZ_TEHRAN,
+                "start": 100,
+                "status": "active",
+            },
             "peers": [(0, "perfect", 100), (5, "sparse", 90)],
         },
         # -- 6. schedule: past sessions, one today, and future ones
@@ -302,8 +337,15 @@ def build_specs(now: datetime, today: date) -> list[dict]:
             "category": ChallengeCategory.PRODUCTIVITY,
             "cadence": ScheduleCadence(
                 datetimes=[
-                    at(-24, 18), at(-20, 18), at(-16, 18), at(-11, 18),
-                    at(-7, 18), at(-3, 18), at(0, 21), at(4, 18), at(9, 18),
+                    at(-24, 18),
+                    at(-20, 18),
+                    at(-16, 18),
+                    at(-11, 18),
+                    at(-7, 18),
+                    at(-3, 18),
+                    at(0, 21),
+                    at(4, 18),
+                    at(9, 18),
                 ]
             ),
             "visibility": Visibility.PUBLIC.value,
@@ -312,7 +354,12 @@ def build_specs(now: datetime, today: date) -> list[dict]:
             "goal": None,
             "owner": 0,
             "created_days_ago": 30,
-            "me": {"policy": "open_today_mixed", "tz": TZ_TEHRAN, "start": 26, "status": "active"},
+            "me": {
+                "policy": "open_today_mixed",
+                "tz": TZ_TEHRAN,
+                "start": 26,
+                "status": "active",
+            },
             "peers": [(3, "perfect", 26), (4, "spotty", 20)],
         },
         # -- 7. schedule entirely in the future -> derived status "upcoming"
@@ -346,8 +393,17 @@ def build_specs(now: datetime, today: date) -> list[dict]:
             "goal": (Decimal(120), "جلسه"),
             "owner": "me",
             "created_days_ago": 70,
-            "me": {"policy": "quota_partial", "tz": TZ_TEHRAN, "start": 63, "status": "active"},
-            "peers": [(2, "quota_full", 63), (3, "quota_thin", 50), (5, "quota_missed", 35)],
+            "me": {
+                "policy": "quota_partial",
+                "tz": TZ_TEHRAN,
+                "start": 63,
+                "status": "active",
+            },
+            "peers": [
+                (2, "quota_full", 63),
+                (3, "quota_thin", 50),
+                (5, "quota_missed", 35),
+            ],
         },
         # -- 9. weekly quota already met this week -> absent from Today
         {
@@ -363,7 +419,12 @@ def build_specs(now: datetime, today: date) -> list[dict]:
             "goal": (Decimal(900), "صفحه"),
             "owner": 1,
             "created_days_ago": 50,
-            "me": {"policy": "quota_full", "tz": TZ_TEHRAN, "start": 49, "status": "active"},
+            "me": {
+                "policy": "quota_full",
+                "tz": TZ_TEHRAN,
+                "start": 49,
+                "status": "active",
+            },
             "peers": [(0, "quota_thin", 45)],
         },
         # -- 10. monthly (Jalali) quota
@@ -380,7 +441,12 @@ def build_specs(now: datetime, today: date) -> list[dict]:
             "goal": None,
             "owner": 2,
             "created_days_ago": 100,
-            "me": {"policy": "quota_partial", "tz": TZ_TEHRAN, "start": 95, "status": "active"},
+            "me": {
+                "policy": "quota_partial",
+                "tz": TZ_TEHRAN,
+                "start": 95,
+                "status": "active",
+            },
             "peers": [(4, "quota_full", 95), (5, "quota_missed", 70)],
         },
         # -- 11. one-off, never recorded -> permanently due in Today
@@ -414,7 +480,12 @@ def build_specs(now: datetime, today: date) -> list[dict]:
             "goal": None,
             "owner": "me",
             "created_days_ago": 40,
-            "me": {"policy": "perfect", "tz": TZ_TEHRAN, "start": 35, "status": "active"},
+            "me": {
+                "policy": "perfect",
+                "tz": TZ_TEHRAN,
+                "start": 35,
+                "status": "active",
+            },
             "peers": [(2, "perfect", 30), (4, "empty", 22)],
         },
         # -- 13. my enrollment is "completed", the challenge itself is finished
@@ -437,7 +508,12 @@ def build_specs(now: datetime, today: date) -> list[dict]:
             "goal": (Decimal(60), "جلسه"),
             "owner": 0,
             "created_days_ago": 60,
-            "me": {"policy": "perfect", "tz": TZ_TEHRAN, "start": 52, "status": "completed"},
+            "me": {
+                "policy": "perfect",
+                "tz": TZ_TEHRAN,
+                "start": 52,
+                "status": "completed",
+            },
             "peers": [(1, "mostly", 52), (3, "spotty", 45)],
         },
         # -- 14. my enrollment is "abandoned"
@@ -454,7 +530,12 @@ def build_specs(now: datetime, today: date) -> list[dict]:
             "goal": None,
             "owner": 1,
             "created_days_ago": 60,
-            "me": {"policy": "abandoned", "tz": TZ_TEHRAN, "start": 55, "status": "abandoned"},
+            "me": {
+                "policy": "abandoned",
+                "tz": TZ_TEHRAN,
+                "start": 55,
+                "status": "abandoned",
+            },
             "peers": [(5, "perfect", 55)],
         },
         # -- 15/16/17. the same "today" judged in three different timezones
@@ -464,14 +545,21 @@ def build_specs(now: datetime, today: date) -> list[dict]:
             "description": "ثبت‌نام من در منطقه زمانی اروپا/برلین است.",
             "rules": "پیش از ساعت ۹ صبح محلی.",
             "category": ChallengeCategory.MENTAL_HEALTH,
-            "cadence": RecurringDaysCadence(mode="weekdays", weekdays=[0, 1, 2, 3, 4, 5, 6]),
+            "cadence": RecurringDaysCadence(
+                mode="weekdays", weekdays=[0, 1, 2, 3, 4, 5, 6]
+            ),
             "visibility": Visibility.PUBLIC.value,
             "lifecycle": LifecycleStatus.ACTIVE.value,
             "due_days": 40,
             "goal": None,
             "owner": 2,
             "created_days_ago": 40,
-            "me": {"policy": "today_open", "tz": TZ_BERLIN, "start": 35, "status": "active"},
+            "me": {
+                "policy": "today_open",
+                "tz": TZ_BERLIN,
+                "start": 35,
+                "status": "active",
+            },
             "peers": [(0, "mostly", 35)],
         },
         {
@@ -487,7 +575,12 @@ def build_specs(now: datetime, today: date) -> list[dict]:
             "goal": (Decimal(80), "جلسه"),
             "owner": 3,
             "created_days_ago": 45,
-            "me": {"policy": "quota_partial", "tz": TZ_NEWYORK, "start": 42, "status": "active"},
+            "me": {
+                "policy": "quota_partial",
+                "tz": TZ_NEWYORK,
+                "start": 42,
+                "status": "active",
+            },
             "peers": [(4, "quota_full", 42)],
         },
         {
@@ -496,14 +589,21 @@ def build_specs(now: datetime, today: date) -> list[dict]:
             "description": "لبه دورترین «امروز» ممکن، UTC+14.",
             "rules": "هشت لیوان در روز.",
             "category": ChallengeCategory.OTHER,
-            "cadence": RecurringDaysCadence(mode="weekdays", weekdays=[0, 1, 2, 3, 4, 5, 6]),
+            "cadence": RecurringDaysCadence(
+                mode="weekdays", weekdays=[0, 1, 2, 3, 4, 5, 6]
+            ),
             "visibility": Visibility.PRIVATE.value,
             "lifecycle": LifecycleStatus.ACTIVE.value,
             "due_days": None,
             "goal": (Decimal(500), "لیوان آب"),
             "owner": "me",
             "created_days_ago": 30,
-            "me": {"policy": "today_done", "tz": TZ_KIRITIMATI, "start": 25, "status": "active"},
+            "me": {
+                "policy": "today_done",
+                "tz": TZ_KIRITIMATI,
+                "start": 25,
+                "status": "active",
+            },
             "peers": [],
         },
         # -- 18. enrolled but starting later: nothing due, no history yet
@@ -554,7 +654,12 @@ def build_specs(now: datetime, today: date) -> list[dict]:
             "goal": (Decimal(250), "کیلومتر"),
             "owner": "me",
             "created_days_ago": 80,
-            "me": {"policy": "mostly", "tz": TZ_TEHRAN, "start": 75, "status": "completed"},
+            "me": {
+                "policy": "mostly",
+                "tz": TZ_TEHRAN,
+                "start": 75,
+                "status": "completed",
+            },
             "peers": [(1, "perfect", 75), (4, "sparse", 60)],
         },
         # -- 21. finished by a past due_date, and I am NOT enrolled
@@ -607,7 +712,11 @@ def build_specs(now: datetime, today: date) -> list[dict]:
             "owner": 4,
             "created_days_ago": 55,
             "me": None,
-            "peers": [(0, "quota_full", 52), (1, "quota_partial", 52), (5, "quota_thin", 40)],
+            "peers": [
+                (0, "quota_full", 52),
+                (1, "quota_partial", 52),
+                (5, "quota_thin", 40),
+            ],
         },
         # -- 24. unlisted and not mine: reachable by URL, absent from listings
         {
@@ -775,7 +884,9 @@ def build_history(
             span = (last - first).days
             done = min(cadence.count, max(0, quota_of(i, cadence.count)))
             for seq in range(1, done + 1):
-                d = first + timedelta(days=min(span, (seq - 1) * max(1, span // max(1, done))))
+                d = first + timedelta(
+                    days=min(span, (seq - 1) * max(1, span // max(1, done)))
+                )
                 key = f"{pkey}#{seq}"
                 rows.append(
                     _make_checkin(
@@ -815,7 +926,8 @@ def build_history(
             if key.startswith("S"):
                 # A scheduled session is recorded around the session itself.
                 at_utc = min(
-                    datetime.fromisoformat(key[1:]) + timedelta(minutes=rng.randrange(5, 90)),
+                    datetime.fromisoformat(key[1:])
+                    + timedelta(minutes=rng.randrange(5, 90)),
                     now,
                 )
             rows.append(
@@ -838,9 +950,7 @@ def build_history(
         away_end = today - timedelta(days=AWAY_START_DAYS_AGO)
         away_start = away_end - timedelta(days=AWAY_DAYS - 1)
         rows = [
-            r
-            for r in rows
-            if not (away_start <= r.occurrence_local_date <= away_end)
+            r for r in rows if not (away_start <= r.occurrence_local_date <= away_end)
         ]
         completed_keys = {r.occurrence_key for r in rows if r.state == "completed"}
         period_counts = {}
@@ -861,13 +971,16 @@ def build_history(
         period_completed_counts=period_counts,
     )
     completed_dates = [r.occurrence_local_date for r in rows if r.state == "completed"]
-    enrollment.last_checkin_local_date = max(completed_dates) if completed_dates else None
+    enrollment.last_checkin_local_date = (
+        max(completed_dates) if completed_dates else None
+    )
     return rows
 
 
 # ---------------------------------------------------------------------------
 # purge + build
 # ---------------------------------------------------------------------------
+
 
 async def purge(session: AsyncSession) -> tuple[int, int]:
     """Remove everything a previous run of this script created.
@@ -1047,9 +1160,7 @@ async def build(session: AsyncSession, now: datetime) -> list[tuple[dict, Challe
 
         fill = GOAL_FILL.get(spec["key"])
         if fill and totals["amount"] > 0:
-            challenge.goal_amount = Decimal(
-                round(float(totals["amount"]) / fill)
-            )
+            challenge.goal_amount = Decimal(round(float(totals["amount"]) / fill))
 
         session.add(
             ChallengeStats(
@@ -1069,7 +1180,7 @@ async def main():
     # *after* the commit, which reads as a failed run that actually succeeded.
     try:
         sys.stdout.reconfigure(encoding="utf-8")
-    except (AttributeError, OSError):
+    except AttributeError, OSError:
         pass
     async with async_session_maker() as session:
         now = datetime.now(UTC)
@@ -1083,22 +1194,26 @@ async def main():
         await session.commit()
 
         checkins = (
-            await session.execute(
-                select(CheckIn.id).where(
-                    CheckIn.challenge_id.in_([c.id for _, c in built])
+            (
+                await session.execute(
+                    select(CheckIn.id).where(
+                        CheckIn.challenge_id.in_([c.id for _, c in built])
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         print()
         print("=" * 72)
         print(f"  کاربر تست ساخته شد:  {TEST_EMAIL}  /  {TEST_PASSWORD}")
         print("=" * 72)
-        print(
-            f"  {len(PEERS) + 1} کاربر، {len(built)} چالش، {len(checkins)} ثبت نوبت"
-        )
+        print(f"  {len(PEERS) + 1} کاربر، {len(built)} چالش، {len(checkins)} ثبت نوبت")
         print()
-        print(f"  {'id':>4}  {'key':<22} {'cadence':<16} {'enrolled':<10} what to look at")
+        print(
+            f"  {'id':>4}  {'key':<22} {'cadence':<16} {'enrolled':<10} what to look at"
+        )
         print("  " + "-" * 88)
         for spec, challenge in built:
             enrolled = spec["me"]["status"] if spec["me"] else "—"
@@ -1107,8 +1222,8 @@ async def main():
                 f"{spec['cadence'].kind:<16} {enrolled:<10} {spec['title']}"
             )
         print()
-        print("  /views/today/   امروز: نوبت‌های باز (روزانه، سهمیه‌ای، جلسه‌ای، یک‌باره)")
-        print("  /views/home/    خانه: نقشه ۱۲ هفته‌ای، رشته‌ها، تفکیک دسته‌بندی")
+        print("  /views/today/   امروز: وعده های باز (روزانه، سهمیه‌ای، جلسه‌ای، یک‌باره)")
+        print("  /views/home/    خانه: نقشه ۱۲ هفته‌ای، زنجیره ها، تفکیک دسته‌بندی")
         print("  /views/challenges/  کاوش: وضعیت‌ها، دسته‌بندی‌ها، جست‌وجو، فیلترها")
         print()
 

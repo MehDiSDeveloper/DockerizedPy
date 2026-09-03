@@ -1,0 +1,42 @@
+{#- One card per roadmap. The infinite-scroll fragment for /views/roadmaps/,
+    `{% include %}`-ed for the first server-rendered page and re-served bare by
+    /views/roadmaps/fragment -- the contract every list in this app follows.
+
+    A roadmap is not a challenge, so the card borrows neither of the two colour
+    channels: no `--st-*` (a course has no derived status of its own) and no
+    `--cat-*` (a course spans categories, which is rather the point). What it
+    carries instead is the picture -- a media key like every other, so a
+    roadmap without one keeps the accent-tinted placeholder with the route
+    glyph -- plus the two facts that tell one course from another in a list:
+    how long it is, and how many people are on it.
+
+    The accent appears once and means what it always means here: **this one is
+    live for you** -- the bar under a course you are actually walking. -#}
+{% for r in roadmaps %}
+{%- set cover = r.image_square | media_url -%}
+<a href="/views/roadmaps/{{ r.id }}" class="rm-card glass{{ ' is-walking' if r.id in walking_ids }}">
+  <div class="rm-cover{{ ' has-cover' if cover }}">
+    {% if cover %}<img src="{{ cover }}" alt="" loading="lazy" decoding="async">{% endif %}
+    <span data-icon="route"></span>
+  </div>
+  <div class="rm-body">
+    <h3>{{ r.title }}</h3>
+    <p class="rm-meta">
+      <span data-icon="list"></span><span>{{ step_counts.get(r.id, 0) }} قدم</span>
+      <span data-icon="users"></span><span>{{ member_counts.get(r.id, 0) }} نفر</span>
+      {% if r.owner and r.owner_id != current_user_id %}
+      <span data-icon="user"></span><span>{{ r.owner.name }}</span>
+      {% endif %}
+    </p>
+    {#- Two marks, and only when they are true. «ترتیب اجباری» is a promise
+        about how the course behaves, so it is said before somebody starts it
+        rather than discovered on the second step. -#}
+    <p class="rm-tags">
+      {% if r.id in walking_ids %}<span class="cc-tag accent">در حال انجام</span>{% endif %}
+      {% if r.owner_id == current_user_id %}<span class="cc-tag">ساختهٔ تو</span>{% endif %}
+      {% if r.strict %}<span class="cc-tag"><span data-icon="lock"></span>ترتیب اجباری</span>{% endif %}
+    </p>
+  </div>
+  <span class="rm-chev" data-icon="chevronLeft"></span>
+</a>
+{% endfor %}

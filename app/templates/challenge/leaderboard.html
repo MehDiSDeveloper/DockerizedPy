@@ -27,7 +27,7 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="رتبه‌بندی">
+<nav class="crumbs" aria-label="مسیر پیمایش" data-crumb-trail data-crumb-label="رتبه‌بندی">
   <span class="crumb current" aria-current="page">رتبه‌بندی</span>
 </nav>
 {% endblock %}
@@ -57,15 +57,15 @@
   <div class="lb-mine glass">
     <div class="lb-mine-rank">
       <b>{{ standing.rank }}</b>
-      <span>رتبهٔ تو</span>
+      <span>جایگاه</span>
     </div>
     <div class="lb-mine-figs">
       <div><b>{{ standing.completions }}</b><span>ثبت</span></div>
-      <div class="gold"><b><span data-icon="flame"></span>{{ standing.streak }}</b><span>رشته</span></div>
+      <div class="gold"><b><span data-icon="flame"></span>{{ standing.streak }}</b><span>زنجیره</span></div>
       <div><b>{{ total }}</b><span>شرکت‌کننده</span></div>
     </div>
     <button type="button" class="cc-btn ghost tiny" id="lbFindMe">
-      <span data-icon="target"></span>جای من
+      <span data-icon="target"></span>جایگاه
     </button>
   </div>
   {% endif %}
@@ -104,10 +104,10 @@
   </div>
   <div class="empty" id="lbEmpty" {{ 'hidden' if rows }}>
     <span data-icon="empty"></span>
-    <p>هنوز کسی در این چالش نوبتی ثبت نکرده.</p>
+    <p>هنوز کسی در این چالش وعده‌ای ثبت نکرده.</p>
   </div>
   <div class="scroll-sentinel" id="lbSentinel" aria-hidden="true"></div>
-  <div class="list-loading" id="lbLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
+  <div class="list-loading" id="lbLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
 
 </div>
 {% endblock %}

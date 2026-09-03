@@ -13,6 +13,13 @@ BASE_DIR = Path(__file__).resolve().parent
 # matter of pointing DATABASE_URL at Postgres again.
 DEFAULT_SQLITE_URL = "sqlite+aiosqlite:///./data/challenges.db"
 
+# Uploaded pictures (`app/media.py`) live beside the database, on the same
+# mounted disk and for the same reason: they have to survive a redeploy. They
+# are deliberately *not* under `app/static/`, which is code the image ships
+# with -- a directory the app writes to has no business inside the tree a
+# `COPY . .` rebuilds.
+MEDIA_ROOT = BASE_DIR.parent / "data" / "media"
+
 
 class Settings(BaseSettings):
     database_url: str = DEFAULT_SQLITE_URL
@@ -82,3 +89,7 @@ settings = Settings()
 _sqlite_path = settings.sqlite_path
 if _sqlite_path is not None:
     _sqlite_path.parent.mkdir(parents=True, exist_ok=True)
+
+# Same reasoning: `StaticFiles` refuses to mount a directory that is not there
+# yet, which on a fresh disk is every first boot.
+MEDIA_ROOT.mkdir(parents=True, exist_ok=True)

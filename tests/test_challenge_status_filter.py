@@ -186,5 +186,5 @@ async def test_list_page_renders_a_status_badge_per_card(
     # One pill per card, plus the labels a reader actually sees -- colour on
     # its own can't carry the status.
     assert resp.text.count('class="status-pill"') == len(ids)
-    for label in ("شروع نشده", "در حال اجرا", "تمام شده"):
+    for label in ("شروع نشده", "در حال اجرا", "تمام‌شده"):
         assert label in resp.text

@@ -55,6 +55,7 @@ from app.routers.group.queries import (
     DEFAULT_GROUP_PAGE_SIZE,
     MAX_GROUP_PAGE_SIZE,
     count_pending_requests,
+    fetch_child_groups,
     fetch_group_member_page,
     fetch_group_page,
     fetch_request_page,
@@ -63,6 +64,7 @@ from app.routers.group.queries import (
     invite_rows,
     load_group,
     member_rows,
+    parent_names,
 )
 
 router = APIRouter()
@@ -81,6 +83,7 @@ __all__ = [
     "DEFAULT_GROUP_PAGE_SIZE",
     "MAX_GROUP_PAGE_SIZE",
     "count_pending_requests",
+    "fetch_child_groups",
     "fetch_group_member_page",
     "fetch_group_page",
     "fetch_request_page",
@@ -91,5 +94,6 @@ __all__ = [
     "load_group",
     "member_counts",
     "member_rows",
+    "parent_names",
     "router",
 ]

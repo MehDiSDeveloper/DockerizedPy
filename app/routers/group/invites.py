@@ -5,17 +5,17 @@ import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import or_, select, update
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.groups import (
+from app.groups import apply_standing_audience, member_counts
+from app.invites import (
     INVITE_ACTIVE,
-    apply_standing_audience,
+    consume_seat,
     invite_state,
-    member_counts,
     new_invite_code,
 )
 from app.logging_config import log_event
@@ -240,12 +240,10 @@ async def accept_invite(
     """Use a link and be in the group. No approval, by design.
 
     **The seat is taken with a conditional UPDATE, not a read followed by a
-    write.** ``uses = uses + 1 WHERE uses < max_uses`` and a check of
-    ``rowcount`` is the only version of this that survives two people tapping
-    a one-seat link at the same instant; reading ``uses``, deciding, and then
-    writing is precisely the race that lets a capacity be exceeded. Revocation
-    and expiry are in the same ``WHERE`` so there is one statement to reason
-    about rather than three checks and a window between them.
+    write** -- :func:`app.invites.consume_seat`, which is also what a roadmap
+    invite spends, so the rule is stated once. Revocation, expiry and capacity
+    are all in that one statement, so there are no three checks with a window
+    between them.
 
     Everything is one transaction, so a membership that fails to insert takes
     the consumed seat back with it.
@@ -274,27 +272,7 @@ async def accept_invite(
         # link they joined with has not joined twice.
         return await group_read(db, group, current_user.id, already)
 
-    now = datetime.now(UTC)
-    consumed = await db.execute(
-        update(GroupInvite)
-        .where(
-            GroupInvite.id == invite.id,
-            GroupInvite.revoked_at.is_(None),
-            or_(GroupInvite.expires_at.is_(None), GroupInvite.expires_at > now),
-            or_(
-                GroupInvite.max_uses.is_(None),
-                GroupInvite.uses < GroupInvite.max_uses,
-            ),
-        )
-        .values(uses=GroupInvite.uses + 1)
-        # `synchronize_session=False` because this UPDATE is the authority and
-        # the ORM's in-Python evaluation of the same WHERE is not: SQLite
-        # hands `expires_at` back naive, so evaluating `expires_at > now`
-        # against a mapped instance raises on the tz comparison. The row is
-        # re-read from the database wherever it is needed after this.
-        .execution_options(synchronize_session=False)
-    )
-    if consumed.rowcount == 0:
+    if not await consume_seat(db, GroupInvite, invite.id):
         await db.rollback()
         raise HTTPException(
             status_code=409, detail="This invite link can no longer be used"

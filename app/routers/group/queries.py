@@ -12,11 +12,16 @@ modules -- the dependency runs one way.
 from datetime import UTC, datetime
 
 from fastapi import HTTPException
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.groups import group_visibility_filter, invite_state, member_counts
+from app.groups import (
+    group_visibility_filter,
+    invite_state,
+    member_counts,
+    standing_in,
+)
 from app.models.audit_base import newest_first
 from app.models.challenge import Challenge
 from app.models.group import (
@@ -28,7 +33,7 @@ from app.models.group import (
     JoinRequestStatus,
 )
 from app.models.user import User
-from app.permissions import can, group_role
+from app.permissions import EffectiveMembership, can, group_role
 from app.phone import normalize_mobile
 from app.routers.user import DEFAULT_MEMBER_PAGE_SIZE, apply_member_filters
 from app.schemas.group import GroupMemberRead, GroupRead, InviteRead
@@ -44,13 +49,17 @@ MAX_GROUP_PAGE_SIZE = 50
 
 async def load_group(
     db: AsyncSession, group_id: int, user: User
-) -> tuple[Group, GroupMembership | None]:
-    """The group and the caller's own membership in it, or **404**.
+) -> tuple[Group, EffectiveMembership | None]:
+    """The group and the caller's standing in it, or **404**.
 
-    Both come back on one read because every caller needs both: the group to
-    act on, and the membership ``can()`` resolves the role from. Fetching the
-    membership separately is how a route ends up asking ``can()`` with
+    Both come back together because every caller needs both: the group to act
+    on, and the standing ``can()`` resolves the role from. Resolving the
+    standing separately is how a route ends up asking ``can()`` with
     ``membership=None`` and quietly denying an administrator.
+
+    The standing is :func:`standing_in`, not a row -- with nested groups the
+    row that answers "what may you do here" can be one on a group this one
+    sits inside.
 
     The owner is admitted even with no membership row. That cannot happen
     through any route here -- an owner may not leave -- but ``group_role``
@@ -58,32 +67,24 @@ async def load_group(
     disagreed with it would be a gate that locks the owner out of their own
     group after a hand-edited database.
     """
-    row = (
+    group = (
         await db.execute(
-            select(Group, GroupMembership)
-            .outerjoin(
-                GroupMembership,
-                and_(
-                    GroupMembership.group_id == Group.id,
-                    GroupMembership.user_id == user.id,
-                ),
-            )
-            .where(
+            select(Group).where(
                 Group.id == group_id,
                 or_(group_visibility_filter(user.id), Group.owner_id == user.id),
             )
         )
-    ).one_or_none()
-    if row is None:
+    ).scalar_one_or_none()
+    if group is None:
         raise HTTPException(status_code=404, detail="Group not found")
-    return row[0], row[1]
+    return group, await standing_in(db, group, user.id)
 
 
 def require(
     user: User,
     permission: str,
     group: Group,
-    membership: GroupMembership | None,
+    membership: EffectiveMembership | None,
     detail: str = "Not allowed in this group",
 ) -> None:
     """403 unless the caller holds ``permission`` here. See the module note
@@ -93,9 +94,24 @@ def require(
 
 
 async def group_read(
-    db: AsyncSession, group: Group, viewer_id: int, membership: GroupMembership | None
+    db: AsyncSession,
+    group: Group,
+    viewer_id: int,
+    membership: EffectiveMembership | None = None,
 ) -> GroupRead:
     counts = await member_counts(db, [group.id])
+    parent_name = None
+    if group.parent_id is not None:
+        parent_name = (
+            await db.execute(select(Group.name).where(Group.id == group.parent_id))
+        ).scalar_one_or_none()
+    child_count = (
+        await db.execute(
+            select(func.count())
+            .select_from(Group)
+            .where(Group.parent_id == group.id)
+        )
+    ).scalar_one()
     return GroupRead(
         id=group.id,
         name=group.name,
@@ -106,6 +122,56 @@ async def group_read(
         created_at=group.created_at,
         member_count=counts.get(group.id, 0),
         my_role=group_role(viewer_id, group=group, membership=membership),
+        parent_id=group.parent_id,
+        parent_name=parent_name,
+        child_count=child_count,
+    )
+
+
+async def parent_names(db: AsyncSession, groups: list[Group]) -> dict[int, str]:
+    """``{group id: the name of the group it sits inside}``, in one query.
+
+    The list of a member's groups is flat -- it has to be, because somebody
+    can be in two organisations that know nothing about each other -- so a
+    subgroup that did not say where it belongs would read as a second
+    top-level group with a confusingly narrow name. One read for the page,
+    like ``member_counts``, not one per card.
+    """
+    wanted = {g.parent_id for g in groups if g.parent_id is not None}
+    if not wanted:
+        return {}
+    names = dict(
+        (
+            await db.execute(
+                select(Group.id, Group.name).where(Group.id.in_(wanted))
+            )
+        ).all()
+    )
+    return {
+        g.id: names[g.parent_id]
+        for g in groups
+        if g.parent_id in names
+    }
+
+
+async def fetch_child_groups(db: AsyncSession, group_id: int) -> list[Group]:
+    """The groups directly inside this one, newest first.
+
+    Direct children only, and unpaged: a group's structure is a handful of
+    rows a reader takes in at once, and anything below the children is read
+    on the child's own page -- a whole tree flattened onto one screen is a
+    picture of the organisation, not a way to get anywhere in it.
+    """
+    return list(
+        (
+            await db.execute(
+                select(Group)
+                .where(Group.parent_id == group_id)
+                .order_by(*newest_first(Group))
+            )
+        )
+        .scalars()
+        .all()
     )
 
 

@@ -31,7 +31,7 @@
     appends to it. -#}
 {% block breadcrumb %}
 {% set profile_label = 'پروفایل من' if is_own_profile else user.name %}
-<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="{{ profile_label }}"
+<nav class="crumbs" aria-label="مسیر پیمایش" data-crumb-trail data-crumb-label="{{ profile_label }}"
   {% if is_own_profile %}data-crumb-root{% endif %}>
   <span class="crumb current" aria-current="page">{{ profile_label }}</span>
 </nav>
@@ -92,7 +92,7 @@
     </div>
     <div class="stat-card glass mohr">
       <span class="stat-num" id="statDone">{{stat_done}}</span>
-      <span class="stat-label">چالش تکمیل‌شده</span>
+      <span class="stat-label">چالش تمام‌شده</span>
     </div>
   </section>
 
@@ -166,12 +166,12 @@
       call (see app/permissions.py for why neither is granted). -#}
   {% if can_administer %}
   <section class="setting-group profile-admin">
-    <h2>مدیریت عضو</h2>
+    <h2>نقش کاربر</h2>
     <div class="setting-row glass" role="button" tabindex="0" id="roleEdit"
       data-member-role="{{ user.role }}">
       <div class="sr-head">
         <div class="sr-text">
-          <span class="sr-label">نقش در برنامه</span>
+          <span class="sr-label">نقش در اپ</span>
           <span class="sr-hint">مدیر به پنل مدیریت، پروفایل همهٔ اعضا و همهٔ چالش‌ها دسترسی دارد.</span>
         </div>
         <span class="role-pill {{ 'is-admin' if user.role == 'admin' else '' }}"
@@ -219,9 +219,18 @@
       <span class="mi-label">گروه‌ها</span>
       <span class="mi-chev" data-icon="chevronLeft"></span>
     </a>
+    {#- «مسیرها» -- the other member-facing way in, beside «گروه‌ها» and for
+        its reasons: always rendered (being on no course is the normal state,
+        and the page's empty state is what explains what a مسیر is), and a row
+        here rather than a fifth bottom-nav tab. -#}
+    <a class="menu-item glass" href="/views/roadmaps/">
+      <div class="mi-icon"><span data-icon="route"></span></div>
+      <span class="mi-label">مسیرها</span>
+      <span class="mi-chev" data-icon="chevronLeft"></span>
+    </a>
     <a class="menu-item glass" href="/views/home/">
       <div class="mi-icon"><span data-icon="chart"></span></div>
-      <span class="mi-label">کارنامهٔ من</span>
+      <span class="mi-label">کارنامه</span>
       <span class="mi-chev" data-icon="chevronLeft"></span>
     </a>
     <a class="menu-item glass" href="/views/settings/" data-tour="profile-settings">
@@ -244,6 +253,9 @@
 <script src="{{ url_for('static', path='/js/tour.js') }}"></script>
 {% endif %}
 {% if can_edit %}
+{#- The picker. Cropper.js itself is fetched only on the first pick, so a
+    profile nobody edits pays for none of it. -#}
+<script src="{{ url_for('static', path='/js/imagepick.js') }}"></script>
 <script id="avatarOptions" type="application/json">{{ avatar_options | tojson }}</script>
 <script>
   // Change picture. The catalogue and the current pick both come from the
@@ -258,6 +270,17 @@
     const avatarImg = avatarEdit.querySelector("img");
     const avatarOptions = JSON.parse(document.getElementById("avatarOptions").textContent);
     let currentAvatar = {{ (user.avatar or '') | tojson }};
+    // id -> URL for everything the sheet can select. Seeded with the
+    // catalogue and grown by an upload, so swapping the <img> after a save
+    // never has to know which of the two kinds was picked.
+    const urlFor = new Map(avatarOptions.map((a) => [a.id, a.url]));
+    // A picture the member uploaded is not in the catalogue, so it gets a
+    // tile of its own -- without one the grid opens with nothing selected
+    // and reads as though the current choice were gone.
+    const ownPhoto = currentAvatar && !urlFor.has(currentAvatar)
+      ? { value: currentAvatar, url: {{ (user.avatar | avatar_url) | tojson }}, label: "عکس پروفایل" }
+      : null;
+    if (ownPhoto) urlFor.set(ownPhoto.value, ownPhoto.url);
 
     avatarEdit.addEventListener("click", () => {
       createSheet({
@@ -268,9 +291,25 @@
           label: "یکی را انتخاب کن",
           type: "avatars",
           value: currentAvatar,
-          options: avatarOptions.map((a, i) => ({
-            value: a.id, url: a.url, label: "آواتار " + (i + 1),
-          })),
+          options: [
+            ...(ownPhoto ? [ownPhoto] : []),
+            ...avatarOptions.map((a, i) => ({
+              value: a.id, url: a.url, label: "آواتار " + (i + 1),
+            })),
+          ],
+          // A picture of one's own, first in the grid. It uploads on pick and
+          // hands back a media key, which goes into the same hidden input the
+          // catalogue ids do -- `Users.avatar` holds either (see
+          // app/avatars.py), so the save below is unchanged.
+          upload: {
+            label: "آپلود عکس",
+            onPick: async () => {
+              const picked = await window.pickImage("avatar");
+              if (!picked) return null;
+              urlFor.set(picked.key, picked.url);
+              return { value: picked.key, url: picked.url };
+            },
+          },
         }],
         onConfirm: async (values) => {
           const picked = values.avatar || "";
@@ -291,8 +330,7 @@
           currentAvatar = updated.avatar || "";
           // Nothing else on the page renders the avatar, so swapping the src
           // is the whole update -- no reload needed.
-          const match = avatarOptions.find((a) => a.id === currentAvatar);
-          avatarImg.src = match ? match.url : {{ default_avatar_url | tojson }};
+          avatarImg.src = urlFor.get(currentAvatar) || {{ default_avatar_url | tojson }};
           showToast(currentAvatar ? "تصویر پروفایل به‌روز شد" : "تصویر پروفایل برداشته شد");
           return true;
         },
@@ -360,7 +398,7 @@
             return false;
           }
           if (res.status === 422) {
-            showToast("شمارهٔ موبایل یا ایمیل معتبر نیست");
+            showToast("شماره موبایل یا ایمیل معتبر نیست");
             return false;
           }
           if (!res.ok) {
@@ -395,7 +433,7 @@
       fields: [
         {
           name: "role",
-          label: "نقش در برنامه",
+          label: "نقش در اپ",
           type: "select",
           options: Object.entries(roleLabels).map(([value, label]) => ({ value, label })),
           value: roleEdit.dataset.memberRole,

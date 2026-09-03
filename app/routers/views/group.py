@@ -56,9 +56,15 @@ from app.groups import (
     register_group_filters,
 )
 from app.icons import register_icon_filters
+from app.media import register_media_filters
 from app.models.challenge import Challenge
 from app.models.enrollment import Enrollment
-from app.models.group import GroupJoinRequest, GroupMembership, JoinRequestStatus
+from app.models.group import (
+    Group,
+    GroupJoinRequest,
+    GroupMembership,
+    JoinRequestStatus,
+)
 from app.models.user import User
 from app.permissions import Perm, can, group_role
 from app.routers.challenge import (
@@ -72,6 +78,7 @@ from app.routers.group import (
     DEFAULT_GROUP_PAGE_SIZE,
     MAX_GROUP_PAGE_SIZE,
     count_pending_requests,
+    fetch_child_groups,
     fetch_group_member_page,
     fetch_group_page,
     fetch_request_page,
@@ -81,6 +88,7 @@ from app.routers.group import (
     load_group,
     member_counts,
     member_rows,
+    parent_names,
 )
 from app.routers.user import DEFAULT_MEMBER_PAGE_SIZE, MAX_MEMBER_PAGE_SIZE
 from app.routers.views.challenge import STATUS_META, social_context
@@ -95,6 +103,7 @@ register_explainer_filters(templates.env)
 # catalogue, one filter), the shell's icons, and the derived challenge status
 # the group's own challenge cards wear.
 register_avatar_filters(templates.env)
+register_media_filters(templates.env)
 register_icon_filters(templates.env)
 templates.env.filters["challenge_status"] = challenge_status
 templates.env.globals["status_meta"] = STATUS_META
@@ -135,10 +144,26 @@ async def _group_context(
     """
     my_role = group_role(viewer.id, group=group, membership=membership)
     counts = await member_counts(db, [group.id])
+    # Where this group sits, and what sits inside it. Both are read on every
+    # group screen because both are navigation: the parent is the way up (a
+    # subgroup with no way back to its organisation is a dead end), the
+    # children are the way down.
+    children = await fetch_child_groups(db, group.id)
+    parent = (
+        await db.get(Group, group.parent_id)
+        if group.parent_id is not None
+        else None
+    )
     return {
         "group": group,
         "my_role": my_role,
         "member_count": counts.get(group.id, 0),
+        "parent_group": parent,
+        "children": children,
+        "child_counts": await member_counts(db, [c.id for c in children]),
+        "can_create_subgroup": can(
+            viewer, Perm.GROUP_CREATE_SUBGROUP, group=group, membership=membership
+        ),
         "can_manage": can(
             viewer, Perm.GROUP_MANAGE_MEMBERS, group=group, membership=membership
         ),
@@ -185,6 +210,7 @@ async def groups_page(
             "active_nav": "profile",
             "groups": groups,
             "member_counts": counts,
+            "parent_names": await parent_names(db, groups),
             "has_more": has_more,
             "page_size": DEFAULT_GROUP_PAGE_SIZE,
             "emblem_options": _emblem_options(),
@@ -208,7 +234,12 @@ async def groups_fragment(
     counts = await member_counts(db, [g.id for g in groups])
     response = templates.TemplateResponse(
         "group/_group_cards.html",
-        {"request": request, "groups": groups, "member_counts": counts},
+        {
+            "request": request,
+            "groups": groups,
+            "member_counts": counts,
+            "parent_names": await parent_names(db, groups),
+        },
     )
     response.headers["X-Has-More"] = "true" if has_more else "false"
     return response

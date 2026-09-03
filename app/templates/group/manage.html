@@ -38,7 +38,7 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="مدیریت گروه">
+<nav class="crumbs" aria-label="مسیر پیمایش" data-crumb-trail data-crumb-label="مدیریت گروه">
   <span class="crumb current" aria-current="page">مدیریت گروه</span>
 </nav>
 {% endblock %}
@@ -80,12 +80,57 @@
     <div class="sg-head">
       <h2>اعضا{{ explain("add-member") }}</h2>
       <button type="button" class="icon-btn xs accent" id="grAddMember"
-        aria-label="افزودن عضو با شمارهٔ موبایل" title="افزودن عضو"><span data-icon="plus"></span></button>
+        aria-label="افزودن عضو با شماره موبایل" title="افزودن عضو"><span data-icon="plus"></span></button>
     </div>
     <a class="setting-row glass compact" href="/views/groups/{{ group.id }}/members">
       <div class="sr-head">
         <div class="sr-text"><span class="sr-label">اعضا و نقش‌ها</span></div>
         <span class="sr-value">{{ member_count }} نفر</span>
+        <span class="sr-chev" data-icon="chevronLeft"></span>
+      </div>
+    </a>
+  </section>
+
+  {#- «ساختار». Where this group sits, and what is inside it -- the settings
+      screen's own rule applied to nesting: one row per value, the value on
+      the row, and the end of the row saying what tapping does. «+» opens a
+      subgroup here (`.accent`, because it is the affirmative half), the
+      chevron row opens the list of them on the group's own page.
+
+      The parent row is a *value the reader cannot change* and is drawn as
+      such -- no pencil, no chevron beyond the link: a group's place is fixed
+      at creation, because membership reaches upward through it and moving a
+      group would retroactively change who has been able to see everything in
+      it. -#}
+  <section class="setting-group">
+    <div class="sg-head">
+      <h2>ساختار{{ explain("subgroup") }}</h2>
+      {% if can_create_subgroup %}
+      <button type="button" class="icon-btn xs accent" id="grNewSubgroup"
+        aria-label="ساختن زیرگروه" title="ساختن زیرگروه"><span data-icon="plus"></span></button>
+      {% endif %}
+    </div>
+    {% if parent_group %}
+    <a class="setting-row glass compact" href="/views/groups/{{ parent_group.id }}">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">داخل گروه</span>
+          <span class="sr-hint">جای گروه در ساخت‌شدن تعیین می‌شود و بعد از آن تغییر نمی‌کند.</span>
+        </div>
+        <span class="sr-value">{{ parent_group.name }}</span>
+        <span class="sr-chev" data-icon="chevronLeft"></span>
+      </div>
+    </a>
+    {% endif %}
+    <a class="setting-row glass compact" href="/views/groups/{{ group.id }}#subgroups">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">زیرگروه‌ها</span>
+          <span class="sr-hint">هر زیرگروه اعضا و چالش‌های خودش را دارد؛ اعضایش چالش‌های این
+            گروه را هم می‌بینند.</span>
+        </div>
+        <span class="sr-value{{ '' if children else ' muted' }}">{{ children | length if children
+          else 'ندارد' }}</span>
         <span class="sr-chev" data-icon="chevronLeft"></span>
       </div>
     </a>
@@ -115,7 +160,7 @@
         <div class="sr-actions" id="grPublicActions">
           {% if public_invite %}
           <button type="button" class="icon-btn xs" data-public-rotate
-            aria-label="باطل کردن لینک عمومی و ساختن لینک تازه" title="لینک تازه"><span
+            aria-label="غیرفعال کردن لینک عمومی و ساختن لینک جدید" title="لینک جدید"><span
               data-icon="refresh"></span></button>
           <button type="button" class="icon-btn xs accent" data-public-copy aria-label="کپی لینک عمومی"
             title="کپی"><span data-icon="copy"></span></button>
@@ -139,8 +184,8 @@
   <section class="setting-group">
     <div class="sg-head">
       <h2>لینک‌های دعوت{{ explain("invite-link") }}</h2>
-      <button type="button" class="icon-btn xs accent" id="grNewInvite" aria-label="ساختن لینک دعوت تازه"
-        title="لینک تازه"><span data-icon="plus"></span></button>
+      <button type="button" class="icon-btn xs accent" id="grNewInvite" aria-label="ساختن لینک دعوت جدید"
+        title="لینک جدید"><span data-icon="plus"></span></button>
     </div>
     <div id="grInvites">
       {% for i in invites %}
@@ -159,8 +204,8 @@
           <span class="invite-pill is-{{ i.state }}">{{ invite_state_labels.get(i.state, i.state) }}</span>
           <div class="sr-actions">
             {% if i.state == 'active' %}
-            <button type="button" class="icon-btn xs" data-revoke aria-label="باطل کردن این لینک"
-              title="باطل کردن"><span data-icon="x"></span></button>
+            <button type="button" class="icon-btn xs" data-revoke aria-label="غیرفعال کردن این لینک"
+              title="غیرفعال کردن"><span data-icon="x"></span></button>
             {% endif %}
             <button type="button" class="icon-btn xs accent" data-copy aria-label="کپی این لینک"
               title="کپی"><span data-icon="copy"></span></button>
@@ -182,7 +227,7 @@
 
     <div class="setting-row glass compact" role="button" tabindex="0" data-edit="emblem">
       <div class="sr-head">
-        <div class="sr-text"><span class="sr-label">نشان</span></div>
+        <div class="sr-text"><span class="sr-label">آیکون گروه</span></div>
         <img class="sr-emblem" src="{{ group.emblem | avatar_url }}" alt="" width="30" height="30">
         <span class="sr-edit" data-icon="edit"></span>
       </div>
@@ -248,6 +293,43 @@
 <script id="emblemOptions" type="application/json">{{ emblem_options | tojson }}</script>
 <script>
   document.addEventListener("DOMContentLoaded", () => {
+    // ---- ساخت زیرگروه. `POST /groups/` with `parent_id` -- the same route
+    // and the same sheet the groups list opens, because a subgroup is a
+    // group. Only the parent is added, and the server checks it again.
+    const newSubgroupBtn = document.getElementById("grNewSubgroup");
+    if (newSubgroupBtn) {
+      newSubgroupBtn.addEventListener("click", () => {
+        createSheet({
+          title: "زیرگروه جدید",
+          confirmLabel: "بساز",
+          explainHtml: {{ explain("subgroup") | tojson }},
+          fields: [
+            { name: "name", label: "نام زیرگروه", required: true, maxlength: 60,
+              placeholder: "مثلاً: واحد فروش" },
+            { name: "description", label: "توضیح", type: "textarea", rows: 2, maxlength: 500,
+              placeholder: "اختیاری" },
+          ],
+          onConfirm: async (values) => {
+            const { ok, status, data } = await apiFetch("/groups/", {
+              method: "POST",
+              body: {
+                name: values.name.trim(),
+                kind: {{ group.kind | tojson }},
+                description: values.description.trim() || null,
+                parent_id: {{ group.id }},
+              },
+            });
+            if (!ok) {
+              showToast(status === 409 ? "زیرگروه‌ها بیش از این تو در تو نمی‌شوند" : "ساخت زیرگروه انجام نشد");
+              return false;
+            }
+            window.location.href = `/views/groups/${data.id}`;
+            return true;
+          },
+        });
+      });
+    }
+
     const GROUP_ID = {{ group.id }};
     const emblemOptions = JSON.parse(document.getElementById("emblemOptions").textContent);
     const STATE_LABELS = {{ invite_state_labels | tojson }};
@@ -263,7 +345,7 @@
       createSheet({
         title,
         fields: [{ type: "note", text: note, tone: "danger" }],
-        confirmLabel: "بی‌خیال",
+        confirmLabel: "لغو",
         onConfirm: async () => true,
         danger: { label: dangerLabel, onClick: onYes },
       });
@@ -296,7 +378,7 @@
         confirmLabel: "اضافه کن",
         fields: [
           {
-            name: "identifier", label: "شمارهٔ موبایل", required: true, maxlength: 120,
+            name: "identifier", label: "شماره موبایل", required: true, maxlength: 120,
             placeholder: "۰۹۱۲۳۴۵۶۷۸۹",
             hint: "اگر حسابش با ایمیل ساخته شده، ایمیلش را بنویس.",
           },
@@ -355,7 +437,7 @@
       }
       row.remove();
       paintQueue();
-      showToast(approve ? `${row.dataset.requestName} به گروه اضافه شد` : "درخواست رد شد");
+      showToast(approve ? `${row.dataset.requestName} به گروه اضافه شد` : "درخواست رد شده");
     });
 
     // ---- the public link -------------------------------------------------
@@ -369,7 +451,7 @@
       publicHint.textContent = "ورود با تایید تو";
       publicActions.innerHTML = `
         <button type="button" class="icon-btn xs" data-public-rotate
-          aria-label="باطل کردن لینک عمومی و ساختن لینک تازه" title="لینک تازه">
+          aria-label="غیرفعال کردن لینک عمومی و ساختن لینک جدید" title="لینک جدید">
           <span data-icon="refresh"></span></button>
         <button type="button" class="icon-btn xs accent" data-public-copy
           aria-label="کپی لینک عمومی" title="کپی"><span data-icon="copy"></span></button>`;
@@ -404,9 +486,9 @@
       }
       if (!e.target.closest("[data-public-rotate]")) return;
       confirmSheet({
-        title: "لینک عمومی تازه",
-        note: "لینک فعلی از کار می‌افتد و هرجا گذاشته‌ای باید لینک تازه را بگذاری. کسانی که پیش‌تر عضو شده‌اند در گروه می‌مانند.",
-        dangerLabel: "باطل کن و بساز",
+        title: "لینک عمومی جدید",
+        note: "لینک فعلی از کار می‌افتد و هرجا گذاشته‌ای باید لینک جدید را بگذاری. کسانی که پیش‌تر عضو شده‌اند در گروه می‌مانند.",
+        dangerLabel: "غیرفعال کن و بساز",
         onYes: async () => {
           // Revoke through the same route every other link uses, then ask for
           // the public link again -- get-or-create mints a fresh one because
@@ -415,7 +497,7 @@
             `/groups/${GROUP_ID}/invites/${publicRow.dataset.inviteId}`, { method: "DELETE" }
           );
           if (!ok) {
-            showToast("باطل کردن انجام نشد");
+            showToast("غیرفعال کردن انجام نشد");
             return false;
           }
           publicRow.dataset.code = "";
@@ -448,8 +530,8 @@
           </div>
           <span class="invite-pill is-${inv.state}"></span>
           <div class="sr-actions">
-            <button type="button" class="icon-btn xs" data-revoke aria-label="باطل کردن این لینک"
-              title="باطل کردن"><span data-icon="x"></span></button>
+            <button type="button" class="icon-btn xs" data-revoke aria-label="غیرفعال کردن این لینک"
+              title="غیرفعال کردن"><span data-icon="x"></span></button>
             <button type="button" class="icon-btn xs accent" data-copy aria-label="کپی این لینک"
               title="کپی"><span data-icon="copy"></span></button>
           </div>
@@ -465,7 +547,7 @@
 
     document.getElementById("grNewInvite").addEventListener("click", () => {
       createSheet({
-        title: "لینک دعوت تازه",
+        title: "لینک دعوت جدید",
         confirmLabel: "بساز",
         fields: [
           { name: "label", label: "برچسب", maxlength: 60, placeholder: "اختیاری — مثلاً: تیم فروش",
@@ -519,15 +601,15 @@
       }
       if (!e.target.closest("[data-revoke]")) return;
       confirmSheet({
-        title: "باطل کردن لینک",
+        title: "غیرفعال کردن لینک",
         note: "کسی که این لینک را دارد دیگر نمی‌تواند با آن وارد شود. اعضایی که پیش‌تر با آن آمده‌اند در گروه می‌مانند.",
-        dangerLabel: "باطل کن",
+        dangerLabel: "غیرفعال کن",
         onYes: async () => {
           const { ok } = await apiFetch(
             `/groups/${GROUP_ID}/invites/${row.dataset.inviteId}`, { method: "DELETE" }
           );
           if (!ok) {
-            showToast("باطل کردن انجام نشد");
+            showToast("غیرفعال کردن انجام نشد");
             return false;
           }
           row.dataset.inviteState = "revoked";
@@ -537,7 +619,7 @@
           // The state is derived, so the control that only means something on
           // a live link goes with it rather than sitting there refusing.
           row.querySelector("[data-revoke]").remove();
-          showToast("لینک باطل شد");
+          showToast("لینک غیرفعال شد");
           return true;
         },
       });
@@ -574,8 +656,8 @@
         body: (v) => ({ description: v.description.trim() || null }),
       },
       emblem: {
-        title: "نشان گروه",
-        field: { name: "emblem", label: "نشان گروه", type: "avatars",
+        title: "آیکون گروه",
+        field: { name: "emblem", label: "آیکون گروه", type: "avatars",
           value: {{ (group.emblem or '') | tojson }},
           options: emblemOptions.map((a, i) => ({ value: a.id, url: a.url, label: "نشان " + (i + 1) })) },
         body: (v) => ({ emblem: v.emblem || null }),
@@ -624,9 +706,9 @@
         title: "واگذاری گروه",
         confirmLabel: "واگذار کن",
         fields: [
-          { type: "note", text: "بعد از واگذاری تو مدیر گروه می‌مانی، و برگرداندنش دست مالک تازه است." },
+          { type: "note", text: "بعد از واگذاری تو مدیر گروه می‌مانی، و برگرداندنش دست مالک جدید است." },
           {
-            name: "user", label: "مالک تازه", type: "select",
+            name: "user", label: "مالک جدید", type: "select",
             options: others.map((m) => ({ value: String(m.user_id), label: m.name })),
           },
         ],

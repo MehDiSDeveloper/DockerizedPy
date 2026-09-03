@@ -33,6 +33,8 @@ class NotificationRead(BaseModel):
     challenge_title: str | None = None
     group_id: int | None = None
     group_name: str | None = None
+    roadmap_id: int | None = None
+    roadmap_title: str | None = None
     actor_user_id: int | None = None
     actor_name: str | None = None
     read_at: datetime | None = None
@@ -50,6 +52,10 @@ class NotificationRead(BaseModel):
             ),
             group_id=notification.group_id,
             group_name=notification.group.name if notification.group else None,
+            roadmap_id=notification.roadmap_id,
+            roadmap_title=(
+                notification.roadmap.title if notification.roadmap else None
+            ),
             actor_user_id=notification.actor_user_id,
             actor_name=notification.actor.name if notification.actor else None,
             read_at=notification.read_at,

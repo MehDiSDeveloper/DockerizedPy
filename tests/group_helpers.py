@@ -48,11 +48,22 @@ def sign_in(client: AsyncClient, user: User) -> None:
     client.cookies.set("session", create_session_cookie(user.id))
 
 
-async def make_group(db: AsyncSession, owner: User, *, name: str = "شرکت آبی") -> Group:
+async def make_group(
+    db: AsyncSession,
+    owner: User,
+    *,
+    name: str = "شرکت آبی",
+    parent: Group | None = None,
+) -> Group:
     """A group with its owner's membership row written, exactly as
     ``POST /groups/`` writes it -- both records, because ``group_role``
     resolves the two together."""
-    group = Group(name=name, kind="company", owner_id=owner.id)
+    group = Group(
+        name=name,
+        kind="company",
+        owner_id=owner.id,
+        parent_id=parent.id if parent else None,
+    )
     db.add(group)
     await db.flush()
     db.add(

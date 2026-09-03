@@ -411,7 +411,7 @@ async def test_the_page_renders_the_sentence_and_the_unread_mark(
     assert joiner.name in html
     assert challenge.title in html
     # Unread is spelled out, not only tinted.
-    assert "تازه" in html
+    assert "جدید" in html
     assert "is-unread" in html
     # The row is a link to the challenge it is about.
     assert f'href="/views/challenges/{challenge.id}"' in html

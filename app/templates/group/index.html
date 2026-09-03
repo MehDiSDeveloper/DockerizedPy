@@ -18,7 +18,7 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="گروه‌ها">
+<nav class="crumbs" aria-label="مسیر پیمایش" data-crumb-trail data-crumb-label="گروه‌ها">
   <span class="crumb current" aria-current="page">گروه‌ها</span>
 </nav>
 {% endblock %}
@@ -47,10 +47,10 @@
   </div>
 
   <div class="scroll-sentinel" id="grSentinel" aria-hidden="true"></div>
-  <div class="list-loading" id="grLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
+  <div class="list-loading" id="grLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
 </section>
 
-<button type="button" class="fab" id="grCreate" aria-label="ساخت گروه تازه">
+<button type="button" class="fab" id="grCreate" aria-label="ساخت گروه جدید">
   <span data-icon="plus"></span>
 </button>
 {% endblock %}
@@ -90,7 +90,7 @@
 
     document.getElementById("grCreate").addEventListener("click", () => {
       createSheet({
-        title: "گروه تازه",
+        title: "گروه جدید",
         confirmLabel: "بساز",
         fields: [
           { name: "name", label: "نام گروه", required: true, maxlength: 60,
@@ -99,7 +99,7 @@
             options: KIND_OPTIONS },
           { name: "description", label: "توضیح", type: "textarea", rows: 2, maxlength: 500,
             placeholder: "اختیاری", hint: "اعضا این را روی صفحهٔ گروه می‌بینند." },
-          { name: "emblem", label: "نشان گروه", type: "avatars", value: "",
+          { name: "emblem", label: "آیکون گروه", type: "avatars", value: "",
             options: emblemOptions.map((a, i) => ({ value: a.id, url: a.url, label: "نشان " + (i + 1) })) },
         ],
         onConfirm: async (values) => {

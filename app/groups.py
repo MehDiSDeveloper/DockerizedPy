@@ -49,14 +49,32 @@ challenge was never asked -- see ``app/identity.py``.
 
 from __future__ import annotations
 
-import secrets
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from functools import lru_cache
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, union
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.identity import resolve_assigned_anonymity
+
+# An invite link means the same thing here and on a roadmap -- an unguessable
+# code, a real capacity, a derived state -- so the rules live in `app/invites.py`
+# and are re-exported from here for the call sites (and the tests) that have
+# always imported them from this module. One definition, two subsystems.
+from app.invites import (  # noqa: F401  -- re-exported, see above
+    INVITE_ACTIVE,
+    INVITE_CODE_BYTES,
+    INVITE_EXPIRED,
+    INVITE_FULL,
+    INVITE_REVOKED,
+    INVITE_STATE_LABELS,
+    consume_seat,
+    invite_state,
+    new_invite_code,
+    register_invite_filters,
+)
 from app.models.challenge import (
     Challenge,
     GroupAudience,
@@ -65,7 +83,6 @@ from app.models.challenge import (
 from app.models.enrollment import Enrollment
 from app.models.group import (
     Group,
-    GroupInvite,
     GroupKind,
     GroupMembership,
     GroupRole,
@@ -74,34 +91,110 @@ from app.models.notification import NotificationKind
 from app.models.stats import ChallengeStats
 from app.notifications import membership_is_announced, notify, notify_many
 from app.occurrences import local_today
-
-# Length of the random part of an invite code. 32 bytes of urlsafe base64 is
-# 43 characters and ~256 bits -- an invite code is the *only* key that
-# reaches a group from outside, so it is sized to be unguessable rather than
-# to be typed.
-INVITE_CODE_BYTES = 32
-
-
-def new_invite_code() -> str:
-    return secrets.token_urlsafe(INVITE_CODE_BYTES)[:43]
-
+from app.permissions import GROUP_ROLE_RANK, EffectiveMembership, inherited_role
 
 # ---------------------------------------------------------------------------
 # Membership as SQL
 # ---------------------------------------------------------------------------
 
 
+# How deep the tree may go, counted in groups: a top-level group is 1, so
+# ``A > B > D`` is 3 and the cap allows one more level under that. A limit and
+# not "unbounded" because every ancestry walk below is bounded by it in
+# practice, and because an organisation that needs a fifth level needs a
+# second group, not a deeper one.
+MAX_GROUP_DEPTH = 4
+
+
+@lru_cache(maxsize=1)
+def group_tree():
+    """Every (group, one of its ancestors-or-itself) pair, as a recursive CTE.
+
+    **One CTE answers both directions**, which is why nesting costs the rest
+    of this module so little: read it by ``id`` and it gives a group's own
+    ancestry; read it by ``ancestor_id`` and it gives a group's whole subtree.
+    Parameterless on purpose, and built **once**: the whole tree is the
+    answer, and the seed is a ``WHERE`` on top of it. Two differently-seeded
+    CTEs of the same name in one statement is a compile error in SQLAlchemy,
+    and two *named differently* would be the same walk written twice -- so
+    there is one object, shared by every caller and composed into as many
+    statements as ask for it.
+
+    Termination rests on ``Group.parent_id`` being create-only and pointing at
+    a row that already exists: no group can become its own ancestor, so the
+    walk always reaches a NULL parent.
+    """
+    base = (
+        select(Group.id.label("id"), Group.id.label("ancestor_id"))
+        .cte("group_tree", recursive=True)
+    )
+    child = aliased(Group)
+    return base.union_all(
+        select(child.id, base.c.ancestor_id).join(
+            base, base.c.id == child.parent_id
+        )
+    )
+
+
+def ancestor_ids(group_ids):
+    """These groups and everything they sit inside."""
+    tree = group_tree()
+    return select(tree.c.ancestor_id).where(tree.c.id.in_(group_ids))
+
+
+def descendant_ids(group_ids):
+    """These groups and everything inside them."""
+    tree = group_tree()
+    return select(tree.c.id).where(tree.c.ancestor_id.in_(group_ids))
+
+
+async def group_depth(db: AsyncSession, group_id: int) -> int:
+    """How many groups are in this one's ancestry, itself included."""
+    tree = group_tree()
+    return (
+        await db.execute(
+            select(func.count()).select_from(tree).where(tree.c.id == group_id)
+        )
+    ).scalar_one()
+
+
+def _my_membership_ids(user_id: int):
+    return select(GroupMembership.group_id).where(
+        GroupMembership.user_id == user_id
+    )
+
+
 def group_ids_for(user_id: int):
-    """The groups this member is in, as a subquery.
+    """The groups this member reaches, as a subquery.
 
     A subquery and not a loaded list: every caller needs it *inside* a
     ``WHERE``, and a Python-side list would turn each visibility check into a
     second round trip and, worse, into something a caller could forget to
     refresh.
+
+    **Nesting is two rules, and this is where both of them live.** A
+    membership row is still the only key, but a tree gives it two directions:
+
+    * **Membership reaches upward.** Somebody in a team is in the company the
+      team is part of, so the company's own challenges reach them. That is
+      what makes a group-wide challenge mean what it says once an
+      organisation has departments -- without it, «همه» would quietly mean
+      "the few people whose row happens to be on the parent".
+    * **Authority reaches downward, and only authority.** An administrator of
+      a group administers what is inside it; a plain member of the company
+      does not thereby read every team's room. This is the asymmetry that
+      keeps a sub-team a room of its own rather than a folder.
+
+    Everything else in the app inherits both for free, because this is the
+    one function ``group_scope_filter`` and ``group_visibility_filter`` are
+    built from.
     """
-    return select(GroupMembership.group_id).where(
-        GroupMembership.user_id == user_id
+    mine = _my_membership_ids(user_id)
+    administered = select(GroupMembership.group_id).where(
+        GroupMembership.user_id == user_id,
+        GroupMembership.role.in_([GroupRole.ADMIN.value, GroupRole.OWNER.value]),
     )
+    return union(ancestor_ids(mine), descendant_ids(administered))
 
 
 def group_scope_filter(user_id: int | None):
@@ -143,14 +236,101 @@ def group_visibility_filter(user_id: int | None):
 
 
 async def is_group_member(db: AsyncSession, group_id: int, user_id: int) -> bool:
-    """Still in the group? The question ``ParticipationMode`` turns on."""
+    """Still in the group? The question ``ParticipationMode`` turns on.
+
+    Asked over the *subtree*, because that is who the group's people are once
+    it has sub-teams (:func:`group_member_ids`): somebody a company-wide
+    mandatory challenge reached through their department is held by it for
+    exactly as long as they are in that department.
+    """
     found = await db.execute(
         select(GroupMembership.id).where(
-            GroupMembership.group_id == group_id,
+            GroupMembership.group_id.in_(descendant_ids([group_id])),
             GroupMembership.user_id == user_id,
         )
     )
     return found.scalar_one_or_none() is not None
+
+
+async def standing_in(
+    db: AsyncSession, group: Group, user_id: int
+) -> EffectiveMembership | None:
+    """What this member is *here*, resolved across the group's ancestry.
+
+    With nested groups the row that decides what somebody may do in a group
+    is not always a row on that group: an administrator of the company
+    administers its departments. So the caller's rows on the group and on
+    every group it sits inside are read together and the strongest wins --
+    their own row as it stands, an ancestor's capped at ``admin`` by
+    :func:`inherited_role` (an owner of the parent does not become the owner
+    of what somebody else opened inside it).
+
+    One extra small query per group screen, rather than a join, because it
+    reads as what it is and because ``load_group``'s answer is the input to
+    every ``require`` after it -- this is not a place to be clever.
+    """
+    above = set(
+        (await db.execute(ancestor_ids([group.id]))).scalars().all()
+    )
+    rows = list(
+        (
+            await db.execute(
+                select(GroupMembership).where(
+                    GroupMembership.user_id == user_id,
+                    or_(
+                        GroupMembership.group_id.in_(above),
+                        GroupMembership.group_id.in_(descendant_ids([group.id])),
+                    ),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not rows:
+        return None
+    standings = [
+        EffectiveMembership(
+            user_id=user_id,
+            group_id=group.id,
+            role=_role_here(row, group.id, above),
+            inherited=row.group_id != group.id,
+        )
+        for row in rows
+    ]
+    return max(standings, key=lambda s: GROUP_ROLE_RANK.get(s.role, 0))
+
+
+def _role_here(row: GroupMembership, group_id: int, above: set[int]) -> str:
+    """What one membership row is worth in one group.
+
+    The two directions of the tree, said in three lines. A row *on* the group
+    is itself. A row above it is authority coming down, capped at ``admin``
+    by :func:`inherited_role`. A row below it is membership coming up, and it
+    is worth exactly ``member``: running a department does not make somebody
+    an administrator of the company it is part of.
+    """
+    if row.group_id == group_id:
+        return row.role or GroupRole.MEMBER.value
+    if row.group_id in above:
+        return inherited_role(row.role)
+    return GroupRole.MEMBER.value
+
+
+def group_member_ids(group_id: int):
+    """Who this group's people are, as a subquery: its own rows and every row
+    below it.
+
+    **A roster and an audience are two different questions**, and this is the
+    audience one. A group's roster screen lists the people added *there* --
+    everyone else is listed on the sub-team they belong to, where their role
+    means something and where an administrator can act on them. But «همه» on
+    a challenge means everyone the group covers, so assignment reads the
+    subtree. Both are honest and neither is the other.
+    """
+    return select(GroupMembership.user_id).where(
+        GroupMembership.group_id.in_(descendant_ids([group_id]))
+    )
 
 
 async def member_counts(db: AsyncSession, group_ids: list[int]) -> dict[int, int]:
@@ -170,41 +350,6 @@ async def member_counts(db: AsyncSession, group_ids: list[int]) -> dict[int, int
         )
     ).all()
     return {group_id: count for group_id, count in rows}
-
-
-# ---------------------------------------------------------------------------
-# Invites
-# ---------------------------------------------------------------------------
-
-INVITE_ACTIVE = "active"
-INVITE_REVOKED = "revoked"
-INVITE_EXPIRED = "expired"
-INVITE_FULL = "full"
-
-
-def invite_state(invite: GroupInvite, now: datetime | None = None) -> str:
-    """What this link is doing right now -- derived, never stored.
-
-    The same rule the challenge status follows: a stored column would need a
-    job to rewrite it the minute a link expired or filled, and a link whose
-    stored state disagrees with whether it actually works is worse than no
-    state at all. The four values are ordered by how final they are, so a
-    revoked link that also expired reads as revoked -- the admin's own act,
-    which is the more useful of the two answers.
-    """
-    now = now or datetime.now(UTC)
-    if invite.revoked_at is not None:
-        return INVITE_REVOKED
-    expires = invite.expires_at
-    if expires is not None:
-        if expires.tzinfo is None:
-            # SQLite has no aware datetime type (CLAUDE.md, Dates).
-            expires = expires.replace(tzinfo=UTC)
-        if expires <= now:
-            return INVITE_EXPIRED
-    if invite.max_uses is not None and (invite.uses or 0) >= invite.max_uses:
-        return INVITE_FULL
-    return INVITE_ACTIVE
 
 
 # ---------------------------------------------------------------------------
@@ -346,7 +491,10 @@ async def apply_standing_audience(
         (
             await db.execute(
                 select(Challenge).where(
-                    Challenge.group_id == group_id,
+                    # This group *and every group it is inside*: joining a
+                    # department is joining the company, so the company's
+                    # standing challenges are the new arrival's too.
+                    Challenge.group_id.in_(ancestor_ids([group_id])),
                     Challenge.group_audience == GroupAudience.ALL.value,
                     Challenge.lifecycle_status != "archived",
                 )
@@ -537,15 +685,6 @@ GROUP_ROLE_LABELS = {
     GroupRole.MEMBER.value: "عضو",
 }
 
-# What each *derived* invite state is called -- see `invite_state` on why the
-# state is derived rather than stored.
-INVITE_STATE_LABELS = {
-    INVITE_ACTIVE: "فعال",
-    INVITE_REVOKED: "باطل‌شده",
-    INVITE_EXPIRED: "منقضی",
-    INVITE_FULL: "ظرفیت پر",
-}
-
 AUDIENCE_LABELS = {
     GroupAudience.ALL.value: "همهٔ اعضای گروه",
     GroupAudience.SELECTED.value: "افراد منتخب",
@@ -562,6 +701,6 @@ def register_group_filters(env) -> None:
     env.globals["group_kind_labels"] = GROUP_KIND_LABELS
     env.globals["group_kind_icons"] = GROUP_KIND_ICONS
     env.globals["group_role_labels"] = GROUP_ROLE_LABELS
-    env.globals["invite_state_labels"] = INVITE_STATE_LABELS
+    register_invite_filters(env)
     env.globals["audience_labels"] = AUDIENCE_LABELS
     env.globals["participation_labels"] = PARTICIPATION_LABELS

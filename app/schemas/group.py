@@ -42,7 +42,16 @@ class GroupBase(BaseModel):
 
 
 class GroupCreate(GroupBase):
-    pass
+    """A new group, optionally inside one that already exists.
+
+    ``parent_id`` is on *create* and nowhere else: it is the only field of a
+    group that decides who can see it, so moving a group later would
+    retroactively change that for everything ever published in it. It is
+    absent from ``GroupUpdate`` for the reason ``ChallengeUpdate`` carries no
+    ``group_id``.
+    """
+
+    parent_id: int | None = Field(default=None)
 
 
 class GroupUpdate(BaseModel):
@@ -80,6 +89,13 @@ class GroupRead(GroupBase):
     created_at: datetime
     member_count: int = 0
     my_role: GroupRole | None = None
+    #: Where this group sits. The name rides along because every surface that
+    #: shows the parent shows it by name, and a second request per card to
+    #: turn an id into a word is the thing ``member_count`` is here to avoid.
+    parent_id: int | None = None
+    parent_name: str | None = None
+    #: How many groups are directly inside this one.
+    child_count: int = 0
 
 
 class GroupMemberRead(BaseModel):

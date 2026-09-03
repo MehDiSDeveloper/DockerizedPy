@@ -31,7 +31,7 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<nav class="crumbs" aria-label="مسیر صفحه" data-crumb-trail data-crumb-label="پنل مدیریت">
+<nav class="crumbs" aria-label="مسیر پیمایش" data-crumb-trail data-crumb-label="پنل مدیریت">
   <span class="crumb current" aria-current="page">پنل مدیریت</span>
 </nav>
 {% endblock %}
@@ -122,7 +122,7 @@
       <p id="amEmptyText">{{ "عضوی با این مشخصات پیدا نشد." if (query or active_role != "all") else "هنوز عضوی ثبت نشده." }}</p>
     </div>
     <div class="scroll-sentinel" id="amSentinel" aria-hidden="true"></div>
-    <div class="list-loading" id="amLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
+    <div class="list-loading" id="amLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
   </section>
 
 </div>

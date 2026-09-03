@@ -13,6 +13,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
+from app.media import MEDIA_KEY_MAX_LENGTH
 from app.models.audit_base import AuditBase
 
 JSONVariant = JSON().with_variant(JSONB, "postgresql")
@@ -121,6 +122,20 @@ class Challenge(AuditBase):
     description = Column(String, nullable=True)
     rules = Column(String, nullable=True)
     due_date = Column(DateTime(timezone=True), nullable=True)
+
+    # The challenge's two pictures, each a media key (`app/media.py`), never a
+    # path -- the same contract `Users.avatar` has. Two rather than one
+    # because the surfaces have two shapes and no single crop is honest in
+    # both: `image_square` is the detail hero's ground and, cover-cropped to a
+    # band, the rail card's 4:3 cover; `image_tall` is the full-screen
+    # reader's panel, which is the shape of the phone it fills.
+    #
+    # NULL is permanent and legitimate -- every challenge predating this, and
+    # every one created without a picture -- so each surface keeps the
+    # category-coloured placeholder it already drew and the templates ask
+    # `| media_url` rather than assuming.
+    image_square = Column(String(MEDIA_KEY_MAX_LENGTH), nullable=True)
+    image_tall = Column(String(MEDIA_KEY_MAX_LENGTH), nullable=True)
     owner_id = Column(Integer, ForeignKey("Users.id"), nullable=False)
     category = Column(
         Enum(ChallengeCategory), nullable=False, default=ChallengeCategory.OTHER

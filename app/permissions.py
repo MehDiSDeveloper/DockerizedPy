@@ -1,6 +1,6 @@
 """Who may do what -- the one place a role is turned into an answer.
 
-There are **three independent role axes** and they never merge:
+There are **four independent role axes** and they never merge:
 
 * ``User.role`` (:class:`~app.models.user.UserRole`) is app-wide: ``member``
   or ``admin``. It answers "may you run the place".
@@ -10,6 +10,11 @@ There are **three independent role axes** and they never merge:
 * ``GroupMembership.role`` (:class:`~app.models.group.GroupRole`) is scoped
   to one group: ``member``, ``admin`` or ``owner``. It answers "what are you
   *in this organisation*".
+* ``Roadmap.owner_id`` is scoped to one roadmap: you built this course, or you
+  are walking it. It answers "whose course is this". The narrowest axis --
+  one role and no membership table of roles to reconcile -- and it is an axis
+  anyway, because an ``owner_id ==`` comparison spread across a router is
+  precisely what :func:`can` replaces.
 
 Keeping them apart is the point. An admin is a plain participant inside
 someone else's challenge -- they get no edit button there -- and an owner has
@@ -61,9 +66,9 @@ Callers ask for a **permission**, never for a role::
     if not can(user, Perm.CHALLENGE_DELETE, challenge=c, enrollment=e):
         raise HTTPException(403, ...)
 
-so changing policy is an edit to the three grant maps below rather than a hunt
+so changing policy is an edit to the four grant maps below rather than a hunt
 for ``user.role == "admin"`` spread across routers. That indirection is the
-whole scalability argument: a fourth role is a row in a map, not a sweep.
+whole scalability argument: a new role is a row in a map, not a sweep.
 
 **What this is not.** It does not replace the two SQL visibility filters
 (``challenge_visibility_filter``, ``profile_visibility_filter``). Those decide
@@ -75,9 +80,12 @@ hand, on a caller who could already see it.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from app.models.challenge import Challenge
 from app.models.enrollment import ChallengeRole, Enrollment
 from app.models.group import Group, GroupMembership, GroupRole
+from app.models.roadmap import Roadmap
 from app.models.user import User, UserRole
 
 
@@ -120,8 +128,27 @@ class Perm:
     #: administrator who could promote themselves is an owner with a delay.
     GROUP_MANAGE_ADMINS = "group.manage_admins"
     GROUP_CREATE_CHALLENGE = "group.create_challenge"
+    #: Open a group *inside* this one. An administrator's, like creating a
+    #: challenge here: both are running the group day to day, and neither
+    #: touches who administers it. The creator owns the subgroup they made --
+    #: a new group is created the one way groups are created -- so authority
+    #: over it comes from `GROUP_GRANTS` reaching down the tree
+    #: (`group_ids_for`), not from a second kind of ownership.
+    GROUP_CREATE_SUBGROUP = "group.create_subgroup"
     GROUP_TRANSFER = "group.transfer"
     GROUP_DELETE = "group.delete"
+
+    # Per-roadmap, granted by ownership of the roadmap. The fourth axis, and
+    # the narrowest: a roadmap has a builder and everybody else is walking it,
+    # so there is one role and no membership table of roles to resolve. It is
+    # still an axis rather than an `owner_id ==` at each call site, because
+    # that comparison spread across a router is exactly what `can()` exists to
+    # replace -- and because "a co-author of a course" is the obvious next
+    # thing to want, and it should be a row in a map.
+    ROADMAP_EDIT = "roadmap.edit"
+    ROADMAP_DELETE = "roadmap.delete"
+    #: Add, reorder and remove steps; mint and revoke invite links.
+    ROADMAP_MANAGE = "roadmap.manage"
 
 
 GLOBAL_GRANTS: dict[str, frozenset[str]] = {
@@ -153,6 +180,7 @@ _GROUP_ADMIN_GRANTS = _GROUP_MEMBER_GRANTS | {
     Perm.GROUP_EDIT,
     Perm.GROUP_MANAGE_MEMBERS,
     Perm.GROUP_CREATE_CHALLENGE,
+    Perm.GROUP_CREATE_SUBGROUP,
 }
 
 GROUP_GRANTS: dict[str, frozenset[str]] = {
@@ -161,6 +189,35 @@ GROUP_GRANTS: dict[str, frozenset[str]] = {
     GroupRole.OWNER.value: _GROUP_ADMIN_GRANTS
     | {Perm.GROUP_MANAGE_ADMINS, Perm.GROUP_TRANSFER, Perm.GROUP_DELETE},
 }
+
+
+# The roadmap axis. One role today, written as a map for the reason the other
+# three are: a second role is a row here rather than a sweep through the
+# router. **No app-wide role grants a ROADMAP_* permission** -- the same line
+# drawn twice already for groups and challenges: an operator moderates
+# published *challenges*, and a course somebody assembled is authored work,
+# not a challenge they own.
+ROADMAP_OWNER = "owner"
+
+ROADMAP_GRANTS: dict[str, frozenset[str]] = {
+    ROADMAP_OWNER: frozenset(
+        {Perm.ROADMAP_EDIT, Perm.ROADMAP_DELETE, Perm.ROADMAP_MANAGE}
+    ),
+}
+
+
+def roadmap_role(user_id: int | None, roadmap: Roadmap | None) -> str | None:
+    """This member's role in this roadmap, or ``None``.
+
+    The third of the ``*_role`` resolvers, and the simplest: ``owner_id`` is
+    NOT NULL and there is no second record to reconcile it with, so unlike
+    :func:`challenge_role` and :func:`group_role` there is nothing here that
+    could drift. It is written anyway so that every axis is asked the same way
+    and a future co-author role has one place to land.
+    """
+    if user_id is None or roadmap is None:
+        return None
+    return ROADMAP_OWNER if roadmap.owner_id == user_id else None
 
 
 def is_admin(user: User | None) -> bool:
@@ -222,6 +279,45 @@ def group_role(
     return None
 
 
+@dataclass(frozen=True)
+class EffectiveMembership:
+    """A standing in one group, resolved across the group tree.
+
+    ``load_group`` hands this to :func:`can` in place of a ``GroupMembership``
+    row, because with nested groups the row that decides what somebody may do
+    here is not always a row *on* here: an administrator of the company
+    administers its departments. It duck-types the two attributes
+    :func:`group_role` reads and carries nothing else -- it is an answer, not
+    a record, and it is deliberately not a row anybody can write through.
+
+    **Inherited authority stops at ``admin``.** An owner of the parent runs
+    what is inside it, but does not become the owner of a group somebody else
+    opened: ownership is transferred and deleted from, and both of those are
+    decisions that belong to the person whose group it is. You own what you
+    were given, and you administer what is under it.
+    """
+
+    user_id: int
+    group_id: int
+    role: str
+    inherited: bool = False
+
+
+def inherited_role(role: str | None) -> str:
+    """What a role on an ancestor is worth further down: at most ``admin``."""
+    if role in (GroupRole.OWNER.value, GroupRole.ADMIN.value):
+        return GroupRole.ADMIN.value
+    return GroupRole.MEMBER.value
+
+
+#: Strongest first, for picking between the rows somebody holds up the tree.
+GROUP_ROLE_RANK = {
+    GroupRole.OWNER.value: 2,
+    GroupRole.ADMIN.value: 1,
+    GroupRole.MEMBER.value: 0,
+}
+
+
 def can(
     user: User | None,
     permission: str,
@@ -230,12 +326,14 @@ def can(
     enrollment: Enrollment | None = None,
     group: Group | None = None,
     membership: GroupMembership | None = None,
+    roadmap: Roadmap | None = None,
 ) -> bool:
-    """Does ``user`` hold ``permission`` -- here, in this challenge or group?
+    """Does ``user`` hold ``permission`` -- here, in this challenge, group or
+    roadmap?
 
-    An anonymous caller holds nothing. The three axes are checked
+    An anonymous caller holds nothing. The four axes are checked
     independently and any one of them can grant, but note that no app-wide
-    role grants a per-challenge or per-group permission today. That is the
+    role grants a per-challenge, per-group or per-roadmap permission today. That is the
     deliberate answer to both "can an operator edit my challenge" and "can an
     operator run my company's group": no. ``tests/test_user_roles.py`` and
     ``tests/test_groups.py`` parametrize the assertion over both global
@@ -249,6 +347,9 @@ def can(
     if role is not None and permission in CHALLENGE_GRANTS.get(role, frozenset()):
         return True
     g_role = group_role(user.id, group=group, membership=membership)
-    if g_role is None:
+    if g_role is not None and permission in GROUP_GRANTS.get(g_role, frozenset()):
+        return True
+    r_role = roadmap_role(user.id, roadmap)
+    if r_role is None:
         return False
-    return permission in GROUP_GRANTS.get(g_role, frozenset())
+    return permission in ROADMAP_GRANTS.get(r_role, frozenset())

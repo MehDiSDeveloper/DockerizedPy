@@ -158,7 +158,7 @@ def test_plan_for_weekdays_marks_all_seven_days():
         True, False, False, False, True, False, False
     ]
     assert plan["weekdays"][0]["name"] == "شنبه"
-    assert plan["density"] == "8 نوبت در 30 روز آینده"
+    assert plan["density"] == "8 وعده در 30 روز آینده"
 
 
 def test_plan_for_quota_names_the_current_jalali_period():
@@ -190,12 +190,12 @@ async def test_detail_page_renders_the_plan_for_a_recurring_challenge(
     assert page.status_code == 200, page.text
     html = page.text
 
-    assert "برنامهٔ چالش" in html
+    assert "زمان‌بندی چالش" in html
     assert "هر هفته: شنبه و دوشنبه" in html
     assert "weekday-strip" in html
-    assert "نوبت‌های بعدی" in html
+    assert "وعده‌های بعدی" in html
     # The details grid and personal panel come with it.
-    assert "وضعیت من" in html
+    assert "وضعیت" in html
     assert "Owner" in html
 
 

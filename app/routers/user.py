@@ -15,6 +15,7 @@ from app.auth import (
 )
 from app.database import get_db
 from app.logging_config import log_event
+from app.media import discard_replaced
 from app.models.audit_base import newest_first
 from app.models.user import User, UserRole
 from app.permissions import Perm, can
@@ -240,7 +241,14 @@ async def update_user(
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    for key, value in user.model_dump(exclude_unset=True).items():
+    updates = user.model_dump(exclude_unset=True)
+    # If this PATCH replaces an *uploaded* picture, the file it replaces is
+    # unreachable the moment the row changes -- so it is named here, while the
+    # old value is still in hand, and deleted after the commit. A catalogue id
+    # is not a file of ours and `discard` ignores it.
+    replaced_avatar = db_user.avatar if "avatar" in updates else None
+
+    for key, value in updates.items():
         setattr(db_user, key, value)
     db_user.updated_at = datetime.now(UTC)
     db_user.last_modifier_user_id = viewer.id
@@ -254,6 +262,7 @@ async def update_user(
         await db.rollback()
         raise HTTPException(status_code=409, detail="Email already in use")
     await db.refresh(db_user)
+    discard_replaced(replaced_avatar, db_user.avatar)
     # Only the field *names* -- the values are the member's own details and
     # the log is not the place to keep a copy of them. `by_admin` marks an
     # edit made on somebody's behalf, the one thing that needs finding later.
@@ -261,7 +270,7 @@ async def update_user(
         logger,
         "user.updated",
         user_id=db_user.id,
-        fields=sorted(user.model_dump(exclude_unset=True)),
+        fields=sorted(updates),
         by_admin=db_user.id != viewer.id,
     )
     return db_user

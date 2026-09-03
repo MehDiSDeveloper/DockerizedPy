@@ -12,7 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.groups import apply_standing_audience, leave_group_challenges, member_counts
+from app.groups import (
+    MAX_GROUP_DEPTH,
+    apply_standing_audience,
+    group_depth,
+    leave_group_challenges,
+    member_counts,
+)
 from app.logging_config import log_event
 from app.models.challenge import Challenge
 from app.models.group import Group, GroupMembership, GroupRole
@@ -67,7 +73,15 @@ async def create_group(
     membership row -- because they answer different questions and
     ``group_role`` resolves them together: the column is the authority, the
     row is what makes the owner appear on their own roster.
+
+    **A subgroup is created the same way**, with ``parent_id`` naming a group
+    the caller already administers. There is no second route for it: a
+    department is a group, it has its own roster, its own links and its own
+    challenges, and the only thing the parent adds is where it sits. The
+    caller owns what they opened; the parent's administrators reach it
+    through the tree (``group_ids_for``), not through a second ownership.
     """
+    parent = await _resolve_parent(db, payload.parent_id, current_user)
     group = Group(
         **payload.model_dump(),
         owner_id=current_user.id,
@@ -85,8 +99,44 @@ async def create_group(
     )
     await db.commit()
     await db.refresh(group)
-    log_event(logger, "group.created", group_id=group.id)
+    log_event(
+        logger,
+        "group.created",
+        group_id=group.id,
+        parent_group_id=parent.id if parent else None,
+    )
     return await group_read(db, group, current_user.id, None)
+
+
+async def _resolve_parent(
+    db: AsyncSession, parent_id: int | None, user: User
+) -> Group | None:
+    """The group a new one is being opened inside, or None. 404/403/409.
+
+    The same three-step shape ``resolve_group_for_create`` has for a
+    challenge, and for the same reasons: **404** for a group the caller
+    cannot reach (so a non-member cannot learn an id is real by posting to
+    it), **403** for one they can but may not run, and a **409** at
+    ``MAX_GROUP_DEPTH`` -- refused with the limit named rather than silently
+    flattened, because a group that quietly landed somewhere other than where
+    it was put is worse than one that was not created.
+    """
+    if parent_id is None:
+        return None
+    parent, standing = await load_group(db, parent_id, user)
+    require(
+        user,
+        Perm.GROUP_CREATE_SUBGROUP,
+        parent,
+        standing,
+        detail="Not allowed to create a subgroup here",
+    )
+    if await group_depth(db, parent.id) >= MAX_GROUP_DEPTH:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Groups may be nested {MAX_GROUP_DEPTH} levels deep",
+        )
+    return parent
 
 
 @router.get("/", response_model=list[GroupRead])
@@ -184,6 +234,20 @@ async def delete_group(
         raise HTTPException(
             status_code=409,
             detail="Cannot delete a group that still has challenges",
+        )
+    # Children are not cascaded either, and for a wider version of the same
+    # reason: a subgroup is somebody's own room, with its own roster and its
+    # own history, and deleting the thing it hangs from must not take it.
+    # Emptying the group is done from the bottom up, deliberately.
+    has_child = (
+        await db.execute(
+            select(Group.id).where(Group.parent_id == group_id).limit(1)
+        )
+    ).scalar_one_or_none()
+    if has_child is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot delete a group that still has subgroups",
         )
     await db.delete(group)
     await db.commit()

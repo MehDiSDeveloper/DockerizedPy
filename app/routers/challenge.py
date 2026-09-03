@@ -8,8 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user, get_optional_user_id
 from app.database import get_db
-from app.groups import assign_participants, group_scope_filter
+from app.groups import (
+    assign_participants,
+    group_member_ids,
+    group_scope_filter,
+    standing_in,
+)
 from app.logging_config import log_event
+from app.media import discard, discard_replaced
 from app.models.audit_base import newest_first
 from app.models.challenge import (
     Challenge,
@@ -20,13 +26,14 @@ from app.models.challenge import (
 )
 from app.models.checkin import CheckIn
 from app.models.enrollment import ChallengeRole, Enrollment
-from app.models.group import Group, GroupMembership
+from app.models.group import Group
 from app.models.notification import NotificationKind
 from app.models.stats import ChallengeStats
 from app.models.user import User
 from app.notifications import notify_many
 from app.occurrences import local_today
 from app.permissions import Perm, can
+from app.roadmaps import roadmap_scope_filter, skip_steps_for_challenge
 from app.schemas.challenge import ChallengeCreate, ChallengeRead, ChallengeUpdate
 from app.schemas.checkin import ChallengeStatsRead
 
@@ -67,10 +74,21 @@ def resolve_timezone(tz: str | None) -> str:
 # One rule, scoped -- rather than a second rule that would have to be kept in
 # agreement with the first. See `app/groups.py` for the whole argument,
 # including why an existing enrollment is a key of its own.
+#
+# `roadmap_scope_filter` is the other shape a scope can take, and it is worth
+# naming the difference: a group *narrows* what somebody may see, so it is a
+# conjunct; a roadmap *widens* it for the person walking it, so it is one more
+# leg of the disjunction below, beside "public", "mine" and "enrolled".
+# Walking a course is a key to the challenges it is made of -- you will be
+# enrolled in them as you reach them, and the whole point of the screen is
+# that you can read what is ahead of you before it opens. It is deliberately
+# absent from `listing_visibility_filter`: a private challenge two steps ahead
+# is reachable at its own URL and has no business in the app-wide list of
+# things to discover, which is exactly what `unlisted` already means here.
 def challenge_visibility_filter(user_id: int | None):
-    """A challenge is visible if it's public, unlisted, or the requester owns
-    it or is enrolled in it -- and, if it belongs to a group, only to that
-    group (`group_scope_filter`)."""
+    """A challenge is visible if it's public, unlisted, the requester owns it,
+    is enrolled in it, or is walking a roadmap that has it as a step -- and,
+    if it belongs to a group, only to that group (`group_scope_filter`)."""
     if user_id is None:
         return and_(
             group_scope_filter(None),
@@ -87,6 +105,7 @@ def challenge_visibility_filter(user_id: int | None):
             ),
             Challenge.owner_id == user_id,
             Challenge.id.in_(enrolled_challenge_ids),
+            roadmap_scope_filter(user_id),
         ),
     )
 
@@ -419,24 +438,19 @@ async def resolve_group_for_create(
     """
     if group_id is None:
         return None
-    row = (
-        await db.execute(
-            select(Group, GroupMembership)
-            .outerjoin(
-                GroupMembership,
-                and_(
-                    GroupMembership.group_id == Group.id,
-                    GroupMembership.user_id == user.id,
-                ),
-            )
-            .where(Group.id == group_id)
-        )
-    ).one_or_none()
-    group, membership = row if row else (None, None)
-    if group is None or (membership is None and group.owner_id != user.id):
+    group = (
+        await db.execute(select(Group).where(Group.id == group_id))
+    ).scalar_one_or_none()
+    # The caller's standing here, resolved across the group's ancestry, so an
+    # administrator of the company may put a challenge in one of its
+    # departments -- the same answer `load_group` gives the group screens.
+    standing = (
+        await standing_in(db, group, user.id) if group is not None else None
+    )
+    if group is None or (standing is None and group.owner_id != user.id):
         raise HTTPException(status_code=404, detail="Group not found")
     if not can(
-        user, Perm.GROUP_CREATE_CHALLENGE, group=group, membership=membership
+        user, Perm.GROUP_CREATE_CHALLENGE, group=group, membership=standing
     ):
         raise HTTPException(
             status_code=403, detail="Not allowed to create a challenge here"
@@ -468,16 +482,11 @@ async def seed_group_participants(
     """
     if group is None:
         return
+    # The group's *people*, which with nested groups means everybody in its
+    # subtree (`group_member_ids`): a company-wide challenge reaches the
+    # departments, or «همه» quietly means "the few rows on the parent".
     members = set(
-        (
-            await db.execute(
-                select(GroupMembership.user_id).where(
-                    GroupMembership.group_id == group.id
-                )
-            )
-        )
-        .scalars()
-        .all()
+        (await db.execute(group_member_ids(group.id))).scalars().all()
     )
     if challenge.group_audience == GroupAudience.ALL.value:
         wanted = set(members)
@@ -785,6 +794,17 @@ async def update_challenge(
     # a *transition*, and after the loop there is nothing left to compare to.
     previous_lifecycle = db_challenge.lifecycle_status
 
+    # The files behind the pictures this PATCH is about to replace. Captured
+    # before the write, deleted after the commit: a picture that outlives the
+    # row pointing at it is bytes nobody can ever reach again, and this is
+    # where the app has the old value in hand (see `app/media.py` on why
+    # there is no sweep).
+    replaced_media = {
+        field: getattr(db_challenge, field)
+        for field in ("image_square", "image_tall")
+        if field in updates
+    }
+
     cadence_provided = "cadence" in updates
     updates.pop("cadence", None)
     for field, value in updates.items():
@@ -803,8 +823,29 @@ async def update_challenge(
         actor_user_id=current_user_id,
     )
 
+    # An archived challenge produces no more occurrences, so any roadmap step
+    # pointing at it has become impossible to finish -- and a `required` step
+    # nobody can finish strands everybody behind it, for a decision taken by
+    # somebody who may not even know the roadmap exists. The step is passed
+    # over and its builder is told. Here rather than inside
+    # `notify_lifecycle_change` because it is a *state change*, not an
+    # announcement, and it is guarded by the same "only on a real transition"
+    # test that function makes.
+    if (
+        db_challenge.lifecycle_status == LifecycleStatus.ARCHIVED.value
+        and previous_lifecycle != LifecycleStatus.ARCHIVED.value
+    ):
+        await skip_steps_for_challenge(
+            db,
+            challenge=db_challenge,
+            actor_user_id=current_user_id,
+            timezone=DEFAULT_TIMEZONE,
+        )
+
     await db.commit()
     await db.refresh(db_challenge)
+    for field, previous in replaced_media.items():
+        discard_replaced(previous, getattr(db_challenge, field))
     log_event(
         logger,
         "challenge.updated",
@@ -863,8 +904,13 @@ async def delete_challenge(
         )
 
     owner_id = db_challenge.owner_id
+    # Its pictures go with it. The cascades take the child *rows*; nothing on
+    # disk is a row, so this is the one place the files are named.
+    orphaned_media = (db_challenge.image_square, db_challenge.image_tall)
     await db.delete(db_challenge)
     await db.commit()
+    for key in orphaned_media:
+        discard(key)
     # A destructive, irreversible act -- the one challenge event that has to
     # survive in the log after the row itself is gone.
     log_event(

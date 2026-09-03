@@ -20,6 +20,13 @@ from app.models.group import (  # noqa: F401
 from app.models.notification import Notification  # noqa: F401
 from app.models.otp import OtpCode  # noqa: F401
 from app.models.reaction import Reaction  # noqa: F401
+from app.models.roadmap import (  # noqa: F401
+    Roadmap,
+    RoadmapEnrollment,
+    RoadmapInvite,
+    RoadmapStep,
+    RoadmapStepProgress,
+)
 from app.models.stats import ChallengeStats  # noqa: F401
 from app.models.user import User  # noqa: F401
 

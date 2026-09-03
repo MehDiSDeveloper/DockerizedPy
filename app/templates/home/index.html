@@ -16,10 +16,10 @@
   <section class="hero">
     <p class="hero-eyebrow" data-jalali="{{ dash.local_today.isoformat() }}"
        data-jalali-format="weekday-day-month">{{ dash.local_today.isoformat() }}</p>
-    <h1 class="hero-title">سلام <b>{{ user.name }}</b> 👋<br/>کارنامهٔ تو تا اینجا.</h1>
+    <h1 class="hero-title">سلام <b>{{ user.name }}</b> 👋<br/>کارنامه تا اینجا.</h1>
   </section>
 
-  {#- ============================ نبض امروز ============================
+  {#- ============================ امروز در یک نگاه ============================
       The ring is the same primitive the challenge-detail «من» panel uses, at
       the same meaning: a share, because a share is the thing a bare number
       cannot show. Here it is scoped to today -- done vs. everything today
@@ -27,7 +27,7 @@
       ==================================================================== -#}
   <section class="detail-section" data-tour="home-pulse">
     <div class="section-head">
-      <h2>نبض امروز{{ explain("home-pulse") }}</h2>
+      <h2>امروز در یک نگاه{{ explain("home-pulse") }}</h2>
       <span class="cc-tag"><span data-icon="clock"></span>{{ dash.today.done }} از {{ dash.today.total }}</span>
     </div>
 
@@ -54,18 +54,18 @@
           borrow a swatch that already means a slice of the ring. -#}
       <ul class="ring-legend">
         <li><span class="lg-dot ok"></span>ثبت‌شدهٔ امروز<b>{{ dash.today.done }}</b></li>
-        <li><span class="lg-dot wait"></span>مانده تا پایان روز<b>{{ dash.today.due }}</b></li>
+        <li><span class="lg-dot wait"></span>مانده تا پایان امروز<b>{{ dash.today.due }}</b></li>
       </ul>
     </div>
 
     {% if dash.today.due %}
     <a class="dash-link" href="/views/today/">
-      {{ dash.today.due }} نوبت منتظر ثبت است
+      {{ dash.today.due }} وعده منتظر ثبت است
       <span data-icon="chevronLeft"></span>
     </a>
     {% endif %}
     {% else %}
-    <p class="mine-empty glass">امروز نوبتی نداری. یه نفس بکش 🎉</p>
+    <p class="mine-empty glass">امروز وعده‌ای نداری. یه نفس بکش 🎉</p>
     {% endif %}
 
     {#- The rhythm figures: the streak pair is the app's own measure of
@@ -74,10 +74,10 @@
         the one number here that never goes down. -#}
     <div class="mine-grid pairs">
       <div class="mine-tile gold">
-        <b><span data-icon="flame"></span>{{ dash.streak_current }}</b><span>رشتهٔ فعلی{{ explain("streak") }}</span>
+        <b><span data-icon="flame"></span>{{ dash.streak_current }}</b><span>زنجیرهٔ فعلی{{ explain("streak") }}</span>
       </div>
       <div class="mine-tile gold">
-        <b><span data-icon="seal"></span>{{ dash.streak_best }}</b><span>بهترین رشته</span>
+        <b><span data-icon="seal"></span>{{ dash.streak_best }}</b><span>بهترین زنجیره</span>
       </div>
       <div class="mine-tile ok">
         <b>{{ dash.week_done }}</b><span>ثبت این هفته</span>
@@ -87,6 +87,25 @@
       </div>
     </div>
   </section>
+
+  {#- ========================= قدم فعلی مسیرها =========================
+      Rendered only when a course actually has something open, so a member
+      with no roadmaps sees exactly the dashboard they always did. It sits
+      directly under «امروز در یک نگاه» because it answers the same question one
+      level up: today's ring says how much of *today* is done, this says what
+      the longer thing you signed up for is waiting on.
+      ==================================================================== -#}
+  {% if roadmap_steps %}
+  <section class="detail-section">
+    <div class="section-head">
+      <h2>قدم فعلی تو{{ explain("roadmap") }}</h2>
+      <a class="cc-tag" href="/views/roadmaps/">مسیرها</a>
+    </div>
+    <div class="rms-list">
+      {% include "home/_roadmap_steps.html" %}
+    </div>
+  </section>
+  {% endif %}
 
   {#- ========================= فعالیت ۱۲ هفته =========================
       One cell per day, seven rows, one column per Saturday-aligned week. The
@@ -139,7 +158,7 @@
   {% if dash.focus.rows %}
   <section class="detail-section" data-tour="home-focus">
     <div class="section-head">
-      <h2>تمرکز تو{{ explain("home-focus") }}</h2>
+      <h2>تمرکز{{ explain("home-focus") }}</h2>
       <span class="cc-tag">{{ dash.focus.window_days }} روز اخیر</span>
     </div>
 
@@ -185,7 +204,7 @@
           فعال <i class="tab-count" id="statActive">{{ stat_active }}</i>
         </button>
         <button class="tab" data-filter="completed" role="tab" aria-selected="false">
-          تکمیل‌شده <i class="tab-count" id="statDone">{{ stat_done }}</i>
+          تمام‌شده <i class="tab-count" id="statDone">{{ stat_done }}</i>
         </button>
       </div>
     </div>
@@ -201,7 +220,7 @@
       <p id="homeEmptyText">هنوز چالش فعالی نداری. یکی رو از فهرست چالش‌ها انتخاب کن یا خودت بساز.</p>
     </div>
     <div class="scroll-sentinel" id="homeSentinel" aria-hidden="true"></div>
-    <div class="list-loading" id="homeLoading" hidden><span class="spinner"></span> در حال بارگذاری...</div>
+    <div class="list-loading" id="homeLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
   </section>
 
   <!-- FAB: create challenge -->
@@ -262,7 +281,7 @@
       const btn = e.target.closest('[data-action="unenroll"]');
       if (!btn) return;
       e.stopPropagation();
-      if (!confirm("از این چالش انصراف می‌دی؟")) return;
+      if (!confirm("این چالش را ترک می‌کنی؟")) return;
       const challengeId = btn.dataset.challengeId;
       btn.disabled = true;
       try {

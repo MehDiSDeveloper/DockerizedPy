@@ -38,6 +38,7 @@ from app.identity import (
     participant_display,
     register_identity_filters,
 )
+from app.media import register_media_filters
 from app.models.challenge import Challenge, ChallengeCategory
 from app.models.checkin import CheckIn
 from app.models.comment import CommentSubject
@@ -134,7 +135,7 @@ CADENCE_LABELS = {
     "once": "یک‌باره",
     "schedule": "زمان‌بندی‌شده",
     "recurring_days": "روزهای مشخص",
-    "recurring_quota": "سهمیه‌ای",
+    "recurring_quota": "تکرار مدت‌دار",
 }
 
 VISIBILITY_LABELS = {
@@ -179,7 +180,7 @@ LIFECYCLE_LABELS = {
 STATUS_META = {
     "upcoming": {"label": "شروع نشده", "icon": "clock"},
     "active": {"label": "در حال اجرا", "icon": "flame"},
-    "finished": {"label": "تمام شده", "icon": "seal"},
+    "finished": {"label": "تمام‌شده", "icon": "seal"},
 }
 
 # How the leaderboard can be ordered, and what each ordering is called.
@@ -189,7 +190,7 @@ STATUS_META = {
 # ahead.
 LEADERBOARD_SORT_LABELS = {
     LEADERBOARD_COMPLETIONS: "بیشترین ثبت",
-    LEADERBOARD_STREAK: "بلندترین رشته",
+    LEADERBOARD_STREAK: "بلندترین زنجیره",
 }
 
 LEADERBOARD_SORT_ICONS = {
@@ -221,6 +222,7 @@ templates.env.filters["challenge_status"] = challenge_status
 templates.env.globals["status_meta"] = STATUS_META
 register_icon_filters(templates.env)
 register_avatar_filters(templates.env)
+register_media_filters(templates.env)
 register_identity_filters(templates.env)
 # The card's group chip names the group's kind. The Farsi maps live in
 # `app/groups.py` because more than one views router renders them, and they
@@ -504,7 +506,7 @@ def build_cadence_plan(
             }
             for i, u in enumerate(upcoming)
         ],
-        "upcoming_label": "نوبت‌های بعدی",
+        "upcoming_label": "وعده‌های بعدی",
         "upcoming_format": "weekday-day-month",
         "upcoming_prefix": "",
         "density": None,
@@ -570,7 +572,7 @@ def build_cadence_plan(
             since=today,
             until=today + timedelta(days=DENSITY_WINDOW_DAYS - 1),
         )
-        plan["density"] = f"{n} نوبت در {DENSITY_WINDOW_DAYS} روز آینده"
+        plan["density"] = f"{n} وعده در {DENSITY_WINDOW_DAYS} روز آینده"
 
     elif isinstance(cadence, RecurringQuotaCadence):
         plan["upcoming_label"] = "دوره‌های بعدی"
@@ -752,7 +754,7 @@ async def build_history_timeline(
         "missed": tally["missed"],
         "pending": tally["pending"],
         "total": len(keys),
-        "unit": "نوبت",
+        "unit": "وعده",
         "pct": round(completed / len(keys) * 100) if keys else 0,
         "period_done": week_completed,
         "period_total": len(week_keys),

@@ -4,12 +4,12 @@
   'once': 'یک‌باره',
   'schedule': 'زمان‌بندی‌شده',
   'recurring_days': 'روزهای مشخص',
-  'recurring_quota': 'سهمیه‌ای',
+  'recurring_quota': 'تکرار مدت‌دار',
 } %}
 {% for e in enrollments %}
 <div class="challenge-card glass {{ 'completed' if e.status.value == 'completed' else '' }}" data-enrollment-challenge-id="{{ e.challenge.id }}"
   data-cat="{{ e.challenge.category | category_slug }}">
-  {% if e.status.value == 'completed' %}<div class="seal"><span>تکمیل<br/>شده</span></div>{% endif %}
+  {% if e.status.value == 'completed' %}<div class="seal"><span>تمام<br/>شده</span></div>{% endif %}
   <div class="cc-top">
     <span class="cc-tag cat-tag"><span data-icon="{{ e.challenge.category | category_icon }}"></span>{{ e.challenge.category.value }}</span>
     <span class="cc-tag accent"><span data-icon="{{ e.challenge.cadence_kind | cadence_icon }}"></span>{{ cadence_labels.get(e.challenge.cadence_kind, 'نامشخص') }}</span>
@@ -27,7 +27,7 @@
   <div class="cc-actions">
     {% if e.status.value != 'completed' %}
     <button class="cc-btn ghost" data-action="unenroll" data-challenge-id="{{ e.challenge.id }}">
-      <span data-icon="x"></span> انصراف
+      <span data-icon="x"></span> ترک چالش
     </button>
     {% else %}
     <a class="cc-btn ghost" href="/views/challenges/{{ e.challenge.id }}">

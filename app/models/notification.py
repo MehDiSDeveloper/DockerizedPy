@@ -73,6 +73,27 @@ class NotificationKind(str, enum.Enum):
     #: obligations -- which is the pair anybody would actually want.
     GROUP_CHALLENGE_REQUIRED = "group_challenge_required"
 
+    # ---- Roadmaps -----------------------------------------------------
+    # A roadmap runs *around* a member the same way a group does: somebody
+    # else joins the course they built, a step opens because the one before
+    # it was finished, a challenge somebody else owns is retired out from
+    # under a step. None of that is visible on a page they would have been
+    # looking at, which is the bar this feed is held to.
+    #: Somebody started walking a roadmap you built.
+    ROADMAP_JOINED = "roadmap_joined"
+    #: The next step of a roadmap you are walking has opened.
+    ROADMAP_STEP_UNLOCKED = "roadmap_step_unlocked"
+    #: You reached the end of a roadmap.
+    ROADMAP_COMPLETED = "roadmap_completed"
+    #: A challenge one of your roadmap's steps points at was archived, so the
+    #: step was passed over rather than left blocking everybody behind it.
+    #:
+    #: Its own kind rather than a flag on ``CHALLENGE_ARCHIVED``: that one
+    #: reaches the challenge's *participants* and says their occurrences have
+    #: stopped, while this reaches the roadmap's *builder* and says their
+    #: course has a hole in it. Two events, two audiences, two kinds.
+    ROADMAP_STEP_SKIPPED = "roadmap_step_skipped"
+
 
 class Notification(AuditBase):
     """One thing that happened, addressed to one member.
@@ -129,6 +150,10 @@ class Notification(AuditBase):
     # longer exists is a sentence about nothing.
     group_id = Column(Integer, ForeignKey("Groups.id"), nullable=True)
 
+    # Which roadmap it is about. Nullable and cascaded exactly like the two
+    # above, for exactly their reasons.
+    roadmap_id = Column(Integer, ForeignKey("Roadmaps.id"), nullable=True)
+
     # NULL means unread. A timestamp rather than a boolean because "when did
     # you see this" is the question a support request actually asks, and it
     # costs the same column.
@@ -136,5 +161,6 @@ class Notification(AuditBase):
 
     user = relationship("User", foreign_keys=[user_id])
     group = relationship("Group", back_populates="notifications")
+    roadmap = relationship("Roadmap", back_populates="notifications")
     actor = relationship("User", foreign_keys=[actor_user_id])
     challenge = relationship("Challenge", back_populates="notifications")

@@ -1,0 +1,432 @@
+{% extends "layout.html" %}
+
+{#- The course page: three questions, three panels -- exactly the shape
+    challenge-detail and the group page use, and for the same reason. «مسیر»
+    is what this course asks of you, «من» is where you got to, «درباره» is
+    what it is. The selected panel lives in the URL hash, so a link somebody
+    shares lands where they shared it from.
+
+    **Nothing here pages.** A course is a handful of steps read in one go --
+    the same call `fetch_child_groups` makes for a group's subgroups -- so the
+    step list is rendered whole and the URL has only the panel to carry.
+
+    **Every step is visible from the first screen, including the locked ones.**
+    Hiding what is ahead would make the course impossible to judge before
+    starting it, which is the one thing somebody deciding whether to start it
+    needs to do. What a locked step does *not* show is a live button, and only
+    when the builder made the order compulsory. -#}
+
+{% block topbar_leading %}
+<a href="/views/roadmaps/" class="back-btn" data-back aria-label="بازگشت"><span
+    data-icon="chevronRight"></span></a>
+{% endblock %}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر پیمایش" data-crumb-trail data-crumb-label="{{ roadmap.title }}">
+  <span class="crumb current" aria-current="page">{{ roadmap.title }}</span>
+</nav>
+{% endblock %}
+
+{% block topbar_action %}
+<div class="topbar-actions">
+  {#- The only entrance to the management screen, rendered for whoever holds
+      the permission. That route answers everybody else 404, so the gate and
+      the affordance agree without either trusting the other. -#}
+  {% if can_manage %}
+  <a href="/views/roadmaps/{{ roadmap.id }}/manage" class="icon-btn" aria-label="مدیریت مسیر">
+    <span data-icon="settings"></span>
+  </a>
+  {% endif %}
+  {{ super() }}
+</div>
+{% endblock %}
+
+{% block content %}
+{%- set cover = roadmap.image_square | media_url -%}
+
+<div class="detail-hero glass rm-hero{{ ' has-cover' if cover }}">
+  {#- The course's picture as the hero's ground, behind the glass pane and
+      under the same `--hero-fade` mask, exactly as challenge-detail draws a
+      challenge's. Without one the `.rm-mark` glyph below is the whole
+      identity, and that is a finished state rather than a missing one. -#}
+  {% if cover %}
+  <span class="hero-cover"><img src="{{ cover }}" alt="" decoding="async"></span>
+  {% endif %}
+  <div class="rm-mark"><span data-icon="route"></span></div>
+  <div class="detail-tags">
+    {% if roadmap.strict %}
+    <span class="cc-tag"><span data-icon="lock"></span>ترتیب اجباری</span>
+    {% else %}
+    <span class="cc-tag"><span data-icon="route"></span>ترتیب پیشنهادی</span>
+    {% endif %}
+    {% if roadmap.visibility != 'public' %}
+    <span class="cc-tag">{{ 'با لینک' if roadmap.visibility == 'unlisted' else 'خصوصی' }}</span>
+    {% endif %}
+    {% if is_archived %}<span class="cc-tag warn">بایگانی‌شده</span>{% endif %}
+  </div>
+  <h1>{{ roadmap.title }}</h1>
+  {% if owner %}
+  <p class="rm-owner">ساختهٔ {{ owner.name }}</p>
+  {% endif %}
+  <div class="detail-stats">
+    <div><b>{{ step_count }}</b><span>قدم</span></div>
+    <div><b>{{ member_count }}</b><span>نفر</span></div>
+    {% if is_walking %}
+    <div><b>{{ summary.pct }}٪</b><span>پیشرفت</span></div>
+    {% else %}
+    <div><b data-jalali="{{ roadmap.created_at.isoformat() }}"
+        data-jalali-format="numeric">{{ roadmap.created_at.strftime('%Y-%m-%d') }}</b><span>ساخته شد</span></div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="detail-tabs" role="tablist" aria-label="بخش‌های این مسیر">
+  <button type="button" class="dtab" role="tab" id="tab-steps" data-panel="steps"
+    aria-controls="panel-steps" aria-selected="true">
+    <span data-icon="route"></span>مسیر
+  </button>
+  {#- «من» exists only for somebody walking it: a panel that would say "you
+      have not started" is a panel the sticky button below already says
+      better. -#}
+  {% if is_walking %}
+  <button type="button" class="dtab" role="tab" id="tab-mine" data-panel="mine"
+    aria-controls="panel-mine" aria-selected="false">
+    <span data-icon="chart"></span>من
+  </button>
+  {% endif %}
+  <button type="button" class="dtab" role="tab" id="tab-about" data-panel="about"
+    aria-controls="panel-about" aria-selected="false">
+    <span data-icon="info"></span>درباره
+  </button>
+</div>
+
+{# ========================= پنل: مسیر ========================= #}
+<div class="tab-panel" id="panel-steps" role="tabpanel" aria-labelledby="tab-steps" tabindex="-1">
+  <div class="section-head">
+    <h2>قدم‌ها{{ explain("roadmap-step-state") }}</h2>
+    {% if is_walking %}
+    <span class="cc-tag">{{ summary.done }} از {{ summary.total }}</span>
+    {% endif %}
+  </div>
+
+  {% if steps %}
+  <ol class="rm-track">
+    {% for s in steps %}
+    {#- One node per step, joined by a line the CSS draws between them: the
+        thing being shown is the *order*, and a plain stack of cards shows a
+        list. The node carries the number until the step is settled, then the
+        state's own glyph -- so a finished course reads as a column of ticks
+        without anybody counting. -#}
+    <li class="rm-step is-{{ s.state }}{{ ' is-optional' if not s.required }}">
+      <span class="rs-node" aria-hidden="true">
+        {% if s.state in ('completed', 'skipped') %}
+        <span data-icon="{{ step_state_icons.get(s.state, 'check') }}"></span>
+        {% else %}{{ s.index }}{% endif %}
+      </span>
+      <div class="rs-card glass">
+        <div class="rs-head">
+          <span class="rs-num">قدم {{ s.index }}{% if not s.required %} · دلخواه{% endif %}</span>
+          <span class="rs-state">
+            <span data-icon="{{ step_state_icons.get(s.state, 'lock') }}"></span>
+            {{ step_state_labels.get(s.state, s.state) }}
+          </span>
+        </div>
+
+        <h3>
+          {% if s.visible %}
+          <a href="/views/challenges/{{ s.challenge_id }}">{{ s.title }}</a>
+          {% else %}
+          <span class="rs-hidden"><span data-icon="lock"></span>{{ s.title }}</span>
+          {% endif %}
+        </h3>
+
+        {#- Two lines, and they answer two different questions: what the
+            challenge asks of you *every time*, and what this course counts as
+            leaving it behind. The first is `describe_cadence` -- the same
+            function the challenge's own plan card uses -- so the two screens
+            cannot word one cadence differently. -#}
+        <p class="rs-meta">
+          {% if s.cadence %}
+          <span class="rs-line"><span data-icon="{{ s.cadence_kind | cadence_icon }}"></span>{{ s.cadence }}</span>
+          {% endif %}
+          <span class="rs-line"><span data-icon="{{ rule_icons.get(s.rule_kind, 'target') }}"></span>{{ s.rule_text }}</span>
+        </p>
+
+        {% if s.note %}<p class="rs-note">{{ s.note }}</p>{% endif %}
+
+        {#- The share, only for a rule that has one to show. A bar that could
+            only ever be empty or full would be a worse answer than no bar, so
+            `rule_progress` returns None for `manual` and
+            `challenge_finished`. -#}
+        {% if s.progress %}
+        <div class="rs-bar" role="img"
+          aria-label="{{ s.progress.done }} از {{ s.progress.total }}">
+          <span style="width:{{ s.progress.pct }}%"></span>
+        </div>
+        <p class="rs-count">{{ s.progress.done }} از {{ s.progress.total }}</p>
+        {% endif %}
+
+        {#- What you can do about it, right here. A locked step of a
+            «پیشنهادی» course still offers the challenge -- the order is a
+            suggestion and the line above already says whose turn it is -- and
+            a locked step of a «اجباری» one offers a sentence instead of a
+            control that would be refused. -#}
+        <div class="rs-actions">
+          {% if s.state == 'locked' and not s.is_open %}
+          <p class="rs-wait"><span data-icon="lock"></span>بعد از تمام شدن قدم
+            {{ s.index - 1 }} باز می‌شود.</p>
+          {% elif s.state == 'locked' %}
+          <p class="rs-wait"><span data-icon="route"></span>هنوز وعده‌اش نیست، ولی اگر
+            آماده‌ای می‌توانی زودتر شروعش کنی.</p>
+          {% endif %}
+          {% if s.visible %}
+          <a class="rs-go" href="/views/challenges/{{ s.challenge_id }}">
+            <span data-icon="chevronLeft"></span>صفحهٔ چالش
+          </a>
+          {% endif %}
+          {% if is_walking and s.is_manual and s.is_open and s.state != 'completed' %}
+          <button type="button" class="rs-done" data-step-done="{{ s.id }}">
+            <span data-icon="check"></span>انجام شد
+          </button>
+          {% endif %}
+        </div>
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <div class="empty">
+    <span data-icon="route"></span>
+    <p>هنوز قدمی به این مسیر اضافه نشده.</p>
+    {% if can_manage %}
+    <p class="empty-hint">از صفحهٔ مدیریت مسیر، چالش‌ها را یکی‌یکی به آن اضافه کن.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+{# ========================= پنل: من ========================= #}
+{% if is_walking %}
+<div class="tab-panel" id="panel-mine" role="tabpanel" aria-labelledby="tab-mine" tabindex="-1"
+  hidden>
+  {#- The same ring primitive challenge-detail and the home dashboard use, over
+      the same kind of figure: a *share*, which a number cannot show. Two
+      slices only -- settled and not -- because that is all a course has. -#}
+  <section class="mine-card glass">
+    <div class="ring-wrap">
+      <svg class="ring" viewBox="0 0 48 48" aria-hidden="true">
+        <circle class="ring-track" cx="24" cy="24" r="20"></circle>
+        <circle class="ring-seg completed" cx="24" cy="24" r="20"
+          stroke-dasharray="{{ (summary.pct * 1.2566) | round(2) }} 125.66"></circle>
+      </svg>
+      <div class="ring-center">
+        <b>{{ summary.pct }}٪</b>
+        <span>{{ summary.done }}/{{ summary.total }}</span>
+      </div>
+    </div>
+    <ul class="ring-legend">
+      <li><span class="lg-dot ok"></span>قدم‌های تمام‌شده<b>{{ summary.done }}</b></li>
+      <li><span class="lg-dot wait"></span>باقی‌مانده<b>{{ summary.total - summary.done }}</b></li>
+    </ul>
+  </section>
+
+  {% if summary.current %}
+  <section class="detail-section glass">
+    <h2>قدم فعلی تو</h2>
+    <p class="rm-current-title">{{ summary.current.title }}</p>
+    <p class="rm-current-rule">{{ summary.current.rule_text }}</p>
+    {% if summary.current.visible %}
+    <a class="btn-primary" href="/views/challenges/{{ summary.current.challenge_id }}">
+      <span data-icon="chevronLeft"></span>رفتن به چالش
+    </a>
+    {% endif %}
+  </section>
+  {% elif summary.total and summary.done == summary.total %}
+  <section class="detail-section glass rm-finished">
+    <span data-icon="trophy"></span>
+    <p>همهٔ قدم‌های این مسیر را تمام کردی.</p>
+  </section>
+  {% endif %}
+
+  <section class="settings-page">
+    <section class="setting-group">
+      <h2>خروج</h2>
+      <div class="setting-row glass danger-row" role="button" tabindex="0" id="rmLeave">
+        <div class="sr-head">
+          <div class="sr-text">
+            <span class="sr-label">خروج از مسیر</span>
+            <span class="sr-hint">فقط از خود مسیر بیرون می‌آیی. چالش‌هایی که تا
+              الان واردشان شده‌ای و هرچه در آن‌ها ثبت کرده‌ای دست‌نخورده
+              می‌ماند.</span>
+          </div>
+          <span class="sr-chev" data-icon="chevronLeft"></span>
+        </div>
+      </div>
+    </section>
+  </section>
+</div>
+{% endif %}
+
+{# ========================= پنل: درباره ========================= #}
+<div class="tab-panel" id="panel-about" role="tabpanel" aria-labelledby="tab-about" tabindex="-1"
+  hidden>
+  {% if roadmap.description %}
+  <section class="detail-section glass">
+    <h2>دربارهٔ این مسیر</h2>
+    <p class="detail-text">{{ roadmap.description }}</p>
+  </section>
+  {% endif %}
+
+  <section class="detail-section glass">
+    <h2>جزئیات</h2>
+    <dl class="fact-list">
+      <div class="fact"><dt>تعداد قدم</dt><dd>{{ step_count }}</dd></div>
+      <div class="fact"><dt>تعداد همراه</dt><dd>{{ member_count }}</dd></div>
+      <div class="fact"><dt>ترتیب</dt>
+        <dd>{{ 'اجباری' if roadmap.strict else 'پیشنهادی' }}</dd></div>
+      {% if owner %}<div class="fact"><dt>سازنده</dt><dd>{{ owner.name }}</dd></div>{% endif %}
+      <div class="fact"><dt>ساخته شد</dt><dd data-jalali="{{ roadmap.created_at.isoformat() }}"
+          data-jalali-format="day-month-year">{{ roadmap.created_at.strftime('%Y-%m-%d') }}</dd></div>
+    </dl>
+    {#- Said plainly, on the panel that explains what this place is. Both
+        halves are true of the code -- `roadmap_scope_filter` is what opens a
+        step's challenge, and only for somebody walking the course -- and this
+        is where a member gets to read them. -#}
+    <p class="info-note">وقتی مسیر را شروع کنی، هر قدم که باز شود در چالشش
+      ثبت‌نام می‌شوی و وعده‌هایش در «امروز» تو می‌آید. گذاشتن یک چالش در مسیر
+      آن را عمومی نمی‌کند: چالش‌های خصوصیِ قدم‌ها فقط برای کسی که مسیر را شروع
+      کرده دیده می‌شود.{{ explain("roadmap-privacy") }}</p>
+  </section>
+</div>
+
+{#- The one primary action on this screen, and only when there is one. Somebody
+    already walking the course has their next move inside a step card, so a
+    second permanent button at the foot would compete with it. -#}
+{% if not is_walking and not is_archived %}
+<div class="sticky-cta">
+  <div class="cta-row">
+    <button class="btn-primary" id="rmStart">
+      <span data-icon="route"></span>شروع این مسیر
+    </button>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    // ---- tabs (same contract as challenge-detail: hash-backed, replaceState)
+    const tabs = Array.from(document.querySelectorAll(".dtab"));
+    const tabBar = document.querySelector(".detail-tabs");
+
+    function selectTab(name, { focus = false, remember = true } = {}) {
+      const target = tabs.find((t) => t.dataset.panel === name);
+      if (!target) return false;
+      tabs.forEach((t) => {
+        const on = t === target;
+        t.setAttribute("aria-selected", on ? "true" : "false");
+        t.tabIndex = on ? 0 : -1;
+        document.getElementById("panel-" + t.dataset.panel).hidden = !on;
+      });
+      if (focus) target.focus();
+      if (remember) history.replaceState(null, "", "#" + name);
+      return true;
+    }
+    tabs.forEach((t) => t.addEventListener("click", () => selectTab(t.dataset.panel)));
+    tabBar.addEventListener("keydown", (e) => {
+      const i = tabs.indexOf(document.activeElement);
+      if (i < 0) return;
+      // RTL: the tabs run right-to-left, so ArrowLeft is "next".
+      let next = null;
+      if (e.key === "ArrowLeft") next = (i + 1) % tabs.length;
+      else if (e.key === "ArrowRight") next = (i - 1 + tabs.length) % tabs.length;
+      else if (e.key === "Home") next = 0;
+      else if (e.key === "End") next = tabs.length - 1;
+      if (next === null) return;
+      e.preventDefault();
+      selectTab(tabs[next].dataset.panel, { focus: true });
+    });
+    selectTab(decodeURIComponent(location.hash.slice(1)), { remember: false }) ||
+      selectTab(tabs[0].dataset.panel, { remember: false });
+
+    const ROADMAP_ID = {{ roadmap.id }};
+    const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+
+    // ---- starting the course.
+    // Ends in a reload rather than a hand-patched page: joining opens the
+    // first stage, which writes enrollments, moves the ring, the stats, the
+    // step states and the tab strip all at once -- the same call every
+    // check-in on challenge-detail makes.
+    const startBtn = document.getElementById("rmStart");
+    if (startBtn) {
+      startBtn.addEventListener("click", async () => {
+        startBtn.disabled = true;
+        const { ok, data } = await apiFetch(
+          `/roadmaps/${ROADMAP_ID}/enroll?timezone=${encodeURIComponent(TZ)}`,
+          { method: "POST" }
+        );
+        if (!ok) {
+          startBtn.disabled = false;
+          showToast((data && data.detail) || "شروع مسیر انجام نشد");
+          return;
+        }
+        window.location.reload();
+      });
+    }
+
+    // ---- «تمام شد» on a manual step. The server refuses this for every
+    // other rule, so the button only exists where it is the actual answer.
+    document.addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-step-done]");
+      if (!btn) return;
+      btn.disabled = true;
+      const { ok, data } = await apiFetch(
+        `/roadmaps/${ROADMAP_ID}/steps/${btn.dataset.stepDone}/complete` +
+          `?timezone=${encodeURIComponent(TZ)}`,
+        { method: "POST" }
+      );
+      if (!ok) {
+        btn.disabled = false;
+        showToast((data && data.detail) || "ثبت انجام نشد");
+        return;
+      }
+      // Finishing a step can open the next one, which writes an enrollment.
+      window.location.reload();
+    });
+
+    // ---- leaving. A sheet rather than a `confirm()`, for the reason every
+    // other irreversible act in this app opens one: it has to be able to say
+    // what does *not* happen, which here is the more important half.
+    const leaveRow = document.getElementById("rmLeave");
+    if (leaveRow) {
+      leaveRow.addEventListener("click", () => {
+        createSheet({
+          title: "خروج از مسیر",
+          fields: [
+            { type: "note", text: "پیشرفتت در این مسیر پاک می‌شود و قدم‌های بازنشده دیگر باز نمی‌شوند." },
+            { type: "note", text: "چالش‌هایی که تا الان واردشان شده‌ای و هرچه در آن‌ها ثبت کرده‌ای سر جایش می‌ماند؛ هر کدام را نخواستی، از صفحهٔ خود آن چالش ترک کن." },
+          ],
+          confirmLabel: "لغو",
+          onConfirm: async () => true,
+          danger: {
+            label: "خروج از مسیر",
+            onClick: async () => {
+              const { ok, data } = await apiFetch(`/roadmaps/${ROADMAP_ID}/enroll`, {
+                method: "DELETE",
+              });
+              if (!ok) {
+                showToast((data && data.detail) || "انجام نشد");
+                return false;
+              }
+              window.location.reload();
+              return true;
+            },
+          },
+        });
+      });
+    }
+  });
+</script>
+{% endblock %}

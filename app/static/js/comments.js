@@ -73,7 +73,7 @@ function initCommentModal() {
   function open(btn) {
     opener = btn;
     subjectId = btn.dataset.commentsId;
-    titleEl.textContent = btn.dataset.commentsTitle || "گفتگو";
+    titleEl.textContent = btn.dataset.commentsTitle || "نظرها";
     setTotal(Number(btn.dataset.commentsCount) || 0);
 
     modal.hidden = false;
@@ -110,7 +110,7 @@ function initCommentModal() {
 
   function setTotal(n) {
     totalEl.dataset.total = String(n);
-    totalEl.textContent = n + " دیدگاه";
+    totalEl.textContent = n + " نظر";
   }
 
   function buildScroller() {
@@ -161,17 +161,17 @@ function initCommentModal() {
     // A sheet rather than confirm(), like every other irreversible action in
     // this app: only a sheet can name what else goes with it.
     createSheet({
-      title: "حذف دیدگاه",
+      title: "حذف نظر",
       fields: [
         {
           type: "note",
           text:
             btn.dataset.isRoot === "true"
-              ? "این دیدگاه و همهٔ پاسخ‌هایش حذف می‌شوند. این کار برگشت‌پذیر نیست."
+              ? "این نظر و همهٔ پاسخ‌هایش حذف می‌شوند. این کار برگشت‌پذیر نیست."
               : "این پاسخ حذف می‌شود. این کار برگشت‌پذیر نیست.",
         },
       ],
-      confirmLabel: "بی‌خیال",
+      confirmLabel: "لغو",
       onConfirm: () => true,
       danger: {
         label: "حذف",

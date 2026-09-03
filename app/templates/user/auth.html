@@ -105,7 +105,7 @@
       <div id="passwordPanel" style="display:none;">
         <div class="auth-tabs">
           <button class="auth-tab active" data-tab="login">ورود</button>
-          <button class="auth-tab" data-tab="register">ثبت‌نام</button>
+          <button class="auth-tab" data-tab="register">ساخت حساب</button>
         </div>
 
         <!-- login form -->
@@ -435,7 +435,7 @@
     registerForm.style.display = mode === "register" ? "block" : "none";
     authFoot.innerHTML = mode === "login"
       ? `حساب نداری؟ <a href="#" data-switch="register">بساز</a>`
-      : `قبلاً ثبت‌نام کردی؟ <a href="#" data-switch="login">وارد شو</a>`;
+      : `قبلاً حساب ساختی؟ <a href="#" data-switch="login">وارد شو</a>`;
     authFoot.querySelector("a").addEventListener("click", (e) => { e.preventDefault(); switchTo(e.target.dataset.switch); });
   }
 

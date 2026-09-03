@@ -354,7 +354,7 @@ async def test_the_about_panel_offers_the_two_exits(client, db):
     body = (await client.get(f"/views/groups/{group.id}")).text
     assert 'id="grLeaveChallenges"' in body
     assert 'id="grLeaveGroup"' in body
-    assert "انصراف ثبت می‌شود" in body
+    assert "ترک می‌شود" in body
 
 
 async def test_the_owner_is_offered_the_transfer_instead_of_a_leave(client, db):

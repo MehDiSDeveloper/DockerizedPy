@@ -16,6 +16,15 @@ from app.models.group import (
 from app.models.notification import Notification, NotificationKind
 from app.models.otp import OtpCode
 from app.models.reaction import Reaction, ReactionKind, ReactionSubject
+from app.models.roadmap import (
+    Roadmap,
+    RoadmapEnrollment,
+    RoadmapEnrollmentStatus,
+    RoadmapInvite,
+    RoadmapStep,
+    RoadmapStepProgress,
+    RoadmapStepState,
+)
 from app.models.stats import ChallengeStats
 from app.models.user import User
 
@@ -40,5 +49,12 @@ __all__ = [
     "Reaction",
     "ReactionKind",
     "ReactionSubject",
+    "Roadmap",
+    "RoadmapEnrollment",
+    "RoadmapEnrollmentStatus",
+    "RoadmapInvite",
+    "RoadmapStep",
+    "RoadmapStepProgress",
+    "RoadmapStepState",
     "User",
 ]

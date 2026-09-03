@@ -49,7 +49,7 @@
         aria-label="تایید عضویت {{ r.name }}" title="تایید"><span data-icon="check"></span></button>
     </div>
     {% else %}
-    <span class="req-pill is-{{ r.status }}">{{ 'تاییدشده' if r.status == 'approved' else 'ردشده' }}</span>
+    <span class="req-pill is-{{ r.status }}">{{ 'تاییدشده' if r.status == 'approved' else 'رد شده' }}</span>
     {% endif %}
   </div>
 </div>
