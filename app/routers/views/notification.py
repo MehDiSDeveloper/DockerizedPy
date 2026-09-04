@@ -7,6 +7,7 @@ from app.auth import get_current_user_id, get_page_user
 from app.avatars import register_avatar_filters
 from app.config import BASE_DIR
 from app.database import get_db
+from app.date_filters import register_date_filters
 from app.explainers import register_explainer_filters
 from app.icons import register_icon_filters
 from app.models.user import User
@@ -19,6 +20,7 @@ from app.routers.notification import (
 
 router = APIRouter(prefix="/views/notifications", tags=["notification-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_date_filters(templates.env)
 register_explainer_filters(templates.env)
 # Every views router builds its own environment, so each one owes the
 # registrations for what it renders: the actor's picture, the shell's icons,

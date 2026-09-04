@@ -5,13 +5,45 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>چالش | خطا</title>
 <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
+{# ---- PWA -------------------------------------------------------------
+   Installability lives in the <head>, and this app has no base document, so
+   this block is repeated verbatim in layout.html, user/auth.html and
+   common/error.html. A shell that misses it is a page the app cannot be
+   installed from -- which fails silently, so tests/test_pwa.py walks all
+   three and fails loudly instead.
+
+   The two theme-color metas are the pair the *browser chrome* reads. The
+   manifest carries one static colour (it is one document; the app's theme has
+   three states), so the device preference is honoured here by media, and an
+   explicit choice is honoured by the script below, which replaces them. -#}
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#f8f4ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16120d" media="(prefers-color-scheme: dark)">
+{#- Safari reads none of the manifest, so iOS needs its own four. Without
+    them «افزودن به صفحهٔ خانه» produces a bookmark that opens in the browser
+    with its chrome, rather than the standalone app. -#}
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="چالش">
+<link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
+<link rel="icon" href="/static/img/icon-192.png" type="image/png">
+
 {#- Theme applied before first paint -- same guard as layout.html. This
     page is a standalone document (no template inheritance in this app), so
     it carries its own copy rather than inheriting one. -#}
 <script>
   try {
     var t = localStorage.getItem("chalesh-theme");
-    if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+    if (t === "light" || t === "dark") {
+      document.documentElement.dataset.theme = t;
+      // A media-keyed pair cannot honour a choice that contradicts the
+      // device, so an explicit one replaces both metas outright.
+      document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) { m.remove(); });
+      var c = document.createElement("meta");
+      c.name = "theme-color";
+      c.content = t === "dark" ? "#16120d" : "#f8f4ee";
+      document.head.appendChild(c);
+    }
   } catch (e) { /* private mode: fall back to the device preference */ }
 </script>
 </head>
@@ -28,10 +60,10 @@
 </a>
   <div class="auth-wrap">
     <div class="auth-logo">
-      <h1>مشکلی پیش اومد</h1>
+      <h1>مشکلی پیش آمد</h1>
       <p>{{ error }}</p>
     </div>
-    <a href="/views/challenges/" class="btn-primary" style="display:block; text-align:center;">بازگشت به فهرست چالش‌ها</a>
+    <a href="/views/challenges/" class="btn btn-primary" style="display:block; text-align:center;">بازگشت به فهرست چالش‌ها</a>
   </div>
 </div>
 

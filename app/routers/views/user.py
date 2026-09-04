@@ -8,11 +8,12 @@ from app.auth import get_page_user
 from app.avatars import AVATAR_IDS, avatar_url, register_avatar_filters
 from app.config import BASE_DIR
 from app.database import get_db
+from app.date_filters import register_date_filters
 from app.explainers import register_explainer_filters
 from app.models.challenge import Challenge
 from app.models.enrollment import Enrollment
 from app.models.user import User
-from app.permissions import Perm, can, is_admin
+from app.permissions import Perm, can, is_admin, register_role_filters
 from app.phone import national_mobile
 from app.routers.challenge import STATUS_FINISHED, status_filter
 from app.routers.user import profile_visibility_filter
@@ -24,8 +25,10 @@ from app.routers.views.admin import ROLE_LABELS
 
 router = APIRouter(prefix="/views/users", tags=["user-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_date_filters(templates.env)
 register_explainer_filters(templates.env)
 register_avatar_filters(templates.env)
+register_role_filters(templates.env)
 
 
 @router.get("/{user_id}")

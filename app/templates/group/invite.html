@@ -33,8 +33,8 @@
   <p class="invite-eyebrow">{% if requires_approval %}گروه{% else %}دعوت شده‌ای به{% endif %}</p>
   <h1>{{ group.name }}{{ explain("group") }}</h1>
   <div class="detail-tags">
-    <span class="cc-tag"><span data-icon="{{ group_kind_icons.get(group.kind, 'catOther') }}"></span>{{ group_kind_labels.get(group.kind, 'گروه') }}</span>
-    <span class="cc-tag"><span data-icon="users"></span>{{ member_count }} عضو</span>
+    <span class="pill pill-tag"><span data-icon="{{ group_kind_icons.get(group.kind, 'catOther') }}"></span>{{ group_kind_labels.get(group.kind, 'گروه') }}</span>
+    <span class="pill pill-tag"><span data-icon="users"></span>{{ member_count }} عضو</span>
   </div>
   {% if group.description %}<p class="invite-desc">{{ group.description }}</p>{% endif %}
 
@@ -45,7 +45,7 @@
       offering to do something already done. -#}
   {% if already_member %}
   <p class="invite-note">تو همین حالا عضو این گروه هستی.</p>
-  <a class="cc-btn primary block" href="/views/groups/{{ group.id }}">رفتن به گروه</a>
+  <a class="btn btn-ghost btn-accent btn-block" href="/views/groups/{{ group.id }}">رفتن به گروه</a>
 
   {% elif request_pending %}
   <p class="invite-note">درخواست عضویت تو ثبت شده و منتظر پاسخ مدیران گروه است. نتیجه را با
@@ -53,19 +53,19 @@
 
   {% elif requires_approval and state == 'active' %}
   {#- The public link: alive, and it admits nobody by itself. -#}
-  <p class="invite-note">با این لینک می‌توانی درخواست عضویت بفرستی؛ ورودت به گروه به تایید
+  <p class="invite-note">با این لینک می‌توانی درخواست عضویت بفرستی؛ ورودت به گروه به تأیید
     یکی از مدیران آن بستگی دارد.</p>
-  <button type="button" class="cc-btn primary block" id="requestBtn">درخواست عضویت</button>
+  <button type="button" class="btn btn-ghost btn-accent btn-block" id="requestBtn">درخواست عضویت</button>
 
   {% elif is_usable %}
   <p class="invite-note">با پذیرفتن این دعوت، بی‌درنگ عضو گروه می‌شوی و چالش‌های گروه در فهرست
     چالش‌های تو دیده می‌شود.</p>
-  <button type="button" class="cc-btn primary block" id="acceptBtn">پیوستن به گروه</button>
+  <button type="button" class="btn btn-ghost btn-accent btn-block" id="acceptBtn">پیوستن به گروه</button>
 
   {% else %}
   <p class="invite-note">این لینک دیگر کار نمی‌کند ({{ invite_state_labels.get(state, state) }}).
     می‌توانی درخواست عضویت بفرستی تا مدیران گروه آن را ببینند.</p>
-  <button type="button" class="cc-btn primary block" id="requestBtn">درخواست عضویت</button>
+  <button type="button" class="btn btn-ghost btn-accent btn-block" id="requestBtn">درخواست عضویت</button>
   {% endif %}
 </div>
 {% endblock %}
@@ -97,7 +97,7 @@
         }
         if (!ok) {
           accept.disabled = false;
-          showToast("پیوستن انجام نشد");
+          showToast("پیوستن انجام نشد. دوباره تلاش کن.");
           return;
         }
         window.location.href = `/views/groups/${data.id}`;
@@ -113,7 +113,7 @@
         });
         if (!ok) {
           request.disabled = false;
-          showToast("ارسال درخواست انجام نشد");
+          showToast("ارسال درخواست انجام نشد. دوباره تلاش کن.");
           return;
         }
         showToast("درخواستت فرستاده شد؛ نتیجه را با اعلان می‌بینی.");

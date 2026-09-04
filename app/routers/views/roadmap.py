@@ -44,6 +44,7 @@ from app.auth import get_current_user, get_page_user
 from app.avatars import register_avatar_filters
 from app.config import BASE_DIR
 from app.database import get_db
+from app.date_filters import register_date_filters
 from app.explainers import register_explainer_filters
 from app.icons import register_icon_filters
 from app.invites import INVITE_ACTIVE, invite_state, register_invite_filters
@@ -94,6 +95,7 @@ router = APIRouter(prefix="/views/roadmaps", tags=["roadmap-views"])
 invite_router = APIRouter(prefix="/views/roadmap-invites", tags=["roadmap-views"])
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_date_filters(templates.env)
 # Every views router builds its own environment and owes the registrations for
 # what it renders: the explainer dots, the shell's icons plus the category and
 # cadence glyphs a step card wears, pictures (both the roadmap's own and the
@@ -239,7 +241,7 @@ def _summary(rows: list[dict]) -> dict:
 # ---------------------------------------------------------------------------
 
 
-async def _list_context(
+async def list_context(
     db: AsyncSession, *, user_id: int | None, scope: str, q: str | None,
     offset: int, limit: int,
 ) -> dict:
@@ -271,7 +273,7 @@ async def _list_context(
     }
 
 
-async def _resolve_scope(
+async def resolve_scope(
     db: AsyncSession, user_id: int | None, scope: str | None
 ) -> str:
     """Which half of the list to open on, when the URL does not say.
@@ -291,38 +293,10 @@ async def _resolve_scope(
     return SCOPE_MINE if rows else SCOPE_ALL
 
 
-@router.get("/")
-async def roadmaps_page(
-    request: Request,
-    viewer: User = Depends(get_page_user),
-    db: AsyncSession = Depends(get_db),
-    scope: str | None = Query(default=None),
-    q: str | None = Query(default=None, max_length=100),
-):
-    """Your courses and the public ones, in one list with a two-button scope."""
-    active_scope = await _resolve_scope(db, viewer.id, scope)
-    context = await _list_context(
-        db,
-        user_id=viewer.id,
-        scope=active_scope,
-        q=q,
-        offset=0,
-        limit=DEFAULT_ROADMAP_PAGE_SIZE,
-    )
-    return templates.TemplateResponse(
-        "roadmap/index.html",
-        {
-            "title": "مسیرها",
-            "request": request,
-            "active_nav": "profile",
-            "active_scope": active_scope,
-            "query": q or "",
-            "page_size": DEFAULT_ROADMAP_PAGE_SIZE,
-            **context,
-        },
-    )
-
-
+# The list page itself lives in `routers/views/space.py` («فضای من»): a
+# course and a group are the same kind of thing to a member, and they now
+# share one destination with two segments. The fragment stays here, beside
+# the query it pages.
 @router.get("/fragment")
 async def roadmaps_fragment(
     request: Request,
@@ -337,7 +311,7 @@ async def roadmaps_fragment(
 ):
     """`get_current_user`, not the page dependency: a `fetch()` needs a real
     401 to redirect on (CLAUDE.md, the 303/401 split)."""
-    context = await _list_context(
+    context = await list_context(
         db, user_id=viewer.id, scope=scope, q=q, offset=offset, limit=limit
     )
     response = templates.TemplateResponse(

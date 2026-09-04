@@ -50,11 +50,11 @@
   {#- One control, and which one it is comes from the server rather than from
       a tap that fails. -#}
   {% if already_member %}
-  <a class="btn-primary" href="/views/roadmaps/{{ roadmap.id }}">
+  <a class="btn btn-primary" href="/views/roadmaps/{{ roadmap.id }}">
     <span data-icon="route"></span>همین حالا در این مسیری
   </a>
   {% elif is_usable %}
-  <button type="button" class="btn-primary" id="rmAccept">
+  <button type="button" class="btn btn-primary" id="rmAccept">
     <span data-icon="check"></span>شروع این مسیر
   </button>
   {% else %}

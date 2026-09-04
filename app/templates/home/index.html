@@ -14,8 +14,7 @@
   {#- The greeting keeps the eyebrow for the date -- «امروز» does the same,
       and it is the one thing a dashboard has to anchor every figure to. -#}
   <section class="hero">
-    <p class="hero-eyebrow" data-jalali="{{ dash.local_today.isoformat() }}"
-       data-jalali-format="weekday-day-month">{{ dash.local_today.isoformat() }}</p>
+    <p class="hero-eyebrow">{{ dash.local_today | jalali('weekday-day-month') }}</p>
     <h1 class="hero-title">سلام <b>{{ user.name }}</b> 👋<br/>کارنامه تا اینجا.</h1>
   </section>
 
@@ -28,7 +27,7 @@
   <section class="detail-section" data-tour="home-pulse">
     <div class="section-head">
       <h2>امروز در یک نگاه{{ explain("home-pulse") }}</h2>
-      <span class="cc-tag"><span data-icon="clock"></span>{{ dash.today.done }} از {{ dash.today.total }}</span>
+      <span class="pill pill-tag"><span data-icon="clock"></span>{{ dash.today.done | fa_num }} از {{ dash.today.total | fa_num }}</span>
     </div>
 
     {% if dash.today.total %}
@@ -46,14 +45,14 @@
           {% endif %}
         </svg>
         <div class="ring-center">
-          <b>{{ dash.today.pct }}٪</b>
-          <span>{{ dash.today.done }}/{{ dash.today.total }}</span>
+          <b>{{ dash.today.pct | fa_num }}٪</b>
+          <span>{{ dash.today.done | fa_num }}/{{ dash.today.total | fa_num }}</span>
         </div>
       </div>
       {#- Exactly the ring's own two parts. Anything else on this list would
           borrow a swatch that already means a slice of the ring. -#}
       <ul class="ring-legend">
-        <li><span class="lg-dot ok"></span>ثبت‌شدهٔ امروز<b>{{ dash.today.done }}</b></li>
+        <li><span class="lg-dot ok"></span>ثبت‌شدهٔ امروز<b>{{ dash.today.done | fa_num }}</b></li>
         <li><span class="lg-dot wait"></span>مانده تا پایان امروز<b>{{ dash.today.due }}</b></li>
       </ul>
     </div>
@@ -65,7 +64,7 @@
     </a>
     {% endif %}
     {% else %}
-    <p class="mine-empty glass">امروز وعده‌ای نداری. یه نفس بکش 🎉</p>
+    <p class="mine-empty glass">امروز وعده‌ای نداری. یک نفس بکش.</p>
     {% endif %}
 
     {#- The rhythm figures: the streak pair is the app's own measure of
@@ -74,16 +73,16 @@
         the one number here that never goes down. -#}
     <div class="mine-grid pairs">
       <div class="mine-tile gold">
-        <b><span data-icon="flame"></span>{{ dash.streak_current }}</b><span>زنجیرهٔ فعلی{{ explain("streak") }}</span>
+        <b><span data-icon="flame"></span>{{ dash.streak_current | fa_num }}</b><span>زنجیرهٔ فعلی{{ explain("streak") }}</span>
       </div>
       <div class="mine-tile gold">
-        <b><span data-icon="seal"></span>{{ dash.streak_best }}</b><span>بهترین زنجیره</span>
+        <b><span data-icon="seal"></span>{{ dash.streak_best | fa_num }}</b><span>بهترین زنجیره</span>
       </div>
       <div class="mine-tile ok">
-        <b>{{ dash.week_done }}</b><span>ثبت این هفته</span>
+        <b>{{ dash.week_done | fa_num }}</b><span>ثبت این هفته</span>
       </div>
       <div class="mine-tile">
-        <b>{{ dash.total_completed }}</b><span>مجموع ثبت‌ها</span>
+        <b>{{ dash.total_completed | fa_num }}</b><span>مجموع ثبت‌ها</span>
       </div>
     </div>
   </section>
@@ -99,7 +98,7 @@
   <section class="detail-section">
     <div class="section-head">
       <h2>قدم فعلی تو{{ explain("roadmap") }}</h2>
-      <a class="cc-tag" href="/views/roadmaps/">مسیرها</a>
+      <a class="pill pill-tag" href="/views/roadmaps/">مسیرها</a>
     </div>
     <div class="rms-list">
       {% include "home/_roadmap_steps.html" %}
@@ -117,7 +116,7 @@
   <section class="detail-section" data-tour="home-grid">
     <div class="section-head">
       <h2>روند فعالیت{{ explain("home-grid") }}</h2>
-      <span class="cc-tag"><span data-icon="chart"></span>{{ dash.grid.weeks }} هفتهٔ اخیر</span>
+      <span class="pill pill-tag"><span data-icon="chart"></span>{{ dash.grid.weeks }} هفتهٔ اخیر</span>
     </div>
 
     <div class="glass hm-card">
@@ -126,8 +125,7 @@
           in RTL both grids start from the right. -#}
       <div class="hm-months" style="--hm-cols:{{ dash.grid.cols }};" aria-hidden="true">
         {% for col in dash.grid.columns %}{% if col.starts_month %}<span
-          style="grid-column:{{ loop.index + 1 }};"
-          data-jalali="{{ col.start.isoformat() }}" data-jalali-format="month-only">{{ col.start.isoformat() }}</span>{% endif %}{% endfor %}
+          style="grid-column:{{ loop.index + 1 }};">{{ col.start | jalali('month-only') }}</span>{% endif %}{% endfor %}
       </div>
 
       <div class="hm-grid" style="--hm-cols:{{ dash.grid.cols }};" role="img"
@@ -135,12 +133,11 @@
         {% for wd in dash.grid.weekdays %}<span class="hm-day" aria-hidden="true">{{ wd }}</span>{% endfor %}
         {% for col in dash.grid.columns %}{% for d in col.days %}<span
           class="hm-cell l{{ d.level }}{{ ' is-future' if d.is_future }}{{ ' is-today' if d.is_today }}"
-          data-jalali="{{ d.date.isoformat() }}" data-jalali-format="weekday-day-month"
-          data-jalali-attr="title" title="{{ d.date.isoformat() }}"></span>{% endfor %}{% endfor %}
+          title="{{ d.date | jalali('weekday-day-month') }}"></span>{% endfor %}{% endfor %}
       </div>
 
       <div class="hm-foot">
-        <span>{{ dash.grid.active_days }} روز فعال از {{ dash.grid.window_days }} روز</span>
+        <span>{{ dash.grid.active_days | fa_num }} روز فعال از {{ dash.grid.window_days | fa_num }} روز</span>
         <span class="hm-scale" aria-hidden="true">
           کمتر
           <i class="hm-cell l0"></i><i class="hm-cell l1"></i><i class="hm-cell l2"></i><i class="hm-cell l3"></i><i class="hm-cell l4"></i>
@@ -159,7 +156,7 @@
   <section class="detail-section" data-tour="home-focus">
     <div class="section-head">
       <h2>تمرکز{{ explain("home-focus") }}</h2>
-      <span class="cc-tag">{{ dash.focus.window_days }} روز اخیر</span>
+      <span class="pill pill-tag">{{ dash.focus.window_days | fa_num }} روز اخیر</span>
     </div>
 
     <div class="glass hm-card focus-list">
@@ -169,7 +166,7 @@
         <div class="focus-main">
           <div class="focus-head">
             <b>{{ row.category.value }}</b>
-            <span>{{ row.count }} ثبت</span>
+            <span>{{ row.count | fa_num }} ثبت</span>
           </div>
           <div class="cc-progress"><i style="width:{{ row.pct }}%;"></i></div>
         </div>
@@ -201,10 +198,10 @@
           the row they vacated is what the dashboard above is built on. -#}
       <div class="tabs" role="tablist" aria-label="فیلتر وضعیت چالش‌ها">
         <button class="tab active" data-filter="active" role="tab" aria-selected="true">
-          فعال <i class="tab-count" id="statActive">{{ stat_active }}</i>
+          فعال <i class="tab-count" id="statActive">{{ stat_active | fa_num }}</i>
         </button>
         <button class="tab" data-filter="completed" role="tab" aria-selected="false">
-          تمام‌شده <i class="tab-count" id="statDone">{{ stat_done }}</i>
+          تمام‌شده <i class="tab-count" id="statDone">{{ stat_done | fa_num }}</i>
         </button>
       </div>
     </div>
@@ -218,19 +215,22 @@
     <div class="empty" id="homeEmpty" {{ 'hidden' if enrollments }}>
       <span data-icon="empty"></span>
       <p id="homeEmptyText">هنوز چالش فعالی نداری. یکی رو از فهرست چالش‌ها انتخاب کن یا خودت بساز.</p>
+      <p class="empty-hint">با دکمهٔ + همین‌جا می‌توانی چالش تازه‌ای بسازی.</p>
     </div>
     <div class="scroll-sentinel" id="homeSentinel" aria-hidden="true"></div>
     <div class="list-loading" id="homeLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
   </section>
 
-  <!-- FAB: create challenge -->
-  <a href="/views/challenges/create" class="fab" aria-label="ساخت چالش جدید">
+  <!-- FAB: the one create entrance (challenge / group / roadmap) -->
+  <button type="button" class="fab" data-create-fab aria-label="ساختن چیز تازه">
     <span data-icon="plus"></span>
-  </a>
+  </button>
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script src="{{ url_for('static', path='/js/create.js') }}"></script>
+<script id="emblemOptions" type="application/json">{{ avatar_catalogue | tojson }}</script>
 <script src="{{ url_for('static', path='/js/tour.js') }}"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => {
@@ -281,30 +281,26 @@
       const btn = e.target.closest('[data-action="unenroll"]');
       if (!btn) return;
       e.stopPropagation();
-      if (!confirm("این چالش را ترک می‌کنی؟")) return;
+      const confirmed = await confirmSheet({
+        title: "ترک چالش",
+        text: "با ترک چالش، ثبت‌های تو در آن پاک می‌شود و برگشت‌پذیر نیست.",
+        confirmLabel: "ترک چالش",
+      });
+      if (!confirmed) return;
       const challengeId = btn.dataset.challengeId;
       btn.disabled = true;
-      try {
-        const res = await fetch(`/enrollments/${challengeId}`, { method: "DELETE" });
-        if (res.status === 401) {
-          window.location.href = "/views/auth/?next=/views/home/";
-          return;
-        }
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          alert("خطا: " + (err.detail || res.statusText));
-          btn.disabled = false;
-          return;
-        }
-        // Leaving a challenge moves the today ring, both streak tiles, the
-        // week counter and the active count at once. Same rule as the
-        // check-in mutations on challenge-detail: patching derived figures by
-        // hand is how they drift apart, so the page is re-derived instead.
-        window.location.reload();
-      } catch (err) {
-        alert("خطای شبکه: " + err.message);
+      const result = await apiFetch(`/enrollments/${challengeId}`, { method: "DELETE" });
+      if (result.status === 401) return; // apiFetch is already redirecting
+      if (!result.ok) {
+        showRequestError(result, "ترک چالش");
         btn.disabled = false;
+        return;
       }
+      // Leaving a challenge moves the today ring, both streak tiles, the
+      // week counter and the active count at once. Same rule as the
+      // check-in mutations on challenge-detail: patching derived figures by
+      // hand is how they drift apart, so the page is re-derived instead.
+      window.location.reload();
     });
   });
 </script>

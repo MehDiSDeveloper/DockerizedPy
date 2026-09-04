@@ -79,11 +79,27 @@ def avatar_url(value: str | None) -> str:
     return f"/static/img/avatars/{avatar_id}.svg"
 
 
+def avatar_catalogue() -> list[dict]:
+    """The pickable ids, in the catalogue's own order (the picker grid's).
+
+    One list for both surfaces that offer a picture from it -- a member's
+    avatar and a group's emblem are the same kind of value -- so a page
+    shipping the options to a picker never rebuilds the shape itself.
+    """
+    return [{"id": a, "url": avatar_url(a)} for a in AVATAR_IDS]
+
+
 def register_avatar_filters(env) -> None:
     """Expose ``avatar_url`` on one templates environment.
 
     Every views router builds its own ``Jinja2Templates`` (same as
     ``register_icon_filters``), so each one rendering a member has to call
     this or the filter is missing at render time.
+
+    The catalogue rides along as a global, because the create picker
+    (`create.js`) can be opened from any page carrying a FAB and its group
+    sheet offers an emblem -- plumbing that list through four unrelated route
+    contexts would be four places to forget it.
     """
     env.filters["avatar_url"] = avatar_url
+    env.globals["avatar_catalogue"] = avatar_catalogue()

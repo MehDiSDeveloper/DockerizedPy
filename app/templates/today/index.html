@@ -18,15 +18,14 @@
   <section class="hero">
     {#- The topbar already says "امروز"; the eyebrow spends its line on the
         thing the header can't tell you -- which day that actually is. -#}
-    <p class="hero-eyebrow" data-jalali="{{ local_today }}"
-       data-jalali-format="weekday-day-month">{{ local_today }}</p>
+    <p class="hero-eyebrow">{{ local_today | jalali('weekday-day-month') }}</p>
     <h1 class="hero-title">سلام <b>{{ user.name }}</b> 👋<br/>این‌ها منتظر ثبت شدنن.</h1>
   </section>
 
   <!-- stats -->
   <section class="stats">
     <div class="stat-card glass accent" data-tour="today-count">
-      <span class="stat-num" id="todayCount">{{ total_count }}</span>
+      <span class="stat-num" id="todayCount">{{ total_count | fa_num }}</span>
       <span class="stat-label">مانده تا پایان امروز</span>
     </div>
   </section>
@@ -45,7 +44,8 @@
     </div>
     <div class="empty" id="todayEmpty" {{ 'hidden' if items }}>
       <span data-icon="seal"></span>
-      <p>امروز چیزی برای ثبت نداری. یه نفس بکش 🎉</p>
+      <p>امروز چیزی برای ثبت نداری. یک نفس بکش.</p>
+      <p class="empty-hint">اگر جای خالی داری، از فهرست چالش‌ها یکی بردار.</p>
     </div>
     <div class="scroll-sentinel" id="todaySentinel" aria-hidden="true"></div>
     <div class="list-loading" id="todayLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
@@ -106,14 +106,14 @@
 
         const { ok, data } = await apiFetch("/checkins/", { method: "POST", body: payload });
         if (!ok) {
-          showToast("خطا: " + (data && data.detail ? data.detail : "ثبت انجام نشد"));
+          showToast((data && data.detail ? data.detail : "ثبت انجام نشد. دوباره تلاش کن."));
           return false;
         }
 
         card.remove();
         scroller.notifyRemoved();
-        showToast(state === "completed" ? "ثبت شد ✅" : "انجام ندادم");
-        if (countEl) countEl.textContent = Math.max(0, Number(countEl.textContent) - 1);
+        showToast(state === "completed" ? "ثبت شد" : "انجام ندادم");
+        if (countEl) countEl.textContent = faDigits(Math.max(0, parseFaNumber(countEl.textContent) - 1));
         if (!listEl.querySelector("[data-today-item]")) {
           emptyEl.hidden = false;
         }

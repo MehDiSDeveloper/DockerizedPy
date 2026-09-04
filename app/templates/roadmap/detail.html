@@ -55,27 +55,27 @@
   <div class="rm-mark"><span data-icon="route"></span></div>
   <div class="detail-tags">
     {% if roadmap.strict %}
-    <span class="cc-tag"><span data-icon="lock"></span>ترتیب اجباری</span>
+    <span class="pill pill-tag"><span data-icon="lock"></span>ترتیب اجباری</span>
     {% else %}
-    <span class="cc-tag"><span data-icon="route"></span>ترتیب پیشنهادی</span>
+    <span class="pill pill-tag"><span data-icon="route"></span>ترتیب پیشنهادی</span>
     {% endif %}
     {% if roadmap.visibility != 'public' %}
-    <span class="cc-tag">{{ 'با لینک' if roadmap.visibility == 'unlisted' else 'خصوصی' }}</span>
+    <span class="pill pill-tag">{{ 'با لینک' if roadmap.visibility == 'unlisted' else 'خصوصی' }}</span>
     {% endif %}
-    {% if is_archived %}<span class="cc-tag warn">بایگانی‌شده</span>{% endif %}
+    {% if is_archived %}<span class="pill pill-tag warn">بایگانی‌شده</span>{% endif %}
   </div>
   <h1>{{ roadmap.title }}</h1>
   {% if owner %}
   <p class="rm-owner">ساختهٔ {{ owner.name }}</p>
   {% endif %}
   <div class="detail-stats">
-    <div><b>{{ step_count }}</b><span>قدم</span></div>
-    <div><b>{{ member_count }}</b><span>نفر</span></div>
+    <div><b>{{ step_count | fa_num }}</b><span>قدم</span></div>
+    <div><b>{{ member_count | fa_num }}</b><span>نفر</span></div>
     {% if is_walking %}
-    <div><b>{{ summary.pct }}٪</b><span>پیشرفت</span></div>
+    <div><b>{{ summary.pct | fa_num }}٪</b><span>پیشرفت</span></div>
     {% else %}
     <div><b data-jalali="{{ roadmap.created_at.isoformat() }}"
-        data-jalali-format="numeric">{{ roadmap.created_at.strftime('%Y-%m-%d') }}</b><span>ساخته شد</span></div>
+        data-jalali-format="numeric">{{ roadmap.created_at | jalali('numeric') }}</b><span>ساخته شد</span></div>
     {% endif %}
   </div>
 </div>
@@ -105,7 +105,7 @@
   <div class="section-head">
     <h2>قدم‌ها{{ explain("roadmap-step-state") }}</h2>
     {% if is_walking %}
-    <span class="cc-tag">{{ summary.done }} از {{ summary.total }}</span>
+    <span class="pill pill-tag">{{ summary.done | fa_num }} از {{ summary.total | fa_num }}</span>
     {% endif %}
   </div>
 
@@ -121,11 +121,11 @@
       <span class="rs-node" aria-hidden="true">
         {% if s.state in ('completed', 'skipped') %}
         <span data-icon="{{ step_state_icons.get(s.state, 'check') }}"></span>
-        {% else %}{{ s.index }}{% endif %}
+        {% else %}{{ s.index | fa_num }}{% endif %}
       </span>
       <div class="rs-card glass">
         <div class="rs-head">
-          <span class="rs-num">قدم {{ s.index }}{% if not s.required %} · دلخواه{% endif %}</span>
+          <span class="rs-num">قدم {{ s.index | fa_num }}{% if not s.required %} · دلخواه{% endif %}</span>
           <span class="rs-state">
             <span data-icon="{{ step_state_icons.get(s.state, 'lock') }}"></span>
             {{ step_state_labels.get(s.state, s.state) }}
@@ -163,7 +163,7 @@
           aria-label="{{ s.progress.done }} از {{ s.progress.total }}">
           <span style="width:{{ s.progress.pct }}%"></span>
         </div>
-        <p class="rs-count">{{ s.progress.done }} از {{ s.progress.total }}</p>
+        <p class="rs-count">{{ s.progress.done | fa_num }} از {{ s.progress.total | fa_num }}</p>
         {% endif %}
 
         {#- What you can do about it, right here. A locked step of a
@@ -174,7 +174,7 @@
         <div class="rs-actions">
           {% if s.state == 'locked' and not s.is_open %}
           <p class="rs-wait"><span data-icon="lock"></span>بعد از تمام شدن قدم
-            {{ s.index - 1 }} باز می‌شود.</p>
+            {{ (s.index - 1) | fa_num }} باز می‌شود.</p>
           {% elif s.state == 'locked' %}
           <p class="rs-wait"><span data-icon="route"></span>هنوز وعده‌اش نیست، ولی اگر
             آماده‌ای می‌توانی زودتر شروعش کنی.</p>
@@ -220,13 +220,13 @@
           stroke-dasharray="{{ (summary.pct * 1.2566) | round(2) }} 125.66"></circle>
       </svg>
       <div class="ring-center">
-        <b>{{ summary.pct }}٪</b>
-        <span>{{ summary.done }}/{{ summary.total }}</span>
+        <b>{{ summary.pct | fa_num }}٪</b>
+        <span>{{ summary.done | fa_num }}/{{ summary.total | fa_num }}</span>
       </div>
     </div>
     <ul class="ring-legend">
-      <li><span class="lg-dot ok"></span>قدم‌های تمام‌شده<b>{{ summary.done }}</b></li>
-      <li><span class="lg-dot wait"></span>باقی‌مانده<b>{{ summary.total - summary.done }}</b></li>
+      <li><span class="lg-dot ok"></span>قدم‌های تمام‌شده<b>{{ summary.done | fa_num }}</b></li>
+      <li><span class="lg-dot wait"></span>باقی‌مانده<b>{{ (summary.total - summary.done) | fa_num }}</b></li>
     </ul>
   </section>
 
@@ -236,7 +236,7 @@
     <p class="rm-current-title">{{ summary.current.title }}</p>
     <p class="rm-current-rule">{{ summary.current.rule_text }}</p>
     {% if summary.current.visible %}
-    <a class="btn-primary" href="/views/challenges/{{ summary.current.challenge_id }}">
+    <a class="btn btn-primary" href="/views/challenges/{{ summary.current.challenge_id }}">
       <span data-icon="chevronLeft"></span>رفتن به چالش
     </a>
     {% endif %}
@@ -280,13 +280,13 @@
   <section class="detail-section glass">
     <h2>جزئیات</h2>
     <dl class="fact-list">
-      <div class="fact"><dt>تعداد قدم</dt><dd>{{ step_count }}</dd></div>
-      <div class="fact"><dt>تعداد همراه</dt><dd>{{ member_count }}</dd></div>
+      <div class="fact"><dt>تعداد قدم</dt><dd>{{ step_count | fa_num }}</dd></div>
+      <div class="fact"><dt>تعداد همراه</dt><dd>{{ member_count | fa_num }}</dd></div>
       <div class="fact"><dt>ترتیب</dt>
         <dd>{{ 'اجباری' if roadmap.strict else 'پیشنهادی' }}</dd></div>
       {% if owner %}<div class="fact"><dt>سازنده</dt><dd>{{ owner.name }}</dd></div>{% endif %}
       <div class="fact"><dt>ساخته شد</dt><dd data-jalali="{{ roadmap.created_at.isoformat() }}"
-          data-jalali-format="day-month-year">{{ roadmap.created_at.strftime('%Y-%m-%d') }}</dd></div>
+          data-jalali-format="day-month-year">{{ roadmap.created_at | jalali('day-month-year') }}</dd></div>
     </dl>
     {#- Said plainly, on the panel that explains what this place is. Both
         halves are true of the code -- `roadmap_scope_filter` is what opens a
@@ -305,7 +305,7 @@
 {% if not is_walking and not is_archived %}
 <div class="sticky-cta">
   <div class="cta-row">
-    <button class="btn-primary" id="rmStart">
+    <button class="btn btn-primary" id="rmStart">
       <span data-icon="route"></span>شروع این مسیر
     </button>
   </div>
@@ -389,7 +389,7 @@
       );
       if (!ok) {
         btn.disabled = false;
-        showToast((data && data.detail) || "ثبت انجام نشد");
+        showToast((data && data.detail) || "ثبت انجام نشد. دوباره تلاش کن.");
         return;
       }
       // Finishing a step can open the next one, which writes an enrollment.
@@ -417,7 +417,7 @@
                 method: "DELETE",
               });
               if (!ok) {
-                showToast((data && data.detail) || "انجام نشد");
+                showToast((data && data.detail) || "این کار انجام نشد. دوباره تلاش کن.");
                 return false;
               }
               window.location.reload();

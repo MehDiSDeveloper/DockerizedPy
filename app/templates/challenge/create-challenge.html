@@ -9,9 +9,15 @@
 </style>
 {% endblock %}
 
-{% block topbar_action %}
+{#- The way out, in the slot every other page keeps its way out in. It used
+    to sit in the action slot on the far side of the header, which is where
+    the bell and the gear live -- so the one control this screen owes the
+    member was the one place they were not looking for it. -#}
+{% block topbar_leading %}
 <button class="icon-btn" aria-label="بستن" data-icon="x" id="wizardCloseBtn"></button>
 {% endblock %}
+
+{% block topbar_action %}{% endblock %}
 
 {#- The wizard is a modal-ish flow with its own stepper and close button;
     a breadcrumb trail into a half-filled form would be misleading. It still
@@ -25,7 +31,7 @@
   <div class="stepper" style="margin-top:12px;">
     <div class="step active" data-step="1"><div class="step-dot">۱</div><span>اطلاعات</span></div>
     <div class="step" data-step="2"><div class="step-dot">۲</div><span>دسته‌بندی</span></div>
-    <div class="step" data-step="3"><div class="step-dot">۳</div><span>تایید</span></div>
+    <div class="step" data-step="3"><div class="step-dot">۳</div><span>تأیید</span></div>
   </div>
 
   {#- The group banner, and the *only* visible difference this wizard has for
@@ -54,13 +60,13 @@
     <div class="field">
       <label>توضیحات</label>
       <div class="textarea-field">
-        <textarea id="cDesc" maxlength="500" placeholder="این چالش دربارهٔ چیه؟"></textarea>
+        <textarea id="cDesc" maxlength="500" placeholder="این چالش دربارهٔ چیست؟"></textarea>
       </div>
     </div>
     <div class="field">
       <label>قوانین (اختیاری)</label>
       <div class="textarea-field">
-        <textarea id="cRules" maxlength="1000" placeholder="قوانین چالش چیه؟ مثلاً: هر روز قبل از ساعت ۱۲ شب ثبت کن."></textarea>
+        <textarea id="cRules" maxlength="1000" placeholder="قوانین چالش چیست؟ مثلاً: هر روز قبل از ساعت ۱۲ شب ثبت کن."></textarea>
       </div>
     </div>
     <div class="field">
@@ -83,22 +89,22 @@
         <div class="ipf" data-ipf="image_square" data-ipf-frame="challenge_square">
           <div class="ipf-preview is-square"><span data-icon="image"></span></div>
           <div class="ipf-acts">
-            <button type="button" class="cc-btn ghost sm" data-ipf-pick>انتخاب عکس</button>
-            <button type="button" class="cc-btn ghost sm ipf-clear" data-ipf-clear hidden>حذف</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-ipf-pick>انتخاب عکس</button>
+            <button type="button" class="btn btn-ghost btn-sm ipf-clear" data-ipf-clear hidden>حذف</button>
           </div>
           <p class="field-note">تصویر کارت — صفحهٔ چالش و کارت‌ها</p>
         </div>
         <div class="ipf" data-ipf="image_tall" data-ipf-frame="challenge_tall">
           <div class="ipf-preview is-tall"><span data-icon="image"></span></div>
           <div class="ipf-acts">
-            <button type="button" class="cc-btn ghost sm" data-ipf-pick>انتخاب عکس</button>
-            <button type="button" class="cc-btn ghost sm ipf-clear" data-ipf-clear hidden>حذف</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-ipf-pick>انتخاب عکس</button>
+            <button type="button" class="btn btn-ghost btn-sm ipf-clear" data-ipf-clear hidden>حذف</button>
           </div>
           <p class="field-note">تصویر سربرگ — نمای کارتی</p>
         </div>
       </div>
     </div>
-    <button class="btn-primary" data-next>مرحلهٔ بعد <span data-icon="chevronLeft"></span></button>
+    <button class="btn btn-primary" data-next>مرحلهٔ بعد <span data-icon="chevronLeft"></span></button>
   </div>
 
   <!-- step 2 -->
@@ -172,7 +178,7 @@
     <div class="field" id="scheduleFields" style="margin-top:18px; display:none;">
       <label>زمان‌های برنامه‌ریزی‌شده</label>
       <div id="scheduleList"></div>
-      <button type="button" id="addScheduleBtn" class="btn-primary" style="background:var(--glass); color:var(--text-1); box-shadow:none; border:1px solid var(--border); width:100%;">
+      <button type="button" id="addScheduleBtn" class="btn btn-primary" style="background:var(--glass); color:var(--text-1); box-shadow:none; border:1px solid var(--border); width:100%;">
         <span data-icon="plus"></span> افزودن زمان
       </button>
     </div>
@@ -230,7 +236,7 @@
     <div class="field" style="margin-top:18px;">
       <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
         <input type="checkbox" id="cHasGoal" />
-        این چالش هدف جمعی داره (مثلاً مجموع کیلومتر یا مبلغ)
+        این چالش هدف جمعی دارد (مثلاً مجموع کیلومتر یا مبلغ)
       </label>
     </div>
     <div id="goalFields" style="display:none;">
@@ -251,15 +257,15 @@
     </div>
 
     <div style="display:flex; gap:10px; margin-top:8px;">
-      <button class="btn-primary" style="background:var(--glass); color:var(--text-1); box-shadow:none; border:1px solid var(--border);" data-prev>قبلی</button>
-      <button class="btn-primary" data-next>مرحلهٔ بعد <span data-icon="chevronLeft"></span></button>
+      <button class="btn btn-primary" style="background:var(--glass); color:var(--text-1); box-shadow:none; border:1px solid var(--border);" data-prev>قبلی</button>
+      <button class="btn btn-primary" data-next>مرحلهٔ بعد <span data-icon="chevronLeft"></span></button>
     </div>
   </div>
 
   <!-- step 3 -->
   <div class="form-page" data-page="3">
     <div class="challenge-card glass" style="margin-bottom:18px;">
-      <div class="cc-top"><span class="cc-tag" id="reviewCat">دسته‌بندی</span></div>
+      <div class="cc-top"><span class="pill pill-tag" id="reviewCat">دسته‌بندی</span></div>
       <h3 class="cc-title" id="reviewTitle">عنوان چالش</h3>
       <p class="cc-desc" id="reviewDesc">توضیحات چالش</p>
       <div class="cc-meta">
@@ -291,8 +297,8 @@
     </div>
     {% endif %}
     <div style="display:flex; gap:10px;">
-      <button class="btn-primary" style="background:var(--glass); color:var(--text-1); box-shadow:none; border:1px solid var(--border);" data-prev>ویرایش</button>
-      <button class="btn-primary" id="publishBtn"><span data-icon="check"></span> انتشار چالش</button>
+      <button class="btn btn-primary" style="background:var(--glass); color:var(--text-1); box-shadow:none; border:1px solid var(--border);" data-prev>ویرایش</button>
+      <button class="btn btn-primary" id="publishBtn"><span data-icon="check"></span> انتشار چالش</button>
     </div>
   </div>
 {% endblock %}
@@ -309,10 +315,29 @@
 <script src="{{ url_for('static', path='/js/imagepick.js') }}"></script>
 
 <script>
-document.getElementById("wizardCloseBtn").addEventListener("click", () => {
+// Where closing the wizard lands. `create.js` carries the page the «+» was
+// tapped on in `?from=`, so backing out of a half-filled form puts the member
+// back where they were rather than on a list they never came from. Only an
+// in-app path is honoured -- an absolute URL in a query string is somebody
+// else's redirect.
+function exitTo() {
+  const from = new URLSearchParams(window.location.search).get("from");
+  return from && from.startsWith("/") && !from.startsWith("//")
+    ? from
+    : "/views/challenges/";
+}
+
+document.getElementById("wizardCloseBtn").addEventListener("click", async () => {
   const hasInput = document.getElementById("cTitle").value.trim() || document.getElementById("cDesc").value.trim();
-  if (hasInput && !confirm("این چالش هنوز منتشر نشده. مطمئنی می‌خوای خارج بشی؟")) return;
-  window.location.href = "/views/challenges/";
+  if (hasInput) {
+    const confirmed = await confirmSheet({
+      title: "خروج از ساخت چالش",
+      text: "این چالش هنوز منتشر نشده و آنچه نوشته‌ای از بین می‌رود.",
+      confirmLabel: "خروج بدون ذخیره",
+    });
+    if (!confirmed) return;
+  }
+  window.location.href = exitTo();
 });
 
 // Mirrors CATEGORY_ICONS in app/icons.py -- this grid is the one place a
@@ -630,7 +655,7 @@ const cadenceKindLabels = Object.fromEntries(cadenceKinds.map(o => [o.value, o.l
 const visibilityNotes = {
   public: "بعد از انتشار، چالش برای همه در فهرست عمومی قابل مشاهده و ثبت‌نامه.",
   unlisted: "این چالش در فهرست عمومی نشون داده نمی‌شه، ولی هر کسی با لینکش می‌تونه ببینتش.",
-  private: "این چالش فقط برای خودت و افرادی که مستقیم اضافه می‌کنی قابل مشاهده‌ست.",
+  private: "این چالش فقط برای خودت و افرادی که مستقیم اضافه می‌کنی قابل مشاهده است.",
 };
 
 // Inside a group, "public" means public *to the group* -- membership is a
@@ -668,7 +693,7 @@ function goTo(n) {
       const count = selectedAudience === "selected" ? pickedMemberIds().length : null;
       groupLine.textContent = count === null
         ? `${audience.label} — شرکت ${participation.label}.`
-        : `${count} نفر انتخاب شده — شرکت ${participation.label}.`;
+        : `${faDigits(count)} نفر انتخاب شده — شرکت ${participation.label}.`;
     }
     const identity = identityOptions.find(o => o.value === selectedIdentity);
     document.getElementById("reviewIdentityNote").textContent =
@@ -684,18 +709,18 @@ document.querySelectorAll("[data-next]").forEach(btn => {
       // fails here in Farsi instead of as a raw 422 at publish time.
       const title = document.getElementById("cTitle").value.trim();
       if (!title) {
-        alert("لطفاً عنوان چالش رو وارد کن.");
+        showToast("عنوان چالش را وارد کن.");
         return;
       }
       if (title.length < 3) {
-        alert("عنوان چالش باید حداقل ۳ حرف باشه.");
+        showToast("عنوان چالش باید حداقل ۳ حرف باشد.");
         return;
       }
     }
     if (current === 2) {
       const err = validateCadence();
       if (err) {
-        alert(err);
+        showToast(err);
         return;
       }
     }
@@ -838,32 +863,22 @@ document.getElementById("publishBtn").addEventListener("click", async () => {
     payload.goal_unit = document.getElementById("cGoalUnit").value.trim();
   }
 
-  try {
-    const res = await fetch("/views/challenges/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
+  // The body is JSON, not form-encoded -- this route takes a Pydantic model
+  // (CLAUDE.md), which is exactly what apiFetch sends.
+  const result = await apiFetch("/views/challenges/create", { method: "POST", body: payload });
 
-    if (res.status === 401) {
-      window.location.href = "/views/auth/?next=/views/challenges/create";
-      return;
-    }
+  if (result.status === 401) return; // apiFetch is already redirecting
 
-    if (!res.ok) {
-      // err.detail is a string for our own HTTPExceptions, but a list of
-      // Pydantic issues on a 422 -- never dump that at the user.
-      const err = await res.json().catch(() => ({}));
-      const detail = typeof err.detail === "string" ? err.detail : "اطلاعات واردشده معتبر نیست.";
-      alert("خطا در ثبت چالش: " + detail);
-      return;
-    }
-
-    const data = await res.json();
-    window.location.href = "/views/challenges/" + data.id;
-  } catch (e) {
-    alert("خطای شبکه: " + e.message);
+  if (!result.ok) {
+    // detail is a string for our own HTTPExceptions, but a list of Pydantic
+    // issues on a 422 -- never dump that at the user, so a 422 falls through
+    // to showRequestError's own line.
+    if (result.status === 422) showToast("اطلاعات واردشده معتبر نیست.");
+    else showRequestError(result, "ثبت چالش");
+    return;
   }
+
+  window.location.href = "/views/challenges/" + result.data.id;
 });
 </script>
 {% endblock %}

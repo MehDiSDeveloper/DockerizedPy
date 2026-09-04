@@ -35,9 +35,9 @@ async def _subject(
     try:
         subject = ReactionSubject(subject_type)
     except ValueError:
-        raise HTTPException(status_code=404, detail="چنین موردی وجود ندارد") from None
+        raise HTTPException(status_code=404, detail="چنین موردی وجود ندارد.") from None
     if not await subject_is_visible(db, subject, subject_id, user_id):
-        raise HTTPException(status_code=404, detail="چنین موردی وجود ندارد")
+        raise HTTPException(status_code=404, detail="چنین موردی وجود ندارد.")
     return subject
 
 

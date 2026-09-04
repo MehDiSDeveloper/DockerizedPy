@@ -107,7 +107,7 @@
       <h2>ساختار{{ explain("subgroup") }}</h2>
       {% if can_create_subgroup %}
       <button type="button" class="icon-btn xs accent" id="grNewSubgroup"
-        aria-label="ساختن زیرگروه" title="ساختن زیرگروه"><span data-icon="plus"></span></button>
+        aria-label="ساخت زیرگروه" title="ساخت زیرگروه"><span data-icon="plus"></span></button>
       {% endif %}
     </div>
     {% if parent_group %}
@@ -154,19 +154,19 @@
         <div class="mi-icon"><span data-icon="link"></span></div>
         <div class="sr-text">
           <span class="sr-label">لینک همیشگی گروه</span>
-          <span class="sr-hint" id="grPublicHint">{% if public_invite %}ورود با تایید تو{% else %}هنوز
+          <span class="sr-hint" id="grPublicHint">{% if public_invite %}ورود با تأیید تو{% else %}هنوز
             ساخته نشده{% endif %}</span>
         </div>
         <div class="sr-actions" id="grPublicActions">
           {% if public_invite %}
           <button type="button" class="icon-btn xs" data-public-rotate
-            aria-label="غیرفعال کردن لینک عمومی و ساختن لینک جدید" title="لینک جدید"><span
+            aria-label="غیرفعال کردن لینک عمومی و ساخت لینک جدید" title="لینک جدید"><span
               data-icon="refresh"></span></button>
           <button type="button" class="icon-btn xs accent" data-public-copy aria-label="کپی لینک عمومی"
             title="کپی"><span data-icon="copy"></span></button>
           {% else %}
           <button type="button" class="icon-btn xs accent" data-public-create
-            aria-label="ساختن لینک عمومی" title="ساختن لینک"><span data-icon="plus"></span></button>
+            aria-label="ساخت لینک عمومی" title="ساخت لینک"><span data-icon="plus"></span></button>
           {% endif %}
         </div>
       </div>
@@ -184,7 +184,7 @@
   <section class="setting-group">
     <div class="sg-head">
       <h2>لینک‌های دعوت{{ explain("invite-link") }}</h2>
-      <button type="button" class="icon-btn xs accent" id="grNewInvite" aria-label="ساختن لینک دعوت جدید"
+      <button type="button" class="icon-btn xs accent" id="grNewInvite" aria-label="ساخت لینک دعوت جدید"
         title="لینک جدید"><span data-icon="plus"></span></button>
     </div>
     <div id="grInvites">
@@ -198,10 +198,10 @@
             <span class="sr-hint">{% if i.max_uses %}{{ i.uses }} از {{ i.max_uses }}{% else %}{{ i.uses }}
               نفر · نامحدود{% endif %}{% if i.expires_at %} · تا <span
                 data-jalali="{{ i.expires_at.isoformat() }}"
-                data-jalali-format="day-month">{{ i.expires_at.strftime('%Y-%m-%d') }}</span>{% endif %}{%
-              if i.requires_approval %} · با تایید{% endif %}</span>
+                data-jalali-format="day-month">{{ i.expires_at | jalali('day-month') }}</span>{% endif %}{%
+              if i.requires_approval %} · با تأیید{% endif %}</span>
           </div>
-          <span class="invite-pill is-{{ i.state }}">{{ invite_state_labels.get(i.state, i.state) }}</span>
+          <span class="pill pill-invite is-{{ i.state }}">{{ invite_state_labels.get(i.state, i.state) }}</span>
           <div class="sr-actions">
             {% if i.state == 'active' %}
             <button type="button" class="icon-btn xs" data-revoke aria-label="غیرفعال کردن این لینک"
@@ -390,13 +390,13 @@
           });
           if (!ok) {
             // The server's three answers, said in Farsi here: no such
-            // account, already in, or something else. A single "انجام نشد"
+            // account, already in, or something else. A single generic refusal
             // would leave the administrator retyping a number that was never
             // the problem.
             showToast(
               status === 404 ? "حسابی با این شماره پیدا نشد"
                 : status === 409 ? "این شخص همین حالا هم عضو گروه است"
-                  : "خطا: " + ((data && data.detail) || "انجام نشد")
+                  : ((data && data.detail) || "این کار انجام نشد. دوباره تلاش کن.")
             );
             return false;
           }
@@ -419,7 +419,7 @@
       const n = requestsEl.children.length;
       noRequests.hidden = n > 0;
       pendingCount.hidden = n === 0;
-      pendingCount.textContent = n;
+      pendingCount.textContent = faDigits(n);
     }
 
     requestsEl.addEventListener("click", async (e) => {
@@ -432,7 +432,7 @@
         `/groups/${GROUP_ID}/requests/${row.dataset.requestId}/${verb}`, { method: "POST" }
       );
       if (!ok) {
-        showToast("خطا: " + ((data && data.detail) || "انجام نشد"));
+        showToast(((data && data.detail) || "این کار انجام نشد. دوباره تلاش کن."));
         return;
       }
       row.remove();
@@ -448,10 +448,10 @@
     function paintPublic(invite) {
       publicRow.dataset.code = invite.code;
       publicRow.dataset.inviteId = invite.id;
-      publicHint.textContent = "ورود با تایید تو";
+      publicHint.textContent = "ورود با تأیید تو";
       publicActions.innerHTML = `
         <button type="button" class="icon-btn xs" data-public-rotate
-          aria-label="غیرفعال کردن لینک عمومی و ساختن لینک جدید" title="لینک جدید">
+          aria-label="غیرفعال کردن لینک عمومی و ساخت لینک جدید" title="لینک جدید">
           <span data-icon="refresh"></span></button>
         <button type="button" class="icon-btn xs accent" data-public-copy
           aria-label="کپی لینک عمومی" title="کپی"><span data-icon="copy"></span></button>`;
@@ -467,7 +467,7 @@
         method: "POST",
       });
       if (!ok) {
-        showToast("ساخت لینک عمومی انجام نشد");
+        showToast("ساخت لینک عمومی انجام نشد. دوباره تلاش کن.");
         return null;
       }
       paintPublic(data);
@@ -497,7 +497,7 @@
             `/groups/${GROUP_ID}/invites/${publicRow.dataset.inviteId}`, { method: "DELETE" }
           );
           if (!ok) {
-            showToast("غیرفعال کردن انجام نشد");
+            showToast("غیرفعال کردن انجام نشد. دوباره تلاش کن.");
             return false;
           }
           publicRow.dataset.code = "";
@@ -528,7 +528,7 @@
             <span class="sr-label"></span>
             <span class="sr-hint"></span>
           </div>
-          <span class="invite-pill is-${inv.state}"></span>
+          <span class="pill pill-invite is-${inv.state}"></span>
           <div class="sr-actions">
             <button type="button" class="icon-btn xs" data-revoke aria-label="غیرفعال کردن این لینک"
               title="غیرفعال کردن"><span data-icon="x"></span></button>
@@ -538,8 +538,8 @@
         </div>`;
       row.querySelector(".sr-label").textContent = inv.label || "لینک دعوت";
       row.querySelector(".sr-hint").textContent =
-        uses + (inv.requires_approval ? " · با تایید" : "");
-      row.querySelector(".invite-pill").textContent = STATE_LABELS[inv.state] || inv.state;
+        uses + (inv.requires_approval ? " · با تأیید" : "");
+      row.querySelector(".pill-invite").textContent = STATE_LABELS[inv.state] || inv.state;
       invitesEl.prepend(row);
       renderIcons(row);
       noInvites.hidden = true;
@@ -568,7 +568,7 @@
               { value: "direct", label: "مستقیم وارد می‌شود", icon: "link" },
               { value: "approval", label: "درخواست می‌دهد", icon: "clock" },
             ],
-            hint: "حالت دوم مثل لینک عمومی است: ورود هرکس به تایید یکی از مدیران گروه بستگی دارد.",
+            hint: "حالت دوم مثل لینک عمومی است: ورود هرکس به تأیید یکی از مدیران گروه بستگی دارد.",
           },
         ],
         onConfirm: async (values) => {
@@ -582,7 +582,7 @@
             },
           });
           if (!ok) {
-            showToast("ساخت لینک انجام نشد");
+            showToast("ساخت لینک انجام نشد. دوباره تلاش کن.");
             return false;
           }
           renderInvite(data);
@@ -609,12 +609,12 @@
             `/groups/${GROUP_ID}/invites/${row.dataset.inviteId}`, { method: "DELETE" }
           );
           if (!ok) {
-            showToast("غیرفعال کردن انجام نشد");
+            showToast("غیرفعال کردن انجام نشد. دوباره تلاش کن.");
             return false;
           }
           row.dataset.inviteState = "revoked";
-          const pill = row.querySelector(".invite-pill");
-          pill.className = "invite-pill is-revoked";
+          const pill = row.querySelector(".pill-invite");
+          pill.className = "pill pill-invite is-revoked";
           pill.textContent = STATE_LABELS.revoked;
           // The state is derived, so the control that only means something on
           // a live link goes with it rather than sitting there refusing.
@@ -677,7 +677,7 @@
               body: spec.body(values),
             });
             if (!ok) {
-              showToast("ذخیره نشد");
+              showToast("ذخیره نشد. دوباره تلاش کن.");
               return false;
             }
             // The name reaches the hero, the breadcrumb and this row at once
@@ -694,7 +694,7 @@
     document.getElementById("grTransfer").addEventListener("click", async () => {
       const { ok, data } = await apiFetch(`/groups/${GROUP_ID}/members?limit=100`);
       if (!ok) {
-        showToast("فهرست اعضا خوانده نشد");
+        showToast("فهرست اعضا خوانده نشد. دوباره تلاش کن.");
         return;
       }
       const others = (data || []).filter((m) => m.role !== "owner");
@@ -718,7 +718,7 @@
             body: { new_owner_user_id: Number(values.user) },
           });
           if (!res.ok) {
-            showToast("خطا: " + ((res.data && res.data.detail) || "انجام نشد"));
+            showToast(((res.data && res.data.detail) || "این کار انجام نشد. دوباره تلاش کن."));
             return false;
           }
           window.location.href = `/views/groups/${GROUP_ID}`;
@@ -742,7 +742,7 @@
             return false;
           }
           if (!ok) {
-            showToast("خطا: " + ((data && data.detail) || "حذف نشد"));
+            showToast(((data && data.detail) || "حذف انجام نشد. دوباره تلاش کن."));
             return false;
           }
           window.location.href = "/views/groups/";

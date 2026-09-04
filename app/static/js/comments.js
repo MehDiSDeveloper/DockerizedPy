@@ -25,15 +25,15 @@
 // challenge's title, and the count already rendered on the control.
 
 function initCommentModal() {
-  const modal = document.getElementById("cmModal");
+  const modal = document.getElementById("cmtModal");
   if (!modal) return;
 
-  const titleEl = document.getElementById("cmModalTitle");
-  const totalEl = document.getElementById("cmTotal");
-  const listEl = document.getElementById("cmList");
-  const scrollEl = document.getElementById("cmScroll");
-  const emptyEl = document.getElementById("cmEmpty");
-  const signInEl = document.getElementById("cmSignIn");
+  const titleEl = document.getElementById("cmtModalTitle");
+  const totalEl = document.getElementById("cmtTotal");
+  const listEl = document.getElementById("cmtList");
+  const scrollEl = document.getElementById("cmtScroll");
+  const emptyEl = document.getElementById("cmtEmpty");
+  const signInEl = document.getElementById("cmtSignIn");
 
   let subjectId = null;
   // The control that opened it. Kept so a sent comment moves the number the
@@ -91,7 +91,7 @@ function initCommentModal() {
     scroller.reset();
 
     if (!pushed) {
-      history.pushState({ cmModal: true }, "");
+      history.pushState({ cmtModal: true }, "");
       pushed = true;
     }
   }
@@ -110,14 +110,14 @@ function initCommentModal() {
 
   function setTotal(n) {
     totalEl.dataset.total = String(n);
-    totalEl.textContent = n + " نظر";
+    totalEl.textContent = window.faDigits(n) + " نظر";
   }
 
   function buildScroller() {
     return createInfiniteScroller({
       container: listEl,
-      sentinel: document.getElementById("cmSentinel"),
-      loadingEl: document.getElementById("cmLoading"),
+      sentinel: document.getElementById("cmtSentinel"),
+      loadingEl: document.getElementById("cmtLoading"),
       emptyEl,
       pageSize: 10,
       initialOffset: 0,
@@ -188,14 +188,14 @@ function initCommentModal() {
 
   // ---- the composer --------------------------------------------------------
 
-  const composer = document.getElementById("cmComposer");
+  const composer = document.getElementById("cmtComposer");
   if (!composer) return;
 
-  const bodyEl = document.getElementById("cmBody");
-  const sendEl = document.getElementById("cmSend");
-  const emojiBtn = document.getElementById("cmEmojiBtn");
-  const replyingEl = document.getElementById("cmReplying");
-  const replyNameEl = document.getElementById("cmReplyName");
+  const bodyEl = document.getElementById("cmtBody");
+  const sendEl = document.getElementById("cmtSend");
+  const emojiBtn = document.getElementById("cmtEmojiBtn");
+  const replyingEl = document.getElementById("cmtReplying");
+  const replyNameEl = document.getElementById("cmtReplyName");
 
   let parentId = null;
   // Where the next emoji goes. Remembered rather than read at insert time:
@@ -253,7 +253,7 @@ function initCommentModal() {
     sync();
   }
 
-  document.getElementById("cmReplyCancel").addEventListener("click", cancelReply);
+  document.getElementById("cmtReplyCancel").addEventListener("click", cancelReply);
 
   // ---- the emoji keyboard --------------------------------------------------
   // It writes into the text at the caret rather than sending anything of its
@@ -283,17 +283,17 @@ function initCommentModal() {
       try {
         await loadCatalogue();
       } catch (err) {
-        showToast("صفحه‌کلید اموجی بارگذاری نشد.");
+        showToast("صفحه‌کلید اموجی بارگذاری نشد. دوباره تلاش کن.");
         return;
       }
       // Built after the catalogue lands: createEmojiPicker reads
       // `window.EMOJI_GROUPS` once, when it draws its tabs.
       picker = createEmojiPicker({
-        panel: document.getElementById("cmEmoji"),
-        tabsEl: document.getElementById("cmEmojiTabs"),
-        labelEl: document.getElementById("cmEmojiLabel"),
-        gridEl: document.getElementById("cmEmojiGrid"),
-        emptyEl: document.getElementById("cmEmojiEmpty"),
+        panel: document.getElementById("cmtEmoji"),
+        tabsEl: document.getElementById("cmtEmojiTabs"),
+        labelEl: document.getElementById("cmtEmojiLabel"),
+        gridEl: document.getElementById("cmtEmojiGrid"),
+        emptyEl: document.getElementById("cmtEmojiEmpty"),
         onPick: (char) => {
           const value = bodyEl.value;
           const at = Math.min(caret, value.length);
@@ -377,7 +377,7 @@ function initCommentModal() {
     if (!opener) return;
     opener.dataset.commentsCount = String(n);
     const el = opener.querySelector("[data-comment-count]");
-    if (el) el.textContent = String(n);
+    if (el) el.textContent = window.faDigits(n);
   }
 
   sync();

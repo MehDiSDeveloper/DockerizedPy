@@ -29,7 +29,7 @@
     aria-label="{{ card.progress.done }} از {{ card.progress.total }}">
     <span style="width:{{ card.progress.pct }}%"></span>
   </div>
-  <p class="rs-count">{{ card.progress.done }} از {{ card.progress.total }}</p>
+  <p class="rs-count">{{ card.progress.done | fa_num }} از {{ card.progress.total | fa_num }}</p>
   {% endif %}
 </div>
 {% endfor %}

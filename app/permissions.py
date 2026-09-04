@@ -353,3 +353,35 @@ def can(
     if r_role is None:
         return False
     return permission in ROADMAP_GRANTS.get(r_role, frozenset())
+
+
+# --- presentation: which roles a roster paints as elevated ---------------
+# The four axes never merge as *permissions* -- that is the whole point of
+# this module. But every roster in the app draws the same accent on the role
+# pill of somebody who runs the thing being listed, and that one presentation
+# decision had been written four different ways (`== 'admin'` on the member
+# roster, `== 'owner'` on the participant roster, `in ('owner','admin')` on
+# the group roster, a hardcoded class on the profile). One set, asked by one
+# filter, so a new elevated role is a row here rather than a sweep.
+#
+# It is deliberately *not* `can()`: a pill is handed a role string and no
+# object, so there is no permission to ask about -- and a filter that looked
+# like a permission check would invite being used as one.
+ELEVATED_ROLES = frozenset(
+    {
+        UserRole.ADMIN.value,
+        ChallengeRole.OWNER.value,
+        GroupRole.OWNER.value,
+        GroupRole.ADMIN.value,
+    }
+)
+
+
+def role_is_elevated(role: str | None) -> bool:
+    """True for a role that runs the thing it is scoped to, on any axis."""
+    return role in ELEVATED_ROLES
+
+
+def register_role_filters(env) -> None:
+    """Expose the role-pill helper to one Jinja environment."""
+    env.filters["role_is_elevated"] = role_is_elevated

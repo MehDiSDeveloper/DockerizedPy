@@ -366,7 +366,7 @@ async def test_anonymous_participant_keeps_the_score_and_loses_the_name(
     assert ANONYMOUS_NAME in response.text
     # The row is still there, and still carries its figure: dropping it would
     # let everyone else derive who is missing.
-    assert ">7<" in response.text
+    assert ">۷<" in response.text
 
 
 async def test_an_anonymous_member_still_sees_their_own_name(

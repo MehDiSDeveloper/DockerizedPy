@@ -37,7 +37,7 @@
   <section class="setting-group">
     <div class="section-head">
       <h2>{{ enrolled_count }} از {{ member_count }} عضو</h2>
-      <span class="cc-tag {{ 'accent' if challenge.participation_mode == 'mandatory' }}">{{
+      <span class="pill pill-tag {{ 'accent' if challenge.participation_mode == 'mandatory' }}">{{
         participation_labels.get(challenge.participation_mode, '') }}</span>
     </div>
 
@@ -56,7 +56,7 @@
       <div class="setting-row glass member-row" data-member-id="{{ m.user_id }}"
         data-member-name="{{ m.name }}" data-enrolled="{{ 'true' if m.enrolled else 'false' }}">
         <div class="sr-head">
-          <img class="mr-avatar" src="{{ m.avatar | avatar_url }}" alt="" width="36" height="36"
+          <img class="avatar avatar-lg avatar-square" src="{{ m.avatar | avatar_url }}" alt="" width="36" height="36"
             loading="lazy">
           <div class="sr-text">
             <span class="sr-label">{{ m.name }}</span>
@@ -111,7 +111,7 @@
       if (!res.ok) {
         input.checked = !wanted;
         stateText.textContent = !wanted ? "در این چالش هست" : "در این چالش نیست";
-        showToast("خطا: " + ((res.data && res.data.detail) || "انجام نشد"));
+        showToast(((res.data && res.data.detail) || "این کار انجام نشد. دوباره تلاش کن."));
         return;
       }
       row.dataset.enrolled = wanted ? "true" : "false";

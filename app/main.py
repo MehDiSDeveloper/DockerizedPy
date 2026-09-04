@@ -11,6 +11,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.auth import LoginRequired, clear_session_cookie
 from app.config import BASE_DIR, MEDIA_ROOT, settings
+from app.date_filters import register_date_filters
 from app.explainers import register_explainer_filters
 from app.logging_config import configure_logging, log_event
 from app.middleware import RequestLogMiddleware
@@ -24,6 +25,7 @@ from app.routers import (
     media,
     notification,
     otp,
+    pwa,
     reaction,
     roadmap,
     today,
@@ -37,6 +39,7 @@ from app.routers.views import home as home_views
 from app.routers.views import notification as notification_views
 from app.routers.views import roadmap as roadmap_views
 from app.routers.views import settings as settings_views
+from app.routers.views import space as space_views
 from app.routers.views import today as today_views
 from app.routers.views import user as user_views
 
@@ -69,6 +72,7 @@ app = FastAPI(title="Challenge Manager API", lifespan=lifespan)
 app.add_middleware(RequestLogMiddleware)
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_date_filters(templates.env)
 register_explainer_filters(templates.env)
 
 
@@ -144,7 +148,7 @@ async def http_exception_page(request: Request, exc: StarletteHTTPException):
         message = (
             "چالش یا کاربر مورد نظر پیدا نشد."
             if exc.status_code == 404
-            else "مشکلی پیش اومد."
+            else "مشکلی پیش آمد."
         )
         return templates.TemplateResponse(
             "common/error.html",
@@ -179,6 +183,10 @@ app.include_router(roadmap.router)
 app.include_router(roadmap.invite_router)
 app.include_router(today.router)
 app.include_router(media.router)
+# The manifest and the service worker, both at addresses the /static mount
+# cannot serve: one needs a media type Python does not know, the other needs
+# the origin's root for its scope.
+app.include_router(pwa.router)
 
 app.include_router(admin_views.router)
 app.include_router(auth_views.router)
@@ -190,6 +198,9 @@ app.include_router(notification_views.router)
 app.include_router(roadmap_views.router)
 app.include_router(roadmap_views.invite_router)
 app.include_router(settings_views.router)
+# «فضای من» owns /views/space/ *and* the two old list addresses, which now
+# render the same page on their own segment.
+app.include_router(space_views.router)
 app.include_router(today_views.router)
 app.include_router(user_views.router)
 app.mount("/static", RevalidatedStaticFiles(directory=BASE_DIR / "static"), name="static")

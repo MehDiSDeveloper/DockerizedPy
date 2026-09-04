@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.templating import Jinja2Templates
@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_current_user_id, get_page_user
 from app.config import BASE_DIR
 from app.database import get_db
+from app.date_filters import register_date_filters
 from app.explainers import register_explainer_filters
 from app.icons import register_icon_filters
 from app.models.user import User
@@ -16,26 +17,13 @@ from app.routers.today import get_today_items
 
 router = APIRouter(prefix="/views/today", tags=["today-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_date_filters(templates.env)
 register_explainer_filters(templates.env)
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
 
 
-def _local_time(dt: datetime, tz: str) -> str:
-    """Wall-clock HH:MM in the enrollment's own zone.
-
-    Only a pre-JS fallback: app.js re-renders the same instant with Persian
-    digits over the top. It still has to be the *right* time, though -- printing
-    the raw UTC clock here would flash a wrong hour on every scheduled card.
-    """
-    try:
-        return dt.astimezone(ZoneInfo(tz)).strftime("%H:%M")
-    except (ZoneInfoNotFoundError, ValueError):
-        return dt.astimezone(UTC).strftime("%H:%M")
-
-
-templates.env.filters["local_time"] = _local_time
 register_icon_filters(templates.env)
 
 

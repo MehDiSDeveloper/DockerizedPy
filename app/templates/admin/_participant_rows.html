@@ -30,25 +30,24 @@
         already the one screen `profile_visibility_filter` withholds from
         members. The «ناشناس» mark below is what makes that honest -- it
         tells the operator which expectation they are holding. -#}
-    <span class="admin-av"><img src="{{ e.user.avatar | avatar_url }}" alt=""
+    <span class="avatar avatar-md"><img src="{{ e.user.avatar | avatar_url }}" alt=""
         loading="lazy" width="34" height="34"></span>
     <div class="sr-text">
       <span class="sr-label">{{ e.user.name }}</span>
       {#- Three facts, and each answers a different support question: who
           they are, when they joined, and whether they are still running.
-          The join date is the enrollment's own `start_date` -- a bare
-          YYYY-MM-DD, so it is a floating local date and `renderDates()`
-          never shifts it between zones (CLAUDE.md). -#}
+          The join date is the enrollment's own `start_date` -- a floating
+          local date with no instant behind it, so the server renders it
+          whole and it carries no `data-jalali` (CLAUDE.md). -#}
       <span class="sr-hint">{{ e.user.email or 'بدون ایمیل' }} ·
-        <span data-jalali="{{ e.start_date }}" data-jalali-format="day-month-year"
-          data-jalali-prefix="از ">{{ e.start_date }}</span> ·
+        <span>از {{ e.start_date | jalali('day-month-year') }}</span> ·
         {{ enrollment_status_labels.get(e.status, e.status) }}{% if e.is_anonymous %} ·
         <span class="anon-mark">ناشناس برای بقیه</span>{% endif %}</span>
     </div>
     {#- The per-challenge role, which is the whole reason this screen is not
         just a filtered copy of the member roster: the same person is
         «مالک» here and «شرکت‌کننده» in everyone else's challenge. -#}
-    <span class="role-pill {{ 'is-admin' if e.role == 'owner' else '' }}"
+    <span class="pill pill-role {{ 'is-admin' if e.role | role_is_elevated else '' }}"
       >{{ challenge_role_labels.get(e.role, e.role) }}</span>
     <span class="sr-chev" data-icon="chevronLeft"></span>
   </div>

@@ -32,9 +32,9 @@
         about how the course behaves, so it is said before somebody starts it
         rather than discovered on the second step. -#}
     <p class="rm-tags">
-      {% if r.id in walking_ids %}<span class="cc-tag accent">در حال انجام</span>{% endif %}
-      {% if r.owner_id == current_user_id %}<span class="cc-tag">ساختهٔ تو</span>{% endif %}
-      {% if r.strict %}<span class="cc-tag"><span data-icon="lock"></span>ترتیب اجباری</span>{% endif %}
+      {% if r.id in walking_ids %}<span class="pill pill-tag accent">در حال انجام</span>{% endif %}
+      {% if r.owner_id == current_user_id %}<span class="pill pill-tag">ساختهٔ تو</span>{% endif %}
+      {% if r.strict %}<span class="pill pill-tag"><span data-icon="lock"></span>ترتیب اجباری</span>{% endif %}
     </p>
   </div>
   <span class="rm-chev" data-icon="chevronLeft"></span>

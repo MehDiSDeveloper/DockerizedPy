@@ -37,6 +37,7 @@ const icons = {
   filter: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M7 12h10M10 19h4"/></svg>`,
   logout: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>`,
   edit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>`,
+  download: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v11"/><path d="M7.8 10.4L12 14.6l4.2-4.2"/><path d="M4.5 17v1.8a2 2 0 002 2h11a2 2 0 002-2V17"/></svg>`,
   share: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.6l6.8-3.8M8.6 13.4l6.8 3.8"/></svg>`,
   // Duplicating a sheet: the "copy this to the clipboard" glyph. The group
   // management screen's links are copied, never opened, so the action needs a
@@ -126,6 +127,29 @@ function renderIcons(root = document) {
   });
 }
 window.renderIcons = renderIcons;
+
+// ==========================================================================
+// Digits
+// ==========================================================================
+// The server renders every figure with Persian digits (`fa_num` in
+// app/date_filters.py). Anything this file writes over one has to match, or a
+// count flips to Latin the moment somebody taps it. `parseFaNumber` is the
+// way back for the few places that read a number off the DOM.
+const PERSIAN_DIGITS = "\u06f0\u06f1\u06f2\u06f3\u06f4\u06f5\u06f6\u06f7\u06f8\u06f9";
+
+function faDigits(value) {
+  if (value === null || value === undefined) return "";
+  return String(value).replace(/[0-9]/g, (d) => PERSIAN_DIGITS[Number(d)]);
+}
+window.faDigits = faDigits;
+
+function parseFaNumber(text) {
+  const latin = String(text === null || text === undefined ? "" : text)
+    .replace(/[\u06f0-\u06f9]/g, (d) => String(PERSIAN_DIGITS.indexOf(d)));
+  const n = Number(latin.replace(/[^\d.-]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+window.parseFaNumber = parseFaNumber;
 
 // ==========================================================================
 // Dates and times
@@ -233,6 +257,11 @@ function formatJalali(raw, { format, timeZone } = {}) {
 }
 window.formatJalali = formatJalali;
 
+// The server already renders every date as Farsi text (app/date_filters.py),
+// so this is no longer a correction -- it is here for the one thing the server
+// cannot answer: an instant belongs in the zone it was *judged* in, and only
+// data-jalali-tz says which. It writes nothing when the value it computes is
+// what is already on screen, so the common case repaints no frame.
 function renderJalaliDates(root = document) {
   selectAll(root, "[data-jalali]").forEach((el) => {
     const text = formatJalali(el.dataset.jalali, {
@@ -241,8 +270,12 @@ function renderJalaliDates(root = document) {
     });
     if (text === null) return;
     const out = (el.dataset.jalaliPrefix || "") + text;
-    if (el.dataset.jalaliAttr) el.setAttribute(el.dataset.jalaliAttr, out);
-    else el.textContent = out;
+    const attr = el.dataset.jalaliAttr;
+    if (attr) {
+      if (el.getAttribute(attr) !== out) el.setAttribute(attr, out);
+    } else if (el.textContent !== out) {
+      el.textContent = out;
+    }
   });
 }
 window.renderJalaliDates = renderJalaliDates;
@@ -539,8 +572,8 @@ function debounce(fn, wait) {
 }
 window.debounce = debounce;
 
-// Lightweight, non-blocking toast for feedback that doesn't warrant an
-// alert() dialog (e.g. "coming soon" stubs, "link copied").
+// Lightweight, non-blocking toast: the app's default feedback channel
+// (e.g. "coming soon" stubs, "link copied", a failed request).
 function showToast(message) {
   let el = document.getElementById("appToast");
   if (!el) {
@@ -671,12 +704,14 @@ function createInfiniteScroller({
 }
 window.createInfiniteScroller = createInfiniteScroller;
 
-// JSON fetch helper for new code (existing hand-rolled fetch+alert() call
-// sites are left alone -- see CLAUDE.md). Redirects to login on 401 instead
-// of leaving the caller to handle it, and always resolves to
-// {ok, status, data} instead of throwing.
+// The one request channel. Redirects to login on 401 instead of leaving the
+// caller to handle it, and always resolves to {ok, status, data} instead of
+// throwing -- so a call site is one `if (!ok)`, never a try/catch.
+// `redirectOn401: false` is the auth page's opt-out: there a 401 is the
+// answer to what was asked (a wrong password), not a session that expired,
+// and redirecting would throw away the message the member has to read.
 async function apiFetch(url, options = {}) {
-  const opts = { ...options };
+  const { redirectOn401 = true, ...opts } = { ...options };
   opts.headers = { "Content-Type": "application/json", ...(options.headers || {}) };
   if (opts.body && typeof opts.body !== "string") {
     opts.body = JSON.stringify(opts.body);
@@ -689,7 +724,7 @@ async function apiFetch(url, options = {}) {
     return { ok: false, status: 0, data: { detail: err.message } };
   }
 
-  if (res.status === 401) {
+  if (res.status === 401 && redirectOn401) {
     window.location.href = `/views/auth/?next=${encodeURIComponent(window.location.pathname)}`;
     return { ok: false, status: 401, data: null };
   }
@@ -704,9 +739,9 @@ async function apiFetch(url, options = {}) {
 }
 window.apiFetch = apiFetch;
 
-// The first modal/dialog in this codebase (everything else uses native
-// confirm()/alert()). A bottom sheet with a focus trap, Escape-to-close,
-// and backdrop-click-to-close; never itself uses confirm()/alert().
+// The app's only dialog: a bottom sheet with a focus trap, Escape-to-close,
+// and backdrop-click-to-close. Nothing here uses a native confirm()/alert()
+// -- see `confirmSheet` below for the confirmation shape built on this.
 // `fields`: [{name, label, type, required, maxlength, step, placeholder,
 // value, rows, options}]. `type` may additionally be "textarea", "select" or
 // "chips" (the last two take `options: [{value, label}]`, and a chip option
@@ -724,7 +759,7 @@ function createSheet({
   fields = [],
   onConfirm,
   onSkip,
-  confirmLabel = "تایید",
+  confirmLabel = "تأیید",
   skipLabel = "رد کردن",
   danger,
   // Markup from `explain()`, rendered beside the sheet's heading.
@@ -947,10 +982,10 @@ function createSheet({
       acts.className = "ipf-acts";
       const pickBtn = document.createElement("button");
       pickBtn.type = "button";
-      pickBtn.className = "cc-btn ghost sm";
+      pickBtn.className = "btn btn-ghost btn-sm";
       const clearBtn = document.createElement("button");
       clearBtn.type = "button";
-      clearBtn.className = "cc-btn ghost sm ipf-clear";
+      clearBtn.className = "btn btn-ghost btn-sm ipf-clear";
       clearBtn.textContent = "حذف";
       acts.appendChild(pickBtn);
       acts.appendChild(clearBtn);
@@ -1034,13 +1069,13 @@ function createSheet({
   if (typeof onSkip === "function") {
     skipBtn = document.createElement("button");
     skipBtn.type = "button";
-    skipBtn.className = "cc-btn ghost";
+    skipBtn.className = "btn btn-ghost";
     skipBtn.textContent = skipLabel;
     actions.appendChild(skipBtn);
   }
   const confirmBtn = document.createElement("button");
   confirmBtn.type = "button";
-  confirmBtn.className = "cc-btn primary";
+  confirmBtn.className = "btn btn-ghost btn-accent";
   confirmBtn.textContent = confirmLabel;
   actions.appendChild(confirmBtn);
 
@@ -1053,7 +1088,7 @@ function createSheet({
     dangerWrap.className = "sheet-danger";
     const dangerBtn = document.createElement("button");
     dangerBtn.type = "button";
-    dangerBtn.className = "cc-btn danger";
+    dangerBtn.className = "btn btn-ghost btn-danger";
     dangerBtn.textContent = danger.label;
     dangerBtn.addEventListener("click", async () => {
       const result = await danger.onClick();
@@ -1069,6 +1104,10 @@ function createSheet({
   document.body.appendChild(sheet);
   const previousOverflow = document.body.style.overflow;
   document.body.style.overflow = "hidden";
+  // On a wide screen <body> is already `overflow:hidden` and the real
+  // scroller is the phone column, so the lock has to say so out loud --
+  // `body.is-scroll-locked .shell` in the «ستون گوشی» section picks it up.
+  document.body.classList.add("is-scroll-locked");
 
   const previouslyFocused = document.activeElement;
 
@@ -1084,6 +1123,7 @@ function createSheet({
     backdrop.remove();
     sheet.remove();
     document.body.style.overflow = previousOverflow;
+    document.body.classList.remove("is-scroll-locked");
     if (previouslyFocused && typeof previouslyFocused.focus === "function") {
       previouslyFocused.focus();
     }
@@ -1142,6 +1182,52 @@ function createSheet({
   return { close };
 }
 window.createSheet = createSheet;
+
+// The one confirmation channel. A native confirm() is LTR, wears the
+// browser's font rather than the app's, behaves differently in an iOS
+// standalone window, and -- the reason that matters here -- cannot name what
+// is about to be lost. This wraps `createSheet` in the shape every
+// confirmation in this app takes: a `note` saying the consequence, a primary
+// button that *backs out*, and the destructive act on the `danger` button so
+// "delete" is never adjacent to "save".
+//
+// Resolves to true once the act ran, false on any dismissal. `onConfirm` may
+// be async; if it throws, the sheet closes and the caller sees false.
+function confirmSheet({ title, text, confirmLabel = "تأیید", cancelLabel = "بازگشت", danger = true, onConfirm }) {
+  return new Promise((resolve) => {
+    let acted = false;
+    const run = async () => {
+      acted = true;
+      if (onConfirm) await onConfirm();
+      resolve(true);
+    };
+    createSheet({
+      title,
+      fields: text ? [{ type: "note", text, tone: danger ? "danger" : undefined }] : [],
+      confirmLabel: danger ? cancelLabel : confirmLabel,
+      onConfirm: danger ? () => true : (() => { run(); return true; }),
+      danger: danger ? { label: confirmLabel, onClick: run } : undefined,
+      onClose: () => { if (!acted) resolve(false); },
+    });
+  });
+}
+window.confirmSheet = confirmSheet;
+
+// The one error channel for a failed request. `showToast` is the default
+// feedback surface; inline `showError` stays only for field validation on the
+// auth page. `result` is what `apiFetch` resolves to -- a server-sent
+// `detail` is shown only when it is a sentence meant for a member, which is
+// what a 4xx carries; a 5xx or a dead connection gets the standard line.
+function showRequestError(result, action = "این کار") {
+  const fallback = `${action} انجام نشد. دوباره تلاش کن.`;
+  // status 0 is a dead connection and status >= 500 is the server's own
+  // failure: neither carries a sentence written for a member, so both get
+  // the standard line.
+  const usable = result && result.status >= 400 && result.status < 500;
+  const detail = usable && result.data && result.data.detail;
+  showToast(typeof detail === "string" && detail ? detail : fallback);
+}
+window.showRequestError = showRequestError;
 
 
 // ==========================================================================
@@ -1447,6 +1533,19 @@ function explainPoint(text) {
   return li;
 }
 
+// The app renders inside a phone-width column on wide screens (see the
+// «ستون گوشی روی صفحه‌های عریض» section of styles.css). Anything positioned in
+// viewport coordinates has to be clamped to that column rather than to the
+// window, or it lands in the empty ground beside it. On a phone the column
+// fills the viewport and this is the viewport, so callers need no branch.
+function shellBounds() {
+  const shell = document.querySelector(".shell");
+  if (!shell) return { left: 0, right: window.innerWidth };
+  const r = shell.getBoundingClientRect();
+  return { left: r.left, right: r.right };
+}
+window.shellBounds = shellBounds;
+
 function placeExplainer() {
   if (!explainPop || !explainDot) return;
   const dot = explainDot.getBoundingClientRect();
@@ -1473,8 +1572,13 @@ function placeExplainer() {
   explainPop.style.top = (side === "bottom" ? below : above) + "px";
 
   const centre = dot.left + dot.width / 2;
-  const max = window.innerWidth - EXPLAIN_EDGE - pane.width;
-  const left = Math.max(EXPLAIN_EDGE, Math.min(centre - pane.width / 2, max));
+  // Clamped to the column, not the window: on a wide screen the dot is inside
+  // the column and a pane allowed to run to the window's edge would sit out
+  // on the bare ground beside it.
+  const col = shellBounds();
+  const min = col.left + EXPLAIN_EDGE;
+  const max = col.right - EXPLAIN_EDGE - pane.width;
+  const left = Math.max(min, Math.min(centre - pane.width / 2, Math.max(min, max)));
   explainPop.style.left = left + "px";
 
   // The arrow stays on the dot even when the pane itself was pushed off
@@ -1590,7 +1694,7 @@ function paintLike(btn, count, liked) {
     renderIcons(btn);
   }
   const n = btn.querySelector("[data-like-count]");
-  if (n) n.textContent = String(count);
+  if (n) n.textContent = faDigits(count);
 }
 
 function initLikes() {
@@ -1605,7 +1709,7 @@ function initLikes() {
 
     const wasLiked = btn.dataset.liked === "true";
     const el = btn.querySelector("[data-like-count]");
-    const wasCount = Number(el ? el.textContent : 0) || 0;
+    const wasCount = el ? parseFaNumber(el.textContent) : 0;
     const liked = !wasLiked;
 
     btn.dataset.busy = "1";
@@ -1623,6 +1727,100 @@ function initLikes() {
       paintLike(btn, wasCount, wasLiked);
       showToast("لایک ثبت نشد. دوباره تلاش کن.");
     }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// چراغ وضعیت
+//
+// The status of a challenge, as a coloured dot that says the word when it is
+// asked. It replaces the card's edge stripe, its tinted border, the dimmed
+// «تمام‌شده» card and the status pill -- four marks for one derived fact --
+// and it is deliberately presentation only: nothing here knows how a status
+// is derived, and the label it shows was rendered by the server from
+// `STATUS_META`.
+//
+// Delegated on `document`, because a card can arrive on page two of an
+// infinite scroll long after any init ran.
+//
+// Three things are load-bearing:
+//
+//   * **The handler stops the event.** A card is a single `<a>`; without
+//     preventDefault a tap on the lamp navigates to the challenge instead of
+//     naming its status. On the admin roster the row is itself a
+//     `role="button"` that opens the moderation sheet -- same problem, same
+//     answer.
+//   * **The auto-close timer is per element**, in a WeakMap keyed on the lamp
+//     rather than one module-level id: two lamps can be open at once (a
+//     pointer on one, a tap on another), and a shared timer would shut the
+//     wrong one. A fresh tap resets its own timer.
+//   * **Hover is only offered where a pointer really hovers.** On a touch
+//     screen `pointerover` fires on tap, so a hover rule there would open the
+//     lamp and then the tap handler would immediately close it again.
+// ---------------------------------------------------------------------------
+const LAMP_HOLD_MS = 2000;
+const lampTimers = new WeakMap();
+
+function closeLamp(lamp) {
+  const t = lampTimers.get(lamp);
+  if (t) {
+    clearTimeout(t);
+    lampTimers.delete(lamp);
+  }
+  lamp.classList.remove("is-open");
+  lamp.setAttribute("aria-expanded", "false");
+}
+
+function openLamp(lamp, hold) {
+  const t = lampTimers.get(lamp);
+  if (t) clearTimeout(t);
+  lampTimers.delete(lamp);
+  lamp.classList.add("is-open");
+  lamp.setAttribute("aria-expanded", "true");
+  if (hold) {
+    lampTimers.set(lamp, setTimeout(() => closeLamp(lamp), LAMP_HOLD_MS));
+  }
+}
+
+function initStatusLamps() {
+  document.addEventListener("click", (e) => {
+    const lamp = e.target.closest ? e.target.closest(".st-lamp") : null;
+    if (!lamp) return;
+    // The card around it navigates, and the admin row around it opens a
+    // sheet. Neither is what this tap asked for.
+    e.preventDefault();
+    e.stopPropagation();
+    if (lamp.classList.contains("is-open")) closeLamp(lamp);
+    else openLamp(lamp, true);
+  });
+
+  // The card's lamp is a `<span role="button">` (a nested <button> inside the
+  // card's `<a>` is invalid markup), so it does not turn a key press into a
+  // click on its own the way the roster's real <button> does.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const lamp = e.target.closest ? e.target.closest("span.st-lamp") : null;
+    if (!lamp) return;
+    e.preventDefault();
+    e.stopPropagation();
+    lamp.click();
+  });
+
+  if (!window.matchMedia) return;
+  if (!window.matchMedia("(hover:hover) and (pointer:fine)").matches) return;
+
+  // `pointerenter`/`pointerleave` do not bubble, so the delegated pair is
+  // over/out with a relatedTarget check -- moving between the ring and the
+  // label is not leaving the lamp. No timer here: the pointer is the state.
+  document.addEventListener("pointerover", (e) => {
+    const lamp = e.target.closest ? e.target.closest(".st-lamp") : null;
+    if (!lamp || lamp.contains(e.relatedTarget)) return;
+    openLamp(lamp, false);
+  });
+  document.addEventListener("pointerout", (e) => {
+    const lamp = e.target.closest ? e.target.closest(".st-lamp") : null;
+    if (!lamp || lamp.contains(e.relatedTarget)) return;
+    closeLamp(lamp);
   });
 }
 
@@ -1807,7 +2005,102 @@ function createEmojiPicker({ panel, tabsEl, labelEl, gridEl, emptyEl, onPick }) 
 }
 window.createEmojiPicker = createEmojiPicker;
 
+// ---- PWA: the worker, and the one row that offers the install -----------
+//
+// Two halves of one feature, and they are deliberately independent: the
+// worker is what makes the app installable and what keeps it from opening to
+// a browser error page offline, while the row below is only the invitation.
+// Everything works with the row never rendering -- the browser's own «نصب»
+// in its menu is the other way in.
+
+function initServiceWorker() {
+  // `isSecureContext` is the whole check: it is true on https and on
+  // localhost and false on a LAN IP, which is exactly where registration
+  // would fail anyway. Failures are swallowed -- a browser that will not take
+  // the worker is a browser that gets the app without one, not an error.
+  if (!("serviceWorker" in navigator) || !window.isSecureContext) return;
+  navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+}
+
+// `beforeinstallprompt` can fire before DOMContentLoaded, so it is caught at
+// parse time and the event is *kept*: a browser only hands it over once, and
+// calling prompt() later is the only way to open the install dialog from our
+// own control.
+let deferredInstall = null;
+
+function appIsInstalled() {
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    // iOS' own flag; Safari has neither the media query nor the event.
+    window.navigator.standalone === true
+  );
+}
+
+function isIOS() {
+  return (
+    /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    // iPadOS 13+ reports itself as a Mac; the touch points give it away.
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
+
+// Every part of the section ships `hidden` in the markup and un-hides itself,
+// the same trade the nav trail makes: the server cannot know whether this
+// browser will offer an install, and the settings page's own rule is that a
+// row which only toasts is worse than no row at all. The heading goes with
+// them -- a «نصب» section with nothing under it is the same dead row one
+// level up.
+function paintInstall() {
+  const row = document.querySelector("[data-install-row]");
+  const ios = document.querySelector("[data-install-ios]");
+  const group = document.querySelector("[data-install-group]");
+  const installed = appIsInstalled();
+  if (row) row.hidden = !deferredInstall || installed;
+  // Safari has no prompt to defer, so its row is decided by the browser
+  // rather than by an event that never arrives.
+  if (ios) ios.hidden = !isIOS() || installed;
+  if (group) group.hidden = (!row || row.hidden) && (!ios || ios.hidden);
+}
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredInstall = e;
+  paintInstall();
+});
+
+window.addEventListener("appinstalled", () => {
+  deferredInstall = null;
+  paintInstall();
+  showToast("«چالش» روی دستگاهت نصب شد");
+});
+
+function initInstallRow() {
+  paintInstall();
+
+  const btn = document.querySelector("[data-install-action]");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    if (!deferredInstall) return;
+    const prompt = deferredInstall;
+    // One shot: the event cannot be prompted twice, so it is dropped before
+    // awaiting rather than after, or a double tap throws.
+    deferredInstall = null;
+    paintInstall();
+    try {
+      await prompt.prompt();
+    } catch (e) {
+      /* dismissed, or already handled by the browser */
+    }
+  });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  initServiceWorker();
+  initInstallRow();
+});
+
 document.addEventListener("DOMContentLoaded", () => {
   initExplainers();
   initLikes();
+  initStatusLamps();
 });

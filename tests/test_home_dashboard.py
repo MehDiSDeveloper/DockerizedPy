@@ -210,8 +210,9 @@ async def test_a_finished_challenge_lands_in_the_done_bucket(
 
     response = await client.get("/views/home/")
     assert response.status_code == 200, response.text
-    assert '<i class="tab-count" id="statActive">0</i>' in response.text
-    assert '<i class="tab-count" id="statDone">1</i>' in response.text
+    # Figures are Persian-digit server-side (app/date_filters.py).
+    assert '<i class="tab-count" id="statActive">۰</i>' in response.text
+    assert '<i class="tab-count" id="statDone">۱</i>' in response.text
 
     active_page = await client.get("/views/home/fragment", params={"status": "active"})
     assert challenge.title not in active_page.text

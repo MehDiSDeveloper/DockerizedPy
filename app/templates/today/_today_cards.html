@@ -9,8 +9,8 @@
      data-title="{{ item.challenge_title }}"
      data-goal-unit="{{ item.goal_unit or '' }}">
   <div class="cc-top">
-    <span class="cc-tag cat-tag"><span data-icon="{{ item.category | category_icon }}"></span>{{ item.category }}</span>
-    {% if item.quota_target %}<span class="cc-tag">{{ item.quota_done }} از {{ item.quota_target }}</span>{% endif %}
+    <span class="pill pill-cat"><span data-icon="{{ item.category | category_icon }}"></span>{{ item.category }}</span>
+    {% if item.quota_target %}<span class="pill pill-tag">{{ item.quota_done | fa_num }} از {{ item.quota_target | fa_num }}</span>{% endif %}
   </div>
   <h3 class="cc-title"><a href="/views/challenges/{{ item.challenge_id }}">{{ item.challenge_title }}</a></h3>
 
@@ -25,7 +25,7 @@
         {%- if item.cadence_kind == 'schedule' -%}
           ساعت <b data-jalali="{{ item.opens_at_utc.isoformat() }}"
                   data-jalali-format="time"
-                  data-jalali-tz="{{ item.timezone }}">{{ item.opens_at_utc | local_time(item.timezone) }}</b>
+                  data-jalali-tz="{{ item.timezone }}">{{ item.opens_at_utc | jalali('time', item.timezone) }}</b>
         {%- elif item.cadence_kind == 'recurring_quota' -%}
           تا پایان این {{ 'ماه' if item.quota_period == 'month' else 'هفته' }}
         {%- elif item.cadence_kind == 'recurring_days' -%}
@@ -47,7 +47,7 @@
   </div>
 
   <div class="cc-actions">
-    <button class="cc-btn" data-action="today-checkin">
+    <button class="btn btn-ghost" data-action="today-checkin">
       <span data-icon="check"></span> ثبت وضعیت
     </button>
   </div>

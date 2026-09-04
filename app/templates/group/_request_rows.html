@@ -1,7 +1,7 @@
 {#- One row per membership request. Included directly by group/manage.html,
     which only ever passes it the pending queue.
 
-    **The answer is two icon buttons, not two words.** «تایید» / «رد» as
+    **The answer is two icon buttons, not two words.** «تأیید» / «رد» as
     labelled buttons put two blocks of text at the end of a row that already
     carries a name and a date, and on a phone that is what starts wrapping.
     A check and a cross are the two marks every list of pending things in
@@ -23,21 +23,21 @@
 <div class="setting-row glass compact request-row" data-request-id="{{ r.id }}"
   data-request-name="{{ r.name }}">
   <div class="sr-head">
-    <img class="mr-avatar" src="{{ r.avatar | avatar_url }}" alt="" width="36" height="36"
+    <img class="avatar avatar-lg avatar-square" src="{{ r.avatar | avatar_url }}" alt="" width="36" height="36"
       loading="lazy">
     <div class="sr-text">
       <span class="sr-label">{{ r.name }}</span>
       {% if r.status == 'pending' %}
       <span class="sr-hint"><span data-jalali="{{ r.created_at.isoformat() }}"
-          data-jalali-format="day-month-year">{{ r.created_at.strftime('%Y-%m-%d') }}</span></span>
+          data-jalali-format="day-month-year">{{ r.created_at | jalali('day-month-year') }}</span></span>
       {% else %}
       {#- The decided row names *when* and *by whom*: that pair is the only
           thing this table records which the membership itself cannot say,
           and it is the whole reason a terminal row is kept rather than
           deleted. -#}
-      <span class="sr-hint">{{ 'تایید' if r.status == 'approved' else 'رد' }} شده{% if r.decided_at %}
+      <span class="sr-hint">{{ 'تأیید' if r.status == 'approved' else 'رد' }} شده{% if r.decided_at %}
         در <span data-jalali="{{ r.decided_at.isoformat() }}"
-          data-jalali-format="day-month-year">{{ r.decided_at.strftime('%Y-%m-%d') }}</span>{% endif %}{%
+          data-jalali-format="day-month-year">{{ r.decided_at | jalali('day-month-year') }}</span>{% endif %}{%
         if r.decided_by %} · به دست {{ r.decided_by }}{% endif %}</span>
       {% endif %}
     </div>
@@ -46,10 +46,10 @@
       <button type="button" class="icon-btn xs" data-reject
         aria-label="رد کردن درخواست {{ r.name }}" title="رد کردن"><span data-icon="x"></span></button>
       <button type="button" class="icon-btn xs accent" data-approve
-        aria-label="تایید عضویت {{ r.name }}" title="تایید"><span data-icon="check"></span></button>
+        aria-label="تأیید عضویت {{ r.name }}" title="تأیید"><span data-icon="check"></span></button>
     </div>
     {% else %}
-    <span class="req-pill is-{{ r.status }}">{{ 'تاییدشده' if r.status == 'approved' else 'رد شده' }}</span>
+    <span class="pill pill-request is-{{ r.status }}">{{ 'تأییدشده' if r.status == 'approved' else 'رد شده' }}</span>
     {% endif %}
   </div>
 </div>

@@ -32,7 +32,7 @@
   {% if can_manage %}
   <a href="/views/groups/{{ group.id }}/manage" class="icon-btn" aria-label="مدیریت گروه">
     <span data-icon="settings"></span>
-    {% if pending_count %}<span class="icon-badge">{{ pending_count }}</span>{% endif %}
+    {% if pending_count %}<span class="icon-badge">{{ pending_count | fa_num }}</span>{% endif %}
   </a>
   {% endif %}
   {{ super() }}
@@ -44,11 +44,11 @@
 <div class="detail-hero glass group-hero">
   <div class="gh-emblem"><img src="{{ group.emblem | avatar_url }}" alt="" width="64" height="64"></div>
   <div class="detail-tags">
-    <span class="cc-tag"><span data-icon="{{ group_kind_icons.get(group.kind, 'catOther') }}"></span>{{ group_kind_labels.get(group.kind, 'گروه') }}</span>
+    <span class="pill pill-tag"><span data-icon="{{ group_kind_icons.get(group.kind, 'catOther') }}"></span>{{ group_kind_labels.get(group.kind, 'گروه') }}</span>
     {#- What *you* are here. Shown to everyone, including plain members: a
         group where you cannot tell whether you may act is a group where you
         try and are refused. -#}
-    <span class="cc-tag {{ 'accent' if my_role in ('owner', 'admin') else '' }}">{{ group_role_labels.get(my_role, 'عضو') }}</span>
+    <span class="pill pill-tag {{ 'accent' if my_role in ('owner', 'admin') else '' }}">{{ group_role_labels.get(my_role, 'عضو') }}</span>
   </div>
   <h1>{{ group.name }}</h1>
   {#- The way up. A subgroup with no link back to the group it is inside is a
@@ -59,10 +59,10 @@
       href="/views/groups/{{ parent_group.id }}">زیرگروهی از {{ parent_group.name }}</a></p>
   {% endif %}
   <div class="detail-stats">
-    <div><b>{{ member_count }}</b><span>عضو</span></div>
-    <div><b>{{ challenges | length }}{{ '+' if has_more else '' }}</b><span>چالش</span></div>
+    <div><b>{{ member_count | fa_num }}</b><span>عضو</span></div>
+    <div><b>{{ challenges | length | fa_num }}{{ '+' if has_more else '' }}</b><span>چالش</span></div>
     <div><b data-jalali="{{ group.created_at.isoformat() }}"
-        data-jalali-format="numeric">{{ group.created_at.strftime('%Y-%m-%d') }}</b><span>ساخته شد</span></div>
+        data-jalali-format="numeric">{{ group.created_at | jalali('numeric') }}</b><span>ساخته شد</span></div>
   </div>
 </div>
 
@@ -106,10 +106,10 @@
 
   <div class="seg-row">
     <div class="seg" id="gcStatusSeg" role="tablist" aria-label="فیلتر وضعیت چالش">
-      <button class="seg-btn{{ ' active' if active_status == 'all' }}" data-status="all"
+      <button class="btn btn-seg{{ ' active' if active_status == 'all' }}" data-status="all"
         role="tab" aria-selected="{{ 'true' if active_status == 'all' else 'false' }}">همه</button>
       {% for code, meta in status_options.items() %}
-      <button class="seg-btn st-{{ code }}{{ ' active' if active_status == code }}"
+      <button class="btn btn-seg is-{{ code }}{{ ' active' if active_status == code }}"
         data-status="{{ code }}" role="tab"
         aria-selected="{{ 'true' if active_status == code else 'false' }}"><span
           data-icon="{{ meta.icon }}"></span>{{ meta.label }}</button>
@@ -132,9 +132,9 @@
       no message. -#}
   <div class="empty" id="gcEmpty" {{ 'hidden' if challenges }}>
     <span data-icon="empty"></span>
-    <p id="gcEmptyText">{% if can_create_challenge %}هنوز چالشی در این گروه گذاشته نشده.
-      اولین چالش را تو بساز.{% else %}هنوز چالشی در این گروه گذاشته نشده. وقتی مدیران گروه چالشی
-      بگذارند، همین‌جا می‌بینی.{% endif %}</p>
+    <p id="gcEmptyText">هنوز چالشی در این گروه گذاشته نشده.</p>
+    <p class="empty-hint">{% if can_create_challenge %}اولین چالش را با دکمهٔ + همین صفحه
+      بساز.{% else %}وقتی مدیران گروه چالشی بگذارند، همین‌جا می‌بینی.{% endif %}</p>
   </div>
 
   <div class="scroll-sentinel" id="gcSentinel" aria-hidden="true"></div>
@@ -147,9 +147,9 @@
   <div class="settings-page">
     <section class="setting-group">
       <div class="section-head">
-        <h2>{{ member_count }} عضو{{ explain("group-roles") }}</h2>
+        <h2>{{ member_count | fa_num }} عضو{{ explain("group-roles") }}</h2>
         {% if member_count > members_preview %}
-        <a class="cc-tag" href="/views/groups/{{ group.id }}/members">همهٔ اعضا</a>
+        <a class="pill pill-tag" href="/views/groups/{{ group.id }}/members">همهٔ اعضا</a>
         {% endif %}
       </div>
       {#- A screenful, not a page -- the paged, searchable answer is at its
@@ -171,7 +171,7 @@
   <div class="settings-page">
     <section class="setting-group">
       <div class="section-head">
-        <h2>{{ children | length }} زیرگروه{{ explain("subgroup") }}</h2>
+        <h2>{{ children | length | fa_num }} زیرگروه{{ explain("subgroup") }}</h2>
       </div>
       {#- The same card the groups list draws, over the same two facts. A
           subgroup is a group: it has its own page, its own roster and its own
@@ -206,12 +206,12 @@
             href="/views/groups/{{ parent_group.id }}">{{ parent_group.name }}</a></dd></div>
       {% endif %}
       {% if children %}
-      <div class="fact"><dt>زیرگروه‌ها</dt><dd>{{ children | length }}</dd></div>
+      <div class="fact"><dt>زیرگروه‌ها</dt><dd>{{ children | length | fa_num }}</dd></div>
       {% endif %}
-      <div class="fact"><dt>تعداد اعضا</dt><dd>{{ member_count }}</dd></div>
+      <div class="fact"><dt>تعداد اعضا</dt><dd>{{ member_count | fa_num }}</dd></div>
       <div class="fact"><dt>نقش</dt><dd>{{ group_role_labels.get(my_role, 'عضو') }}</dd></div>
       <div class="fact"><dt>ساخته شد</dt><dd data-jalali="{{ group.created_at.isoformat() }}"
-          data-jalali-format="day-month-year">{{ group.created_at.strftime('%Y-%m-%d') }}</dd></div>
+          data-jalali-format="day-month-year">{{ group.created_at | jalali('day-month-year') }}</dd></div>
     </dl>
     {#- Said plainly, on the panel that explains what this place is: a group
         challenge is not on the public list, and a member's own numbers are
@@ -249,7 +249,7 @@
             <span class="sr-hint">همهٔ چالش‌های این گروه را یک‌جا ترک می‌کنی و عضو گروه
               می‌مانی. سابقهٔ ثبت‌شده‌ات در آن چالش‌ها پاک می‌شود.</span>
           </div>
-          <span class="sr-value">{{ my_optional | length + my_mandatory | length }} چالش</span>
+          <span class="sr-value">{{ (my_optional | length + my_mandatory | length) | fa_num }} چالش</span>
           <span class="sr-chev" data-icon="chevronLeft"></span>
         </div>
       </div>
@@ -293,9 +293,13 @@
 </div>
 
 {% if can_create_challenge %}
-<a href="/views/challenges/create?group={{ group.id }}" class="fab" aria-label="ساخت چالش در این گروه">
+{#- One kind here, so the picker does not ask: inside a group the «+» means
+    a group challenge, and `create.js` opens the wizard with this group
+    already carried. -#}
+<button type="button" class="fab" data-create-fab data-create-kinds="challenge"
+  data-create-group="{{ group.id }}" aria-label="ساخت چالش در این گروه">
   <span data-icon="plus"></span>
-</a>
+</button>
 {% endif %}
 
 {#- گفتگو. One modal per page, filled in by whichever comment control is
@@ -305,6 +309,7 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script src="{{ url_for('static', path='/js/create.js') }}"></script>
 <script src="{{ url_for('static', path='/js/comments.js') }}"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => {
@@ -385,7 +390,7 @@
       scroller.reset();
     }
 
-    const statusBtns = Array.from(statusSeg.querySelectorAll(".seg-btn"));
+    const statusBtns = Array.from(statusSeg.querySelectorAll(".btn-seg"));
     statusBtns.forEach((btn) => {
       btn.addEventListener("click", () => {
         if (btn.dataset.status === state.status) return;
@@ -455,7 +460,7 @@
                 method: "DELETE",
               });
               if (!ok) {
-                showToast("خطا: " + ((data && data.detail) || "انجام نشد"));
+                showToast(((data && data.detail) || "این کار انجام نشد. دوباره تلاش کن."));
                 return false;
               }
               // The list, the hero's challenge count and this row's own count
@@ -496,7 +501,7 @@
                 { method: "DELETE" }
               );
               if (!ok) {
-                showToast("خطا: " + ((data && data.detail) || "خروج انجام نشد"));
+                showToast(((data && data.detail) || "خروج انجام نشد. دوباره تلاش کن."));
                 return false;
               }
               // Not a reload: this page is a 404 to them now.

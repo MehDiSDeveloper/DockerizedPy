@@ -9,11 +9,13 @@ from app.auth import get_admin_page_user, get_admin_user
 from app.avatars import register_avatar_filters
 from app.config import BASE_DIR
 from app.database import get_db
+from app.date_filters import register_date_filters
 from app.explainers import register_explainer_filters
 from app.icons import register_icon_filters
 from app.models.challenge import Challenge, LifecycleStatus, Visibility
 from app.models.enrollment import ChallengeRole, Enrollment, EnrollmentStatus
 from app.models.user import User, UserRole
+from app.permissions import register_role_filters
 from app.routers.challenge import (
     ALL_CATEGORIES,
     DEFAULT_PAGE_SIZE,
@@ -40,8 +42,10 @@ from app.routers.views.challenge import STATUS_META
 
 router = APIRouter(prefix="/views/admin", tags=["admin-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_date_filters(templates.env)
 register_explainer_filters(templates.env)
 register_avatar_filters(templates.env)
+register_role_filters(templates.env)
 # The challenge roster renders category icons and the derived status badge, so
 # this environment needs the same filters the public list registers -- every
 # views router builds its own `Jinja2Templates`, and a missing one is a

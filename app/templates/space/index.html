@@ -1,0 +1,212 @@
+{% extends "layout.html" %}
+
+{#- «فضای من» -- the fifth bottom-nav destination, and the one home groups
+    and roadmaps have.
+
+    **Why a destination and not a hub inside «خانه».** Both are content, not
+    configuration: a member joins a group, builds a course, and comes back to
+    both. They used to hang off the settings screen, which is where
+    *preferences* live -- so the two largest subsystems in the app sat behind
+    a door people open once. Home is already a dashboard, and a second hub
+    there would be a second parallel entrance to the same rows.
+
+    **Two segments, one page, no refetch.** Both lists are server-rendered on
+    every load and the segment is a class toggle -- the same trade the
+    challenge list's «ریل»/«لیست» makes -- so switching costs nothing and the
+    URL carries only the hash. Each list pages through the fragment route that
+    already existed for it (`/views/groups/fragment`, `/views/roadmaps/fragment`),
+    so the scroller contract is untouched.
+
+    `/views/groups/` and `/views/roadmaps/` render this same template on their
+    own segment: the old addresses still work and there is no second listing
+    screen to keep in step. -#}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر پیمایش" data-crumb-trail data-crumb-label="فضای من"
+  data-crumb-root>
+  <span class="crumb current" aria-current="page">فضای من</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <p class="hero-eyebrow">با هم و قدم‌به‌قدم</p>
+  <h1 class="hero-title">فضای من</h1>
+</section>
+
+<section>
+  <div class="seg-row">
+    <div class="seg" id="spSeg" role="tablist" aria-label="فضای من">
+      <button class="btn btn-seg{{ ' active' if active_tab == 'groups' }}" data-tab="groups"
+        role="tab" aria-selected="{{ 'true' if active_tab == 'groups' else 'false' }}"
+        aria-controls="panel-groups">گروه‌ها</button>
+      <button class="btn btn-seg{{ ' active' if active_tab == 'roadmaps' }}" data-tab="roadmaps"
+        role="tab" aria-selected="{{ 'true' if active_tab == 'roadmaps' else 'false' }}"
+        aria-controls="panel-roadmaps">مسیرها</button>
+    </div>
+  </div>
+
+  {#- «گروه‌ها». No search box and no discovery: groups are not public and not
+      searchable, so the empty state offers the two things that actually get
+      somebody into one instead. -#}
+  <div id="panel-groups" role="tabpanel" aria-labelledby="spSeg" {{ 'hidden' if active_tab != 'groups' }}>
+    <div class="group-list" id="grList" data-page-size="{{ group_page_size }}"
+      data-initial-count="{{ groups|length }}" data-has-more="{{ 'true' if groups_has_more else 'false' }}">
+      {% with member_counts = group_member_counts %}{% include "group/_group_cards.html" %}{% endwith %}
+    </div>
+
+    <div class="empty" id="grEmpty" {{ 'hidden' if groups }}>
+      <span data-icon="building"></span>
+      <p>هنوز عضو هیچ گروهی نیستی.<br>
+        گروه فضای یک شرکت، مدرسه یا تیم است؛ چالش‌هایی که آنجا گذاشته می‌شود فقط
+        برای اعضای همان گروه دیده می‌شود.</p>
+      <p class="empty-hint">اگر لینک دعوتی داری، بازکردن همان لینک تو را وارد گروه می‌کند.</p>
+    </div>
+
+    <div class="scroll-sentinel" id="grSentinel" aria-hidden="true"></div>
+    <div class="list-loading" id="grLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
+  </div>
+
+  {#- «مسیرها». One list with a two-button scope, not a second «کشف» page:
+      the rows are identical either way and the difference is one clause in
+      the query. -#}
+  <div id="panel-roadmaps" role="tabpanel" aria-labelledby="spSeg" {{ 'hidden' if active_tab != 'roadmaps' }}>
+    <div class="search-bar">
+      <span data-icon="search"></span>
+      <input type="text" id="rmSearch" placeholder="جستجوی مسیر..." value="{{ query }}" />
+    </div>
+
+    <div class="seg-row">
+      <div class="seg" id="rmScopeSeg" role="tablist" aria-label="کدام مسیرها">
+        <button class="btn btn-seg{{ ' active' if active_scope == 'mine' }}" data-scope="mine"
+          role="tab" aria-selected="{{ 'true' if active_scope == 'mine' else 'false' }}">مال من</button>
+        <button class="btn btn-seg{{ ' active' if active_scope == 'all' }}" data-scope="all"
+          role="tab" aria-selected="{{ 'true' if active_scope == 'all' else 'false' }}">همه</button>
+      </div>
+      {{ explain("roadmap-order") }}
+    </div>
+
+    <div class="rm-list" id="rmList" data-page-size="{{ roadmap_page_size }}"
+      data-initial-count="{{ roadmaps|length }}" data-has-more="{{ 'true' if roadmaps_has_more else 'false' }}">
+      {% with member_counts = roadmap_member_counts %}{% include "roadmap/_roadmap_cards.html" %}{% endwith %}
+    </div>
+
+    <div class="empty" id="rmEmpty" {{ 'hidden' if roadmaps }}>
+      <span data-icon="route"></span>
+      <p>هنوز مسیری اینجا نیست.<br>
+        مسیر چند چالش است که پشت سر هم چیده می‌شوند؛ هر قدم وقتی وعده‌اش شد باز
+        می‌شود و چالشش به «امروز» تو اضافه می‌شود.</p>
+      <p class="empty-hint">می‌توانی مسیر خودت را بسازی، یا با لینکی که کسی برایت
+        فرستاده وارد مسیر او شوی.</p>
+    </div>
+
+    <div class="scroll-sentinel" id="rmSentinel" aria-hidden="true"></div>
+    <div class="list-loading" id="rmLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
+  </div>
+</section>
+
+{#- One «+» for all three objects: it opens the type picker in `create.js`,
+    and the kind chosen there decides whether the answer is a sheet or the
+    full-screen wizard. -#}
+<button type="button" class="fab" data-create-fab aria-label="ساختن چیز تازه">
+  <span data-icon="plus"></span>
+</button>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script src="{{ url_for('static', path='/js/create.js') }}"></script>
+<script id="emblemOptions" type="application/json">{{ avatar_catalogue | tojson }}</script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    // ---- the two segments (hash-backed, like every other panel pair here)
+    const tabs = Array.from(document.querySelectorAll("#spSeg .btn-seg"));
+    function selectTab(name, { remember = true } = {}) {
+      const target = tabs.find((t) => t.dataset.tab === name);
+      if (!target) return false;
+      tabs.forEach((t) => {
+        const on = t === target;
+        t.classList.toggle("active", on);
+        t.setAttribute("aria-selected", on ? "true" : "false");
+        document.getElementById("panel-" + t.dataset.tab).hidden = !on;
+      });
+      if (remember) history.replaceState(null, "", "#" + name);
+      return true;
+    }
+    tabs.forEach((t) => t.addEventListener("click", () => selectTab(t.dataset.tab)));
+    selectTab(decodeURIComponent(location.hash.slice(1)), { remember: false });
+
+    // ---- groups
+    const grList = document.getElementById("grList");
+    const grEmpty = document.getElementById("grEmpty");
+    createInfiniteScroller({
+      container: grList,
+      sentinel: document.getElementById("grSentinel"),
+      loadingEl: document.getElementById("grLoading"),
+      emptyEl: grEmpty,
+      pageSize: Number(grList.dataset.pageSize) || 20,
+      initialOffset: Number(grList.dataset.initialCount) || 0,
+      initialHasMore: grList.dataset.hasMore === "true",
+      buildUrl: (offset, limit) => `/views/groups/fragment?offset=${offset}&limit=${limit}`,
+      onEmpty: () => { grEmpty.hidden = false; },
+    });
+
+    // ---- roadmaps
+    const rmList = document.getElementById("rmList");
+    const rmEmpty = document.getElementById("rmEmpty");
+    const search = document.getElementById("rmSearch");
+    const scopeSeg = document.getElementById("rmScopeSeg");
+    const state = { scope: {{ active_scope | tojson }}, q: search.value.trim() };
+
+    function params() {
+      const p = new URLSearchParams();
+      p.set("scope", state.scope);
+      if (state.q) p.set("q", state.q);
+      return p;
+    }
+
+    const rmScroller = createInfiniteScroller({
+      container: rmList,
+      sentinel: document.getElementById("rmSentinel"),
+      loadingEl: document.getElementById("rmLoading"),
+      emptyEl: rmEmpty,
+      pageSize: Number(rmList.dataset.pageSize) || 20,
+      initialOffset: Number(rmList.dataset.initialCount) || 0,
+      initialHasMore: rmList.dataset.hasMore === "true",
+      buildUrl: (offset, limit) => {
+        const p = params();
+        p.set("offset", offset);
+        p.set("limit", limit);
+        return `/views/roadmaps/fragment?${p.toString()}`;
+      },
+      onEmpty: () => { rmEmpty.hidden = false; },
+    });
+
+    function apply() {
+      rmEmpty.hidden = true;
+      // The scope and the search live in the query string and the segment in
+      // the hash, so a filtered list is still a link somebody can send.
+      history.replaceState(null, "", `?${params().toString()}${location.hash}`);
+      rmScroller.reset();
+    }
+
+    Array.from(scopeSeg.querySelectorAll(".btn-seg")).forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.dataset.scope === state.scope) return;
+        state.scope = btn.dataset.scope;
+        Array.from(scopeSeg.querySelectorAll(".btn-seg")).forEach((b) => {
+          const on = b.dataset.scope === state.scope;
+          b.classList.toggle("active", on);
+          b.setAttribute("aria-selected", on ? "true" : "false");
+        });
+        apply();
+      });
+    });
+
+    search.addEventListener("input", debounce(() => {
+      state.q = search.value.trim();
+      apply();
+    }, 300));
+  });
+</script>
+{% endblock %}

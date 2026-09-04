@@ -5,13 +5,45 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>چالش | ورود</title>
 <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
+{# ---- PWA -------------------------------------------------------------
+   Installability lives in the <head>, and this app has no base document, so
+   this block is repeated verbatim in layout.html, user/auth.html and
+   common/error.html. A shell that misses it is a page the app cannot be
+   installed from -- which fails silently, so tests/test_pwa.py walks all
+   three and fails loudly instead.
+
+   The two theme-color metas are the pair the *browser chrome* reads. The
+   manifest carries one static colour (it is one document; the app's theme has
+   three states), so the device preference is honoured here by media, and an
+   explicit choice is honoured by the script below, which replaces them. -#}
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#f8f4ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16120d" media="(prefers-color-scheme: dark)">
+{#- Safari reads none of the manifest, so iOS needs its own four. Without
+    them «افزودن به صفحهٔ خانه» produces a bookmark that opens in the browser
+    with its chrome, rather than the standalone app. -#}
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="چالش">
+<link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
+<link rel="icon" href="/static/img/icon-192.png" type="image/png">
+
 {#- Theme applied before first paint -- same guard as layout.html. This
     page is a standalone document (no template inheritance in this app), so
     it carries its own copy rather than inheriting one. -#}
 <script>
   try {
     var t = localStorage.getItem("chalesh-theme");
-    if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+    if (t === "light" || t === "dark") {
+      document.documentElement.dataset.theme = t;
+      // A media-keyed pair cannot honour a choice that contradicts the
+      // device, so an explicit one replaces both metas outright.
+      document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) { m.remove(); });
+      var c = document.createElement("meta");
+      c.name = "theme-color";
+      c.content = t === "dark" ? "#16120d" : "#f8f4ee";
+      document.head.appendChild(c);
+    }
   } catch (e) { /* private mode: fall back to the device preference */ }
 </script>
 </head>
@@ -23,7 +55,7 @@
 
     <div class="auth-logo">
       <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
-      <h1>به چالش خوش اومدی</h1>
+      <h1>به چالش خوش آمدی</h1>
       <p>خودتو محک بزن، پیشرفت کن، ادامه بده</p>
     </div>
 
@@ -60,7 +92,7 @@
             </div>
             <p class="field-note">کد ورود رو با پیامک برات می‌فرستیم. رمز عبوری لازم نیست.</p>
           </div>
-          <button type="submit" class="btn-primary" id="otpSendBtn">
+          <button type="submit" class="btn btn-primary" id="otpSendBtn">
             ارسال کد ورود <span data-icon="chevronLeft"></span>
           </button>
         </form>
@@ -87,7 +119,7 @@
             {% endfor %}
           </div>
 
-          <button type="submit" class="btn-primary" id="otpVerifyBtn">
+          <button type="submit" class="btn btn-primary" id="otpVerifyBtn">
             ورود <span data-icon="chevronLeft"></span>
           </button>
 
@@ -103,6 +135,7 @@
           endpoints they always did.
           ============================================================ -#}
       <div id="passwordPanel" style="display:none;">
+        <p class="auth-error" id="passwordError" role="alert" aria-live="polite"></p>
         <div class="auth-tabs">
           <button class="auth-tab active" data-tab="login">ورود</button>
           <button class="auth-tab" data-tab="register">ساخت حساب</button>
@@ -125,7 +158,7 @@
               <span class="field-toggle" data-icon="eye" data-toggle="loginPass"></span>
             </div>
           </div>
-          <button type="submit" class="btn-primary">ورود به حساب <span data-icon="chevronLeft"></span></button>
+          <button type="submit" class="btn btn-primary">ورود به حساب <span data-icon="chevronLeft"></span></button>
         </form>
 
         <!-- register form -->
@@ -176,7 +209,7 @@
               {% endfor %}
             </div>
           </div>
-          <button type="submit" class="btn-primary">ساخت حساب کاربری <span data-icon="chevronLeft"></span></button>
+          <button type="submit" class="btn btn-primary">ساخت حساب کاربری <span data-icon="chevronLeft"></span></button>
         </form>
 
         <p class="auth-foot" id="authFoot">
@@ -204,24 +237,43 @@
 
   // ---- shared -------------------------------------------------------------
 
-  const otpError = document.getElementById("otpError");
+  // One error slot per panel, because only one panel is on screen at a time
+  // and a message written into the hidden one is a refusal nobody reads.
+  const errorSlots = [
+    document.getElementById("otpError"),
+    document.getElementById("passwordError"),
+  ];
+  function visibleErrorSlot() {
+    return errorSlots.find((el) => el.offsetParent !== null) || errorSlots[0];
+  }
   function showError(message) {
-    otpError.textContent = message;
-    otpError.classList.add("show");
+    const el = visibleErrorSlot();
+    el.textContent = message;
+    el.classList.add("show");
   }
   function clearError() {
-    otpError.textContent = "";
-    otpError.classList.remove("show");
+    errorSlots.forEach((el) => {
+      el.textContent = "";
+      el.classList.remove("show");
+    });
   }
 
   // Every refusal on this page comes back as `{detail: "<Farsi sentence>"}`
   // from the JSON API -- `app/otp.py` owns the wording, so nothing here
   // restates it. A 422 is the schema's own message and is not a sentence a
-  // member should read, so those get the one generic line instead.
-  async function refusalMessage(res, fallback) {
-    if (res.status === 422) return fallback;
-    const body = await res.json().catch(() => ({}));
-    return typeof body.detail === "string" ? body.detail : fallback;
+  // member should read, so those get the one generic line instead; so does a
+  // dead connection (status 0) and a 5xx.
+  function refusalMessage(result, fallback) {
+    if (result.status === 422 || result.status === 0 || result.status >= 500) return fallback;
+    const detail = result.data && result.data.detail;
+    return typeof detail === "string" ? detail : fallback;
+  }
+
+  // This page is the one place a 401 is an answer rather than an expired
+  // session, so it opts out of apiFetch's redirect -- otherwise a wrong
+  // password would reload the very form that has to show the message.
+  function authFetch(url, body) {
+    return apiFetch(url, { method: "POST", body, redirectOn401: false });
   }
 
   // ---- OTP: step 1, the number -------------------------------------------
@@ -242,22 +294,14 @@
     otpSendBtn.disabled = true;
     otpResendBtn.disabled = true;
     try {
-      const res = await fetch("/auth/otp/request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mobile: otpMobile.value }),
-      });
-      if (!res.ok) {
-        showError(await refusalMessage(res, "شماره موبایل معتبر نیست."));
+      const result = await authFetch("/auth/otp/request", { mobile: otpMobile.value });
+      if (!result.ok) {
+        showError(refusalMessage(result, "شماره موبایل معتبر نیست."));
         return false;
       }
-      const data = await res.json();
-      otpTarget.textContent = data.mobile_masked;
-      startResendCountdown(data.resend_after);
+      otpTarget.textContent = result.data.mobile_masked;
+      startResendCountdown(result.data.resend_after);
       return true;
-    } catch (err) {
-      showError("ارتباط با سرور برقرار نشد. اتصالت رو بررسی کن.");
-      return false;
     } finally {
       otpSendBtn.disabled = false;
     }
@@ -288,7 +332,7 @@
         return;
       }
       otpResendBtn.disabled = true;
-      otpResendBtn.textContent = `ارسال دوباره تا ${left.toLocaleString("fa-IR")} ثانیه دیگه`;
+      otpResendBtn.textContent = `ارسال دوباره تا ${left.toLocaleString("fa-IR")} ثانیه دیگر`;
       left -= 1;
     };
     paint();
@@ -380,26 +424,19 @@
     clearError();
     otpVerifyBtn.disabled = true;
     try {
-      const res = await fetch("/auth/otp/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mobile: otpMobile.value, code }),
-      });
-      if (!res.ok) {
-        showError(await refusalMessage(res, "کد واردشده درست نیست."));
+      const result = await authFetch("/auth/otp/verify", { mobile: otpMobile.value, code });
+      if (!result.ok) {
+        showError(refusalMessage(result, "کد واردشده درست نیست."));
         clearDigits();
         digits[0].focus();
         return;
       }
-      const data = await res.json();
       // A brand-new account has a placeholder name and no picture, so the
       // first stop is the profile -- once, and only for the visit that
       // created it. Anyone signing back in goes where they were headed.
-      window.location.href = data.is_new_account
-        ? `/views/users/${data.user.id}`
+      window.location.href = result.data.is_new_account
+        ? `/views/users/${result.data.user.id}`
         : nextUrl;
-    } catch (err) {
-      showError("ارتباط با سرور برقرار نشد. اتصالت رو بررسی کن.");
     } finally {
       otpVerifyBtn.disabled = false;
     }
@@ -476,49 +513,33 @@
 
   loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    try {
-      const res = await fetch("/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: document.getElementById("loginEmail").value,
-          password: document.getElementById("loginPass").value,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert("خطا در ورود: " + (err.detail || res.statusText));
-        return;
-      }
-      window.location.href = nextUrl;
-    } catch (err) {
-      alert("خطای شبکه: " + err.message);
+    clearError();
+    const result = await authFetch("/auth/login", {
+      email: document.getElementById("loginEmail").value,
+      password: document.getElementById("loginPass").value,
+    });
+    if (!result.ok) {
+      showError(refusalMessage(result, "ایمیل یا رمز عبور درست نیست."));
+      return;
     }
+    window.location.href = nextUrl;
   });
 
   registerForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    try {
-      const res = await fetch("/users/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: document.getElementById("regName").value,
-          email: document.getElementById("regEmail").value,
-          password: document.getElementById("regPass").value,
-          confirm_password: document.getElementById("regConfirmPass").value,
-          avatar: selectedAvatar,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert("خطا در ثبت‌نام: " + (err.detail || res.statusText));
-        return;
-      }
-      window.location.href = nextUrl;
-    } catch (err) {
-      alert("خطای شبکه: " + err.message);
+    clearError();
+    const result = await authFetch("/users/", {
+      name: document.getElementById("regName").value,
+      email: document.getElementById("regEmail").value,
+      password: document.getElementById("regPass").value,
+      confirm_password: document.getElementById("regConfirmPass").value,
+      avatar: selectedAvatar,
+    });
+    if (!result.ok) {
+      showError(refusalMessage(result, "ثبت‌نام انجام نشد. دوباره تلاش کن."));
+      return;
     }
+    window.location.href = nextUrl;
   });
 </script>
 </body>

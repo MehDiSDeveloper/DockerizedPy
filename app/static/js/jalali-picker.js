@@ -135,13 +135,13 @@
           <button type="button" class="icon-btn jp-close" data-icon="x" aria-label="بستن"></button>
         </div>
         <div class="jp-nav">
-          <button type="button" class="jp-nav-btn jp-prev-year" aria-label="سال قبل">
+          <button type="button" class="btn btn-nav jp-prev-year" aria-label="سال قبل">
             <span data-icon="chevronRight"></span><span data-icon="chevronRight"></span>
           </button>
-          <button type="button" class="jp-nav-btn jp-prev" data-icon="chevronRight" aria-label="ماه قبل"></button>
+          <button type="button" class="btn btn-nav jp-prev" data-icon="chevronRight" aria-label="ماه قبل"></button>
           <button type="button" class="jp-title" aria-live="polite"></button>
-          <button type="button" class="jp-nav-btn jp-next" data-icon="chevronLeft" aria-label="ماه بعد"></button>
-          <button type="button" class="jp-nav-btn jp-next-year" aria-label="سال بعد">
+          <button type="button" class="btn btn-nav jp-next" data-icon="chevronLeft" aria-label="ماه بعد"></button>
+          <button type="button" class="btn btn-nav jp-next-year" aria-label="سال بعد">
             <span data-icon="chevronLeft"></span><span data-icon="chevronLeft"></span>
           </button>
         </div>
@@ -158,9 +158,9 @@
           <select class="jp-select jp-minute" aria-label="دقیقه"></select>
         </div>` : ""}
         <div class="sheet-actions jp-actions">
-          <button type="button" class="cc-btn ghost jp-clear">پاک کردن</button>
-          <button type="button" class="cc-btn ghost jp-today">امروز</button>
-          <button type="button" class="cc-btn primary jp-confirm">تأیید</button>
+          <button type="button" class="btn btn-ghost jp-clear">پاک کردن</button>
+          <button type="button" class="btn btn-ghost jp-today">امروز</button>
+          <button type="button" class="btn btn-ghost btn-accent jp-confirm">تأیید</button>
         </div>
       </div>`;
 
@@ -266,7 +266,7 @@
       render();
     });
     grid.addEventListener("dblclick", (e) => {
-      if (e.target.closest(".jp-cell[data-iso]")) confirm();
+      if (e.target.closest(".jp-cell[data-iso]")) commitPick();
     });
 
     shell.querySelector(".jp-prev").addEventListener("click", () => shift(-1, 0));
@@ -291,7 +291,9 @@
       close();
     });
 
-    function confirm() {
+    // Named for what it does rather than `confirm`, which shadowed the
+    // global dialog this app no longer uses anywhere.
+    function commitPick() {
       if (!picked) {
         onPick(null);
         close();
@@ -305,7 +307,7 @@
       onPick(value);
       close();
     }
-    shell.querySelector(".jp-confirm").addEventListener("click", confirm);
+    shell.querySelector(".jp-confirm").addEventListener("click", commitPick);
 
     document.addEventListener("keydown", onKeydown);
     document.body.append(backdrop, shell);

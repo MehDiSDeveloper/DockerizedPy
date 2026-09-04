@@ -43,6 +43,7 @@
     <div class="empty" id="gmEmpty" {{ 'hidden' if members }}>
       <span data-icon="empty"></span>
       <p id="gmEmptyText">عضوی با این مشخصات پیدا نشد.</p>
+      <p class="empty-hint">عبارت جستجو را کوتاه‌تر کن یا پاکش کن.</p>
     </div>
     <div class="scroll-sentinel" id="gmSentinel" aria-hidden="true"></div>
     <div class="list-loading" id="gmLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
@@ -118,21 +119,29 @@
         fields,
         danger: CAN_MANAGE ? {
           label: "حذف از گروه",
-          onClick: async () => {
-            if (!confirm(`${name} از گروه حذف شود؟`)) return false;
-            const { ok, data } = await apiFetch(`/groups/${GROUP_ID}/members/${id}`, {
-              method: "DELETE",
-            });
-            if (!ok) {
-              showToast("خطا: " + ((data && data.detail) || "حذف نشد"));
-              return false;
-            }
-            // The scroller pages by offset over rows the *server* returned,
-            // so a removal has to be declared or the next page skips
-            // somebody (CLAUDE.md, the roster's own note).
-            row.remove();
-            scroller.notifyRemoved(1);
-            showToast("عضو حذف شد");
+          // This sheet closes and the confirmation takes its place, rather
+          // than stacking a second backdrop over the first.
+          onClick: () => {
+            setTimeout(() => confirmSheet({
+              title: "حذف از گروه",
+              text: `${name} از گروه حذف می‌شود و دیگر چالش‌های تازهٔ گروه را نمی‌گیرد.`,
+              confirmLabel: "حذف از گروه",
+              onConfirm: async () => {
+                const result = await apiFetch(`/groups/${GROUP_ID}/members/${id}`, {
+                  method: "DELETE",
+                });
+                if (!result.ok) {
+                  showRequestError(result, "حذف عضو");
+                  return;
+                }
+                // The scroller pages by offset over rows the *server*
+                // returned, so a removal has to be declared or the next page
+                // skips somebody (CLAUDE.md, the roster's own note).
+                row.remove();
+                scroller.notifyRemoved(1);
+                showToast("عضو حذف شد");
+              },
+            }), 0);
             return true;
           },
         } : undefined,
@@ -143,7 +152,7 @@
             body: { role: values.role },
           });
           if (!ok) {
-            showToast("خطا: " + ((data && data.detail) || "ذخیره نشد"));
+            showToast(((data && data.detail) || "ذخیره نشد. دوباره تلاش کن."));
             return false;
           }
           // Repainted from the response, never from what was submitted: the

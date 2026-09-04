@@ -9,8 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth import get_current_user_id, get_page_user
+from app.avatars import register_avatar_filters
 from app.config import BASE_DIR
 from app.database import get_db
+from app.date_filters import register_date_filters
 from app.explainers import register_explainer_filters
 from app.icons import register_icon_filters
 from app.jalali import to_jalali
@@ -27,6 +29,10 @@ from app.routers.views.roadmap import home_roadmap_card
 
 router = APIRouter(prefix="/views/home", tags=["home-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_date_filters(templates.env)
+# The create picker's group sheet offers an emblem, and this page carries a
+# FAB -- so the catalogue global has to be on this environment too.
+register_avatar_filters(templates.env)
 register_explainer_filters(templates.env)
 register_icon_filters(templates.env)
 # The «قدم فعلی تو» card wears the roadmap's own Farsi labels, so this

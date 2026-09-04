@@ -120,8 +120,8 @@ function cropTo(file, frame) {
         <p class="ip-hint">با کشیدن و دو انگشت، بخشی از عکس را که می‌خواهی دیده شود در قاب بگذار.</p>
         <div class="ip-stage"><img alt=""></div>
         <div class="sheet-actions">
-          <button type="button" class="cc-btn ghost" data-ip-close>لغو</button>
-          <button type="button" class="cc-btn primary" data-ip-confirm>انتخاب</button>
+          <button type="button" class="btn btn-ghost" data-ip-close>لغو</button>
+          <button type="button" class="btn btn-ghost btn-accent" data-ip-confirm>انتخاب</button>
         </div>
       </div>`;
 
@@ -130,6 +130,8 @@ function cropTo(file, frame) {
     document.body.appendChild(modal);
     if (window.renderIcons) window.renderIcons(modal);
     document.body.style.overflow = "hidden";
+    // see createSheet(): on a wide screen the scroller is the phone column
+    document.body.classList.add("is-scroll-locked");
 
     const cropper = new window.Cropper(image, {
       aspectRatio: frame.w / frame.h,
@@ -156,6 +158,7 @@ function cropTo(file, frame) {
       URL.revokeObjectURL(objectUrl);
       document.removeEventListener("keydown", onKey, true);
       document.body.style.overflow = "";
+      document.body.classList.remove("is-scroll-locked");
       modal.remove();
       resolve(value);
     }
@@ -198,7 +201,7 @@ async function pickImage(frameKey) {
   try {
     await loadCropper();
   } catch {
-    window.showToast("ابزار برش عکس بارگذاری نشد");
+    window.showToast("ابزار برش عکس بارگذاری نشد. دوباره تلاش کن.");
     return null;
   }
 
@@ -215,7 +218,7 @@ async function pickImage(frameKey) {
   try {
     res = await fetch("/media/", { method: "POST", body });
   } catch {
-    window.showToast("آپلود عکس انجام نشد");
+    window.showToast("آپلود عکس انجام نشد. دوباره تلاش کن.");
     return null;
   }
   if (res.status === 401) {
@@ -224,7 +227,7 @@ async function pickImage(frameKey) {
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    window.showToast(typeof err.detail === "string" ? err.detail : "آپلود عکس انجام نشد");
+    window.showToast(typeof err.detail === "string" ? err.detail : "آپلود عکس انجام نشد. دوباره تلاش کن.");
     return null;
   }
   return res.json();

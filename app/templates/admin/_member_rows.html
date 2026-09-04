@@ -24,13 +24,13 @@
   <div class="sr-head">
     {#- An opaque neutral behind every avatar: several catalogue styles
         ship a transparent ground (see CLAUDE.md on avatars). -#}
-    <span class="admin-av"><img src="{{ member.avatar | avatar_url }}" alt=""
+    <span class="avatar avatar-md"><img src="{{ member.avatar | avatar_url }}" alt=""
         loading="lazy" width="34" height="34"></span>
     <div class="sr-text">
       <span class="sr-label">{{ member.name }}</span>
       <span class="sr-hint">{{ member.email or 'بدون ایمیل' }}</span>
     </div>
-    <span class="role-pill {{ 'is-admin' if member.role == 'admin' else '' }}"
+    <span class="pill pill-role {{ 'is-admin' if member.role | role_is_elevated else '' }}"
       >{{ role_labels.get(member.role, member.role) }}</span>
     <span class="sr-chev" data-icon="chevronLeft"></span>
   </div>

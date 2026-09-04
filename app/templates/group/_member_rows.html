@@ -15,14 +15,14 @@
 <div class="setting-row glass member-row" data-member-id="{{ m.user_id }}"
   data-member-role="{{ m.role }}" data-member-name="{{ m.name }}">
   <div class="sr-head">
-    <img class="mr-avatar" src="{{ m.avatar | avatar_url }}" alt="" width="36" height="36"
+    <img class="avatar avatar-lg avatar-square" src="{{ m.avatar | avatar_url }}" alt="" width="36" height="36"
       loading="lazy">
     <div class="sr-text">
       <span class="sr-label">{{ m.name }}{% if is_me %} <span class="mr-you">(تو)</span>{% endif %}</span>
       <span class="sr-hint">عضو از <span data-jalali="{{ m.joined_at.isoformat() }}"
-          data-jalali-format="day-month-year">{{ m.joined_at.strftime('%Y-%m-%d') }}</span></span>
+          data-jalali-format="day-month-year">{{ m.joined_at | jalali('day-month-year') }}</span></span>
     </div>
-    <span class="role-pill {{ 'is-admin' if m.role in ('owner', 'admin') else '' }}"
+    <span class="pill pill-role {{ 'is-admin' if m.role | role_is_elevated else '' }}"
       data-role-pill>{{ group_role_labels.get(m.role, m.role) }}</span>
     {#- Two different actions, and each is offered only to whoever holds the
         permission behind it: the owner alone may change a role, while an

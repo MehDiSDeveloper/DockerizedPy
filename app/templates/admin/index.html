@@ -103,7 +103,7 @@
     <div class="seg-row">
       <div class="seg" id="amRoleSeg" role="tablist" aria-label="فیلتر نقش">
         {% for opt in role_options %}
-        <button class="seg-btn{{ ' active' if active_role == opt.value }}" data-role="{{ opt.value }}"
+        <button class="btn btn-seg{{ ' active' if active_role == opt.value }}" data-role="{{ opt.value }}"
           role="tab" aria-selected="{{ 'true' if active_role == opt.value else 'false' }}">{{ opt.label }}</button>
         {% endfor %}
       </div>
@@ -120,6 +120,7 @@
     <div class="empty" id="amEmpty" {{ 'hidden' if members }}>
       <span data-icon="empty"></span>
       <p id="amEmptyText">{{ "عضوی با این مشخصات پیدا نشد." if (query or active_role != "all") else "هنوز عضوی ثبت نشده." }}</p>
+      <p class="empty-hint">اگر جستجو یا فیلتر نقشی فعال است، برداشتنش فهرست کامل را برمی‌گرداند.</p>
     </div>
     <div class="scroll-sentinel" id="amSentinel" aria-hidden="true"></div>
     <div class="list-loading" id="amLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
@@ -189,7 +190,7 @@
       scroller.reset();
     }
 
-    const roleBtns = Array.from(roleSeg.querySelectorAll(".seg-btn"));
+    const roleBtns = Array.from(roleSeg.querySelectorAll(".btn-seg"));
     function syncRoleSeg() {
       roleBtns.forEach((b) => {
         const on = b.dataset.role === state.role;

@@ -65,6 +65,7 @@
     <div class="empty" id="cmEmpty" {{ 'hidden' if enrollments }}>
       <span data-icon="empty"></span>
       <p id="cmEmptyText">{{ "عضوی با این مشخصات پیدا نشد." if query else "هنوز کسی در این چالش عضو نشده." }}</p>
+      <p class="empty-hint">اگر عبارتی جستجو کرده‌ای، پاک‌کردنش همهٔ اعضا را برمی‌گرداند.</p>
     </div>
     <div class="scroll-sentinel" id="cmSentinel" aria-hidden="true"></div>
     <div class="list-loading" id="cmLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>

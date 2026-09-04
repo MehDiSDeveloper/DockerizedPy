@@ -22,7 +22,7 @@
 <div class="search-bar">
   <span data-icon="search"></span>
   <input type="text" id="clSearch" placeholder="جستجوی چالش..." value="{{ query }}" />
-  <button type="button" class="filter-btn" id="clFilterBtn" aria-label="فیلترها" data-tour="explore-filters">
+  <button type="button" class="btn btn-filter" id="clFilterBtn" aria-label="فیلترها" data-tour="explore-filters">
     <span data-icon="filter"></span>
     <span class="filter-badge" id="clFilterCount" hidden></span>
   </button>
@@ -33,10 +33,10 @@
     wears the same st-* colour its cards do. -#}
 <div class="seg-row">
   <div class="seg" id="clStatusSeg" role="tablist" aria-label="فیلتر وضعیت چالش">
-    <button class="seg-btn{{ ' active' if active_status == 'all' }}" data-status="all" role="tab"
+    <button class="btn btn-seg{{ ' active' if active_status == 'all' }}" data-status="all" role="tab"
       aria-selected="{{ 'true' if active_status == 'all' else 'false' }}">همه</button>
     {% for code, meta in status_options.items() %}
-    <button class="seg-btn st-{{ code }}{{ ' active' if active_status == code }}" data-status="{{ code }}" role="tab"
+    <button class="btn btn-seg is-{{ code }}{{ ' active' if active_status == code }}" data-status="{{ code }}" role="tab"
       aria-selected="{{ 'true' if active_status == code else 'false' }}"><span
         data-icon="{{ meta.icon }}"></span>{{ meta.label }}</button>
     {% endfor %}
@@ -60,9 +60,9 @@
     them. -#}
 <div class="seg-row view-row">
   <div class="seg" id="clViewSeg" role="tablist" aria-label="حالت نمایش">
-    <button class="seg-btn" data-view="rail" role="tab" aria-selected="false"><span
+    <button class="btn btn-seg" data-view="rail" role="tab" aria-selected="false"><span
         data-icon="camera"></span>کارتی</button>
-    <button class="seg-btn" data-view="list" role="tab" aria-selected="false"><span
+    <button class="btn btn-seg" data-view="list" role="tab" aria-selected="false"><span
         data-icon="list"></span>فهرستی</button>
   </div>
 </div>
@@ -85,6 +85,7 @@
   <div class="empty" id="clEmpty" {{ 'hidden' if challenges }}>
     <span data-icon="empty"></span>
     <p id="clEmptyText">{{ "چالشی با این مشخصات پیدا نشد." if (active_category or query or active_mine != "all" or active_status != "all") else "هنوز چالشی ثبت نشده." }}</p>
+    <p class="empty-hint">فیلترها را بردار، یا با دکمهٔ + چالش خودت را بساز.</p>
   </div>
   <div class="scroll-sentinel" id="clSentinel" aria-hidden="true"></div>
   <div class="list-loading" id="clLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
@@ -98,9 +99,13 @@
   <span data-icon="x"></span>
 </button>
 
-<a href="/views/challenges/create" class="fab" aria-label="ساخت چالش جدید" data-tour="explore-create">
+{#- The one create entrance in the app: `create.js` asks which of the three
+    things is being made and the challenge answer opens the wizard, which is
+    exactly what this button used to do on its own. -#}
+<button type="button" class="fab" data-create-fab aria-label="ساختن چیز تازه"
+  data-tour="explore-create">
   <span data-icon="plus"></span>
-</a>
+</button>
 
 {#- گفتگو. One modal per page, filled in by whichever comment control is
     tapped -- see `challenge/_comment_modal.html`. -#}
@@ -111,6 +116,8 @@
 {% block scripts %}
 
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script src="{{ url_for('static', path='/js/create.js') }}"></script>
+<script id="emblemOptions" type="application/json">{{ avatar_catalogue | tojson }}</script>
 <script src="{{ url_for('static', path='/js/comments.js') }}"></script>
 <script src="{{ url_for('static', path='/js/tour.js') }}"></script>
 <script>
@@ -167,7 +174,7 @@
 
     function renderFilterState() {
       const hidden = hiddenFilters();
-      filterCount.textContent = hidden.length;
+      filterCount.textContent = faDigits(hidden.length);
       filterCount.hidden = hidden.length === 0;
       filterBtn.classList.toggle("has-filters", hidden.length > 0);
 
@@ -255,7 +262,7 @@
       scroller.reset();
     }
 
-    const statusBtns = Array.from(statusSeg.querySelectorAll(".seg-btn"));
+    const statusBtns = Array.from(statusSeg.querySelectorAll(".btn-seg"));
     function syncStatusSeg() {
       statusBtns.forEach(b => {
         const on = b.dataset.status === state.status;
@@ -332,7 +339,7 @@
     const viewSeg = document.getElementById("clViewSeg");
     const railClose = document.getElementById("clRailClose");
     const listSection = listEl.parentElement;
-    const viewBtns = Array.from(viewSeg.querySelectorAll(".seg-btn"));
+    const viewBtns = Array.from(viewSeg.querySelectorAll(".btn-seg"));
     let immersive = false;
 
     const isRail = () => listEl.classList.contains("rail");
@@ -349,7 +356,7 @@
     }
 
     viewSeg.addEventListener("click", e => {
-      const btn = e.target.closest(".seg-btn");
+      const btn = e.target.closest(".btn-seg");
       if (btn) setView(btn.dataset.view);
     });
     // Painted from whatever the pre-paint script above settled on, so the

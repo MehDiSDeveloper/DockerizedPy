@@ -1,0 +1,302 @@
+{% extends "layout.html" %}
+
+{#- مدیریت چالش -- the challenge's settings screen.
+
+    **Why this page exists at all.** A group and a course each had one; a
+    challenge had a sheet on its detail page holding eight fields at once. So
+    "where are this thing's settings?" had two answers depending on which of
+    three near-identical objects you were looking at. It has one now: the gear
+    in the detail page's topbar, on all three.
+
+    **The manage screen's rule, applied to a challenge.** One row per
+    *editable value*, the value itself on the row, and the mark at the end
+    saying what tapping does -- a pencil for "this opens an editor", an
+    `.sr-edit` trash for the irreversible one. Each row PATCHes only its own
+    field.
+
+    **What is not here, and why.** زمان‌بندی and هدف are locked by the API from
+    the first non-owner enrolment (`locked_fields` in `routers/challenge.py`),
+    so they are not offered at all -- the page draws what the route accepts
+    rather than a control that answers 409. `identity_mode` is locked by the
+    same count and disappears with it. Deletion is refused once anybody else
+    has joined, and archiving is the supported exit. -#}
+
+{% block topbar_leading %}
+<a href="/views/challenges/{{ challenge.id }}" class="back-btn" data-back aria-label="بازگشت"><span
+    data-icon="chevronRight"></span></a>
+{% endblock %}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر پیمایش" data-crumb-trail data-crumb-label="مدیریت چالش">
+  <span class="crumb current" aria-current="page">مدیریت چالش</span>
+</nav>
+{% endblock %}
+
+{% block topbar_action %}{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <p class="hero-eyebrow">{{ challenge.title }}</p>
+  <h1 class="hero-title">مدیریت چالش</h1>
+</section>
+
+<div class="settings-page">
+
+  {#- What the challenge *says*. Free to change at any time: nobody joined a
+      wording. -#}
+  <section class="setting-group">
+    <div class="sg-head"><h2>مشخصات چالش{{ explain("locked-fields") }}</h2></div>
+
+    <div class="setting-row glass compact" role="button" tabindex="0" data-edit="title">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">عنوان</span>
+          <span class="sr-hint">اولین چیزی که روی کارت‌ها دیده می‌شود.</span>
+        </div>
+        <span class="sr-value">{{ challenge.title }}</span>
+        <span class="sr-edit" data-icon="edit"></span>
+      </div>
+    </div>
+
+    <div class="setting-row glass compact" role="button" tabindex="0" data-edit="description">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">توضیح</span>
+          <span class="sr-hint">کسی که چالش را باز می‌کند اول همین را می‌خواند.</span>
+        </div>
+        <span class="sr-value">{{ 'دارد' if challenge.description else 'ندارد' }}</span>
+        <span class="sr-edit" data-icon="edit"></span>
+      </div>
+    </div>
+
+    <div class="setting-row glass compact" role="button" tabindex="0" data-edit="rules">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">قوانین</span>
+          <span class="sr-hint">شرط‌هایی که اعضا باید رعایت کنند.</span>
+        </div>
+        <span class="sr-value">{{ 'دارد' if challenge.rules else 'ندارد' }}</span>
+        <span class="sr-edit" data-icon="edit"></span>
+      </div>
+    </div>
+
+    {#- Two pictures rather than one, because the surfaces are two shapes and
+        no single crop is honest in both. The hint on each says where it
+        lands -- a crop whose frame you cannot place is a crop made blind. -#}
+    <div class="setting-row glass compact" role="button" tabindex="0" data-edit="image_square">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">تصویر کارت</span>
+          <span class="sr-hint">بالای صفحهٔ چالش و روی کارت‌های فهرست.</span>
+        </div>
+        <span class="sr-value">{{ 'دارد' if challenge.image_square else 'ندارد' }}</span>
+        <span class="sr-edit" data-icon="edit"></span>
+      </div>
+    </div>
+
+    <div class="setting-row glass compact" role="button" tabindex="0" data-edit="image_tall">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">تصویر سربرگ</span>
+          <span class="sr-hint">نمای کارتی وقتی تمام‌صفحه باز می‌شود.</span>
+        </div>
+        <span class="sr-value">{{ 'دارد' if challenge.image_tall else 'ندارد' }}</span>
+        <span class="sr-edit" data-icon="edit"></span>
+      </div>
+    </div>
+  </section>
+
+  {#- Who may see it, and how members appear to each other. The second row is
+      structural -- it decides what everyone already here agreed to -- so it
+      disappears once anybody else has joined rather than offering an editor
+      that answers 409. -#}
+  <section class="setting-group">
+    <div class="sg-head"><h2>دسترسی</h2></div>
+
+    <div class="setting-row glass compact" role="button" tabindex="0" data-edit="visibility">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">چه کسی می‌بیند</span>
+          <span class="sr-hint">«عمومی» یعنی در فهرست چالش‌ها هم می‌آید.</span>
+        </div>
+        <span class="sr-value">{{ visibility_label }}</span>
+        <span class="sr-edit" data-icon="edit"></span>
+      </div>
+    </div>
+
+    <div class="setting-row glass compact{{ '' if can_edit_identity }}"
+      {% if can_edit_identity %}role="button" tabindex="0" data-edit="identity_mode"{% endif %}>
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">هویت اعضا</span>
+          <span class="sr-hint">{% if can_edit_identity %}تا وقتی کسی عضو نشده قابل تغییر
+            است.{% else %}چون دیگران عضو شده‌اند، دیگر قابل تغییر نیست.{% endif %}</span>
+        </div>
+        <span class="sr-value">{{ identity_label }}</span>
+        {% if can_edit_identity %}<span class="sr-edit" data-icon="edit"></span>{% endif %}
+      </div>
+    </div>
+  </section>
+
+  {#- The exits, apart from everything above: archiving is the normal one and
+      deleting is refused outright once anybody else has joined -- the same
+      409 the route answers. -#}
+  <section class="setting-group">
+    <div class="sg-head"><h2>وضعیت چالش</h2></div>
+
+    <div class="setting-row glass compact" role="button" tabindex="0" data-edit="lifecycle_status">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">وضعیت</span>
+          <span class="sr-hint">بایگانی چالش را از فهرست‌ها برمی‌دارد؛ چیزی پاک نمی‌شود.</span>
+        </div>
+        <span class="sr-value">{{ lifecycle_label }}</span>
+        <span class="sr-edit" data-icon="edit"></span>
+      </div>
+    </div>
+
+    {% if can_delete %}
+    <div class="setting-row glass compact danger-row" role="button" tabindex="0" id="chDelete">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">حذف چالش</span>
+          <span class="sr-hint">فقط تا وقتی کسی جز خودت عضو نشده باشد.</span>
+        </div>
+        <span class="sr-edit" data-icon="trash"></span>
+      </div>
+    </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script src="{{ url_for('static', path='/js/imagepick.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const CHALLENGE_ID = {{ challenge.id }};
+
+    // One row, one field, one PATCH -- the same shape the group's and the
+    // course's management screens have.
+    async function patchChallenge(body) {
+      const { ok, status, data } = await apiFetch(`/challenges/${CHALLENGE_ID}`, {
+        method: "PATCH",
+        body,
+      });
+      if (!ok) {
+        showToast((status === 409 && data && data.detail) || "ذخیره نشد. دوباره تلاش کن.");
+        return false;
+      }
+      window.location.reload();
+      return true;
+    }
+
+    function asChips(map) {
+      return Object.entries(map).map(([value, label]) => ({ value, label }));
+    }
+
+    const EDITORS = {
+      title: () => ({
+        title: "عنوان چالش",
+        fields: [{ name: "title", label: "عنوان", required: true, maxlength: 50,
+          value: {{ challenge.title | tojson }} }],
+        onConfirm: (v) => patchChallenge({ title: v.title.trim() }),
+      }),
+      description: () => ({
+        title: "توضیح چالش",
+        fields: [{ name: "description", label: "توضیح", type: "textarea", rows: 4,
+          value: {{ (challenge.description or "") | tojson }} }],
+        onConfirm: (v) => patchChallenge({ description: v.description.trim() || null }),
+      }),
+      rules: () => ({
+        title: "قوانین چالش",
+        fields: [{ name: "rules", label: "قوانین", type: "textarea", rows: 4,
+          value: {{ (challenge.rules or "") | tojson }} }],
+        onConfirm: (v) => patchChallenge({ rules: v.rules.trim() || null }),
+      }),
+      image_square: () => ({
+        title: "تصویر کارت",
+        fields: [{ name: "image_square", label: "تصویر", type: "image",
+          frame: "challenge_square",
+          value: {{ (challenge.image_square or "") | tojson }},
+          url: {{ ((challenge.image_square | media_url) or "") | tojson }},
+          hint: "بالای صفحهٔ چالش و روی کارت‌های فهرست." }],
+        // "" is the sheet's "no picture"; the column's is NULL.
+        onConfirm: (v) => patchChallenge({ image_square: v.image_square || null }),
+      }),
+      image_tall: () => ({
+        title: "تصویر سربرگ",
+        fields: [{ name: "image_tall", label: "تصویر", type: "image",
+          frame: "challenge_tall",
+          value: {{ (challenge.image_tall or "") | tojson }},
+          url: {{ ((challenge.image_tall | media_url) or "") | tojson }},
+          hint: "نمای کارتی وقتی تمام‌صفحه باز می‌شود." }],
+        onConfirm: (v) => patchChallenge({ image_tall: v.image_tall || null }),
+      }),
+      visibility: () => ({
+        title: "چه کسی می‌بیند",
+        fields: [{ name: "visibility", label: "دیده‌شدن", type: "chips",
+          value: {{ challenge.visibility | tojson }},
+          options: asChips({{ visibility_options | tojson }}) }],
+        onConfirm: (v) => patchChallenge({ visibility: v.visibility }),
+      }),
+      identity_mode: () => ({
+        title: "هویت اعضا",
+        fields: [{ name: "identity_mode", label: "هویت", type: "chips",
+          value: {{ challenge.identity_mode | tojson }},
+          hint: "تا وقتی کسی عضو نشده قابل تغییر است.",
+          options: {{ identity_options | tojson }} }],
+        onConfirm: (v) => patchChallenge({ identity_mode: v.identity_mode }),
+      }),
+      lifecycle_status: () => ({
+        title: "وضعیت چالش",
+        explainHtml: {{ explain("locked-fields") | tojson }},
+        fields: [{ name: "lifecycle_status", label: "وضعیت", type: "chips",
+          value: {{ challenge.lifecycle_status | tojson }},
+          options: asChips({{ lifecycle_options | tojson }}) }],
+        onConfirm: (v) => patchChallenge({ lifecycle_status: v.lifecycle_status }),
+      }),
+    };
+
+    document.querySelectorAll("[data-edit]").forEach((row) => {
+      row.addEventListener("click", () => {
+        const build = EDITORS[row.dataset.edit];
+        if (build) createSheet({ confirmLabel: "ذخیره", ...build() });
+      });
+    });
+
+    const del = document.getElementById("chDelete");
+    if (del) {
+      del.addEventListener("click", () => {
+        createSheet({
+          title: "حذف چالش",
+          fields: [
+            { type: "note", text: "چالش و هرچه در آن ثبت شده برای همیشه پاک می‌شود.", tone: "danger" },
+            { type: "note", text: "اگر کسی جز خودت عضو شده باشد، حذف ممکن نیست؛ به‌جایش بایگانی‌اش کن." },
+          ],
+          confirmLabel: "لغو",
+          onConfirm: async () => true,
+          danger: {
+            label: "حذف چالش",
+            onClick: async () => {
+              const { ok, status } = await apiFetch(`/challenges/${CHALLENGE_ID}`, {
+                method: "DELETE",
+              });
+              if (!ok) {
+                // 409 = somebody joined between the page render and this tap.
+                showToast(status === 409
+                  ? "دیگران در این چالش عضو شده‌اند؛ به‌جای حذف بایگانی‌اش کن."
+                  : "حذف انجام نشد. دوباره تلاش کن.");
+                return false;
+              }
+              window.location.href = "/views/challenges/";
+              return true;
+            },
+          },
+        });
+      });
+    }
+  });
+</script>
+{% endblock %}

@@ -22,7 +22,7 @@
     because a second copy is a second thing to keep in step -- and because
     switching mode is then a class toggle rather than a refetch, which is what
     lets search, the filters and infinite scroll carry on untouched. -#}
-<a href="/views/challenges/{{ c.id }}" class="challenge-card glass explore-card st-{{ status }}"
+<a href="/views/challenges/{{ c.id }}" class="challenge-card glass explore-card"
   data-status="{{ status }}" data-cat="{{ c.category | category_slug }}">
   {#- THE COVER. This element is the one place a challenge's picture will
       land: there is no image field yet, so it paints the category's own hue,
@@ -43,13 +43,13 @@
     {% if cover_tall %}<img class="et-cover et-tall" src="{{ cover_tall }}" alt=""
       loading="lazy" decoding="async">{% endif %}
     <span data-icon="{{ c.category | category_icon }}"></span>
-    <span class="cadence-badge" title="{{ cadence_label }}" aria-label="{{ cadence_label }}"
+    <span class="badge badge-cadence" title="{{ cadence_label }}" aria-label="{{ cadence_label }}"
       data-icon="{{ c.cadence_kind | cadence_icon }}"></span>
   </div>
   <div class="explore-body">
     <div class="explore-head">
       <h3>{{ c.title }}</h3>
-      {#- Status and like, one column at the card's outer edge. The pill says
+      {#- Status and like, one column at the card's outer edge. The lamp says
           «should I act on this»; the heart is how you act. A `<span
           role="button">` rather than a `<button>`: the whole card is one
           `<a>` and a nested button is invalid markup -- the delegated handler
@@ -57,17 +57,30 @@
           It carries its own subject, so this same markup works for anything
           else that becomes likeable. -#}
       <span class="ec-side">
-        <span class="status-pill"><span data-icon="{{ status_meta[status].icon }}"></span>{{ status_label }}</span>
-        {#- The two actions share a row under the pill: three stacked items
+        {#- «چراغ وضعیت» -- one markup for all three shapes of this card
+            (list row, rail cover, full-screen reader); where it sits and
+            what ground it wears are the CSS's answer, not a second partial's.
+            It is a real `<button>` inside the card's `<a>`, which the HTML
+            parser would refuse, so it is a span with the button role -- the
+            same trade the heart and the conversation controls make. The
+            delegated handler in app.js stops the event, or a tap on it would
+            open the challenge instead of naming its status.
+
+            The label is `status_meta`'s own, never a second map. -#}
+        <span class="st-lamp {{ status }}" role="button" tabindex="0"
+          aria-label="وضعیت: {{ status_label }}" aria-expanded="false">
+          <span class="ring"></span><span class="label">{{ status_label }}</span>
+        </span>
+        {#- The two actions share a row under the lamp: three stacked items
             made the card twice as tall as its own text. -#}
         <span class="ec-acts">
-        <span class="like-btn{{ ' is-liked' if c.id in liked_ids else '' }}" role="button" tabindex="0"
+        <span class="btn btn-social btn-like{{ ' is-liked' if c.id in liked_ids else '' }}" role="button" tabindex="0"
           aria-pressed="{{ 'true' if c.id in liked_ids else 'false' }}"
           aria-label="{{ 'برداشتن لایک' if c.id in liked_ids else 'لایک' }}"
           data-like-subject="challenge" data-like-id="{{ c.id }}"
           data-liked="{{ 'true' if c.id in liked_ids else 'false' }}">
           <span data-icon="{{ 'heartFill' if c.id in liked_ids else 'heart' }}"></span>
-          <b data-like-count>{{ like_counts.get(c.id, 0) }}</b>
+          <b data-like-count>{{ like_counts.get(c.id, 0) | fa_num }}</b>
         </span>
         {#- The conversation, from the card. It is here rather than only on
             the challenge's page because «what did people say» is a question
@@ -79,12 +92,12 @@
             card is a single `<a>` and a nested button is invalid markup. It
             carries its own subject, count and title, so the modal can draw
             its header before a request goes out. -#}
-        <span class="cm-btn" role="button" tabindex="0" aria-haspopup="dialog"
+        <span class="btn btn-social" role="button" tabindex="0" aria-haspopup="dialog"
           aria-label="نظرها" data-comments-id="{{ c.id }}"
           data-comments-title="{{ c.title }}"
           data-comments-count="{{ comment_counts.get(c.id, 0) }}">
           <span data-icon="message"></span>
-          <b data-comment-count>{{ comment_counts.get(c.id, 0) }}</b>
+          <b data-comment-count>{{ comment_counts.get(c.id, 0) | fa_num }}</b>
         </span>
         </span>
       </span>
@@ -101,19 +114,19 @@
         the same shape the moderation roster's «N عضو» line needed. -#}
     {% if c.group and not hide_group_chip %}
     <p class="cc-group">
-      <span class="cc-tag group-chip" role="link" tabindex="0" data-group-chip="{{ c.group.id }}">
+      <span class="pill pill-group" role="link" tabindex="0" data-group-chip="{{ c.group.id }}">
         <span data-icon="{{ group_kind_icons.get(c.group.kind, 'catOther') if group_kind_icons else 'catOther' }}"></span>{{ c.group.name }}
       </span>
       {% if c.participation_mode == 'mandatory' %}
-      <span class="cc-tag warn"><span data-icon="lock"></span>اجباری</span>
+      <span class="pill pill-tag warn"><span data-icon="lock"></span>اجباری</span>
       {% endif %}
     </p>
     {% endif %}
     <p>
       <span class="cat-name">{{ c.category.value }}</span>
-      <span data-icon="users"></span><span>{{ c.enrollments|length }}</span>
+      <span data-icon="users"></span><span>{{ c.enrollments|length|fa_num }}</span>
       {% if c.due_date %}<span data-icon="calendar"></span><span data-jalali="{{ c.due_date.isoformat() }}"
-        data-jalali-format="day-month-year">{{ c.due_date.strftime('%Y-%m-%d') }}</span>{% endif %}
+        data-jalali-format="day-month-year">{{ c.due_date | jalali('day-month-year') }}</span>{% endif %}
     </p>
     {#- What the full-screen reader adds to the card, and nothing else reads:
         `display:none` everywhere but `.is-immersive`. It is inside the card
@@ -127,7 +140,7 @@
           rendered by the group router's env too, which registers a smaller
           filter set. -#}
       <p class="rail-tags">
-        <span class="cc-tag"><span data-icon="{{ c.cadence_kind | cadence_icon }}"></span>{{ cadence_label }}</span>
+        <span class="pill pill-tag"><span data-icon="{{ c.cadence_kind | cadence_icon }}"></span>{{ cadence_label }}</span>
       </p>
       {#- Short and full ship together and a tap on the text itself swaps
           which one is displayed -- the description *is* the control, so

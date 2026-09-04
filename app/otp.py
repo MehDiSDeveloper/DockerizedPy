@@ -83,9 +83,9 @@ PURPOSE_LOGIN = "login"
 # Farsi refusals. Kept together here rather than at each raise site for the
 # same reason `NOTIFICATION_META` exists: these are the sentences a member
 # reads at the door, and two copies of one of them drift.
-MSG_COOLDOWN = "کد قبلی هنوز معتبره. چند لحظه دیگه دوباره تلاش کن."
+MSG_COOLDOWN = "کد قبلی هنوز معتبر است. چند لحظه دیگر دوباره تلاش کن."
 MSG_TOO_MANY_FOR_MOBILE = (
-    "تعداد درخواست‌های کد برای این شماره زیاد شده. یک ساعت دیگه دوباره تلاش کن."
+    "تعداد درخواست‌های کد برای این شماره زیاد شده. یک ساعت دیگر دوباره تلاش کن."
 )
 MSG_TOO_MANY_OVERALL = "تعداد درخواست‌های کد زیاد شده. کمی بعد دوباره تلاش کن."
 MSG_BAD_CODE = "کد واردشده درست نیست یا منقضی شده."

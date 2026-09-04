@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>چالش | آفلاین</title>
+<link rel="stylesheet" href="/static/css/styles.css">
+<!-- A static document on purpose: this is what the service worker serves when
+     the server cannot be reached, so nothing on it may need the server. That
+     is also why the stylesheet is an absolute path rather than url_for() --
+     no Jinja renders this file. -->
+<script>
+  try {
+    var t = localStorage.getItem("chalesh-theme");
+    if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+  } catch (e) { /* private mode: fall back to the device preference */ }
+</script>
+</head>
+<body>
+<div class="app-bg"></div>
+
+<div class="shell">
+  <div class="auth-wrap">
+    <div class="auth-logo">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
+      <h1>اینترنت قطع است</h1>
+      <p>«چالش» همه‌چیز را زنده از سرور می‌خواند، پس تا وصل نشوی نمی‌تواند صفحه‌ای نشانت بدهد. وصل که شدی، دوباره تلاش کن.</p>
+    </div>
+    <button type="button" class="btn btn-primary" style="display:block; width:100%;"
+      onclick="location.reload()">تلاش دوباره</button>
+  </div>
+</div>
+
+</body>
+</html>

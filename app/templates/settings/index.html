@@ -67,12 +67,45 @@
           lives in localStorage, which only the client can read -- so
           initThemeControls() in app.js paints the current one on load. -#}
       <div class="seg" role="radiogroup" aria-label="ظاهر">
-        <button type="button" class="seg-btn" data-theme-option="system" role="radio"
+        <button type="button" class="btn btn-seg" data-theme-option="system" role="radio"
           aria-checked="false">پیش‌فرض دستگاه</button>
-        <button type="button" class="seg-btn" data-theme-option="light" role="radio"
+        <button type="button" class="btn btn-seg" data-theme-option="light" role="radio"
           aria-checked="false">روشن</button>
-        <button type="button" class="seg-btn" data-theme-option="dark" role="radio"
+        <button type="button" class="btn btn-seg" data-theme-option="dark" role="radio"
           aria-checked="false">تاریک</button>
+      </div>
+    </div>
+  </section>
+
+  {#- «نصب» -- device-scoped like the theme above it, and the one section on
+      this page the server does not decide. Whether a browser will offer an
+      install is a fact only that browser holds, so both rows and the heading
+      ship `hidden` and `paintInstall()` in app.js un-hides whichever applies
+      -- the same trade the nav trail makes. An installed app, or a browser
+      that never offers one, renders nothing here at all, which is this
+      page's own rule about a row that would only toast. -#}
+  <section class="setting-group" data-install-group hidden>
+    <h2>نصب</h2>
+    <div class="setting-row glass" data-install-row hidden>
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">نصب روی این دستگاه</span>
+          <span class="sr-hint">«چالش» کنار بقیهٔ برنامه‌ها روی صفحهٔ خانه می‌نشیند و بدون نوار مرورگر باز می‌شود.</span>
+        </div>
+        {#- The action happens here rather than opening anything, so it is an
+            `.icon-btn.xs` -- the manage screens' own mark for exactly that. -#}
+        <button type="button" class="icon-btn xs accent" data-install-action
+          aria-label="نصب برنامه" title="نصب برنامه"><span data-icon="download"></span></button>
+      </div>
+    </div>
+    {#- iOS has no install prompt at all: Safari's own «Add to Home Screen» is
+        the only way, so the row explains rather than acts. -#}
+    <div class="setting-row glass" data-install-ios hidden>
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">افزودن به صفحهٔ خانه{{ explain("install-ios") }}</span>
+          <span class="sr-hint">روی آیفون نصب از خودِ سافاری انجام می‌شود؛ «؟» مرحله‌هایش را می‌گوید.</span>
+        </div>
       </div>
     </div>
   </section>
@@ -95,41 +128,6 @@
         {#- The current value, without opening anything: how many kinds are
             allowed through out of how many exist. -#}
         <span class="sr-value">{{ notification_prefs | selectattr("enabled") | list | length }} از {{ notification_prefs | length }} روشن</span>
-        <span class="sr-chev" data-icon="chevronLeft"></span>
-      </div>
-    </a>
-  </section>
-
-  {#- «گروه‌ها» -- one row, pointing at the member's groups. It is here for
-      the same reason the panel row is: settings is where somebody looks for
-      the parts of the app that are not one of the four nav destinations, and
-      a second entrance costs one line. The page behind it is the same one
-      the profile menu opens. -#}
-  <section class="setting-group">
-    <h2>گروه‌ها</h2>
-    <a class="setting-row glass" href="/views/groups/">
-      <div class="sr-head">
-        <div class="sr-text">
-          <span class="sr-label">گروه‌های من</span>
-          <span class="sr-hint">شرکت، مدرسه یا تیمی که در آن چالش می‌گذارید.</span>
-        </div>
-        <span class="sr-chev" data-icon="chevronLeft"></span>
-      </div>
-    </a>
-  </section>
-
-  {#- «مسیرها» -- one row, pointing at the member's courses. Here for the
-      same reason the «گروه‌ها» row above it is: settings is where somebody
-      looks for the parts of the app that are not one of the four nav
-      destinations, and a second entrance costs one line. -#}
-  <section class="setting-group">
-    <h2>مسیرها</h2>
-    <a class="setting-row glass" href="/views/roadmaps/">
-      <div class="sr-head">
-        <div class="sr-text">
-          <span class="sr-label">مسیرهای من</span>
-          <span class="sr-hint">چند چالش پشت سر هم، که قدم‌به‌قدم باز می‌شوند.</span>
-        </div>
         <span class="sr-chev" data-icon="chevronLeft"></span>
       </div>
     </a>

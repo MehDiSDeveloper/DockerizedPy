@@ -176,15 +176,16 @@ async def test_status_survives_the_infinite_scroll_fragment(
 
 
 @pytest.mark.asyncio
-async def test_list_page_renders_a_status_badge_per_card(
+async def test_list_page_renders_a_status_lamp_per_card(
     client: AsyncClient, db: AsyncSession
 ):
     ids = await _seed(client, db)
 
     resp = await client.get("/views/challenges/")
     assert resp.status_code == 200, resp.text
-    # One pill per card, plus the labels a reader actually sees -- colour on
-    # its own can't carry the status.
-    assert resp.text.count('class="status-pill"') == len(ids)
+    # One «چراغ وضعیت» per card, plus the labels a reader actually sees --
+    # colour on its own can't carry the status, so the lamp names it too
+    # (closed at rest, opened by a tap or a hover).
+    assert resp.text.count('class="st-lamp ') == len(ids)
     for label in ("شروع نشده", "در حال اجرا", "تمام‌شده"):
         assert label in resp.text

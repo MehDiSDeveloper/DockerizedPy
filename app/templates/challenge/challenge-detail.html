@@ -26,8 +26,14 @@
 
 {% block topbar_action %}
 <div class="topbar-actions">
-  {% if is_owner %}
-  <button class="icon-btn" aria-label="مدیریت چالش" data-icon="edit" id="manageBtn"></button>
+  {#- The one entrance to this challenge's settings, and the same one a group
+      and a course have: a gear in the topbar opening a page of rows. The
+      route gates itself on the same `can(..., CHALLENGE_EDIT)`, so the
+      affordance and the gate agree without either trusting the other. -#}
+  {% if can_manage %}
+  <a href="/views/challenges/{{ challenge.id }}/manage" class="icon-btn" aria-label="مدیریت چالش">
+    <span data-icon="settings"></span>
+  </a>
   {% endif %}
   <button class="icon-btn" aria-label="اشتراک‌گذاری" data-icon="share" id="shareBtn"></button>
 </div>
@@ -42,7 +48,19 @@
     other figure lives in the panel it belongs to instead of being repeated
     here, in a details grid, and in a section of its own. -#}
 {%- set hero_cover = challenge.image_square | media_url -%}
+{%- set status = challenge | challenge_status -%}
 <div class="detail-hero glass{{ ' has-cover' if hero_cover }}" data-cat="{{ challenge.category | category_slug }}">
+  {#- «چراغ وضعیت», the card's own component under the card's own rules: top
+      left corner, closed at rest, opened by a tap or a hover, and wearing
+      the over-a-picture treatment because this hero has a ground of its own.
+      A real `<button>` here -- unlike on the explore card, this hero is not
+      itself a link. The label is `status_meta`'s, never a second map, and
+      the status is `challenge_status`'s: this page and the list it was
+      opened from cannot disagree about it. -#}
+  <button class="st-lamp {{ status }}" type="button"
+    aria-label="وضعیت: {{ status_meta[status].label }}" aria-expanded="false">
+    <span class="ring"></span><span class="label">{{ status_meta[status].label }}</span>
+  </button>
   {#- The challenge's own picture as the hero's ground. It goes *behind* the
       glass pane (which is `::after`, at z-index:-1) and wears the same
       `--hero-fade` mask everything else in this card does, so the photo
@@ -54,40 +72,40 @@
   <span class="hero-cover"><img src="{{ hero_cover }}" alt="" decoding="async"></span>
   {% endif %}
   <div class="detail-icon"><span data-icon="{{ challenge.category | category_icon }}"></span>
-    <span class="cadence-badge" title="{{ cadence_plan.label }}" aria-label="{{ cadence_plan.label }}"
+    <span class="badge badge-cadence" title="{{ cadence_plan.label }}" aria-label="{{ cadence_plan.label }}"
       data-icon="{{ challenge.cadence_kind | cadence_icon }}"></span></div>
   <div class="detail-tags">
-    <span class="cc-tag cat-tag"><span data-icon="{{ challenge.category | category_icon }}"></span>{{ challenge.category.value }}</span>
-    <span class="cc-tag accent"><span data-icon="{{ challenge.cadence_kind | cadence_icon }}"></span>{{ cadence_plan.label }}</span>
+    <span class="pill pill-cat"><span data-icon="{{ challenge.category | category_icon }}"></span>{{ challenge.category.value }}</span>
+    <span class="pill pill-tag accent"><span data-icon="{{ challenge.cadence_kind | cadence_icon }}"></span>{{ cadence_plan.label }}</span>
     {#- Which group this belongs to, and one tap to it. A chip, not a colour:
         status owns `--st-*` and category owns `--cat-*`, and a third meaning
         on either channel is how a card stops being readable. -#}
     {% if challenge.group %}
-    <a class="cc-tag group-chip" href="/views/groups/{{ challenge.group.id }}"><span
+    <a class="pill pill-group" href="/views/groups/{{ challenge.group.id }}"><span
         data-icon="{{ group_kind_icons.get(challenge.group.kind, 'catOther') }}"></span>{{ challenge.group.name }}</a>
     {% if challenge.participation_mode == 'mandatory' %}
-    <span class="cc-tag warn"><span data-icon="lock"></span>{{ participation_labels.get('mandatory') }}</span>
+    <span class="pill pill-tag warn"><span data-icon="lock"></span>{{ participation_labels.get('mandatory') }}</span>
     {% endif %}
     {% endif %}
-    {% if challenge.visibility != 'public' %}<span class="cc-tag">{{ visibility_label }}</span>{% endif %}
-    {% if challenge.lifecycle_status != 'active' %}<span class="cc-tag warn">{{ lifecycle_label }}</span>{% endif %}
+    {% if challenge.visibility != 'public' %}<span class="pill pill-tag">{{ visibility_label }}</span>{% endif %}
+    {% if challenge.lifecycle_status != 'active' %}<span class="pill pill-tag warn">{{ lifecycle_label }}</span>{% endif %}
   </div>
   <h1>{{ challenge.title }}</h1>
   <div class="detail-stats">
-    <div><b id="participantCount">{{ participant_count }}</b><span>شرکت‌کننده</span></div>
+    <div><b id="participantCount">{{ participant_count | fa_num }}</b><span>شرکت‌کننده</span></div>
     {% if is_enrolled and history_summary %}
-    <div><b>{{ history_summary.pct }}٪</b><span>پیشرفت</span></div>
+    <div><b>{{ history_summary.pct | fa_num }}٪</b><span>پیشرفت</span></div>
     <div class="gold">
-      <b><span data-icon="flame"></span>{{ my_streak or 0 }}</b>
+      <b><span data-icon="flame"></span>{{ (my_streak or 0) | fa_num }}</b>
       <span>زنجیره</span>
     </div>
     {% elif challenge.due_date %}
-    <div><b>{{ total_completions }}</b><span>ثبت انجام‌شده</span></div>
+    <div><b>{{ total_completions | fa_num }}</b><span>ثبت انجام‌شده</span></div>
     <div><b data-jalali="{{ challenge.due_date.isoformat() }}"
-        data-jalali-format="numeric">{{ challenge.due_date.strftime('%Y-%m-%d') }}</b><span>مهلت</span></div>
+        data-jalali-format="numeric">{{ challenge.due_date | jalali('numeric') }}</b><span>مهلت</span></div>
     {% else %}
-    <div><b>{{ total_completions }}</b><span>ثبت انجام‌شده</span></div>
-    <div><b>{{ progress_pct }}٪</b><span>پیشرفت جمعی</span></div>
+    <div><b>{{ total_completions | fa_num }}</b><span>ثبت انجام‌شده</span></div>
+    <div><b>{{ progress_pct | fa_num }}٪</b><span>پیشرفت جمعی</span></div>
     {% endif %}
   </div>
   {#- The two things a viewer does *to* the challenge rather than reads about
@@ -100,19 +118,19 @@
       the same attributes and the same delegated handlers, so the card and
       the hero cannot drift. -#}
   <div class="hero-social">
-    <button type="button" class="like-btn lg{{ ' is-liked' if liked_by_me else '' }}"
+    <button type="button" class="btn btn-social btn-like lg{{ ' is-liked' if liked_by_me else '' }}"
       aria-pressed="{{ 'true' if liked_by_me else 'false' }}"
       aria-label="{{ 'برداشتن لایک' if liked_by_me else 'لایک' }}"
       data-like-subject="challenge" data-like-id="{{ challenge.id }}"
       data-liked="{{ 'true' if liked_by_me else 'false' }}">
       <span data-icon="{{ 'heartFill' if liked_by_me else 'heart' }}"></span>
-      <b data-like-count>{{ like_count }}</b>
+      <b data-like-count>{{ like_count | fa_num }}</b>
     </button>
-    <button type="button" class="cm-btn lg" aria-haspopup="dialog" aria-label="نظرها"
+    <button type="button" class="btn btn-social lg" aria-haspopup="dialog" aria-label="نظرها"
       data-comments-id="{{ challenge.id }}" data-comments-title="{{ challenge.title }}"
       data-comments-count="{{ comment_count }}">
       <span data-icon="message"></span>
-      <b data-comment-count>{{ comment_count }}</b>
+      <b data-comment-count>{{ comment_count | fa_num }}</b>
     </button>
   </div>
 </div>
@@ -172,12 +190,12 @@
     <div class="ident-switch glass" data-anonymity>
       <span class="ident-label">نمایش تو{{ explain("anonymity") }}</span>
       <div class="seg" role="radiogroup" aria-label="نمایش تو در این چالش">
-        <button type="button" class="seg-btn {{ '' if my_is_anonymous else 'active' }}"
+        <button type="button" class="btn btn-seg {{ '' if my_is_anonymous else 'active' }}"
           role="radio" data-anon="false"
           aria-checked="{{ 'false' if my_is_anonymous else 'true' }}">
           <span data-icon="user"></span>با نام
         </button>
-        <button type="button" class="seg-btn {{ 'active' if my_is_anonymous }}"
+        <button type="button" class="btn btn-seg {{ 'active' if my_is_anonymous }}"
           role="radio" data-anon="true"
           aria-checked="{{ 'true' if my_is_anonymous else 'false' }}">
           <span data-icon="mask"></span>ناشناس
@@ -210,7 +228,7 @@
   <section class="detail-section">
     <div class="section-head">
       <h2>وضعیت{{ explain("checkin-states") }}</h2>
-      <span class="cc-tag">ثبت‌های خودت</span>
+      <span class="pill pill-tag">ثبت‌های خودت</span>
     </div>
 
     {% if history_summary and history_summary.total %}
@@ -241,8 +259,8 @@
           {% endfor %}
         </svg>
         <div class="ring-center">
-          <b>{{ history_summary.pct }}٪</b>
-          <span>{{ history_summary.completed }}/{{ history_summary.total }}</span>
+          <b>{{ history_summary.pct | fa_num }}٪</b>
+          <span>{{ history_summary.completed | fa_num }}/{{ history_summary.total | fa_num }}</span>
         </div>
       </div>
       <ul class="ring-legend">
@@ -259,16 +277,16 @@
 
     <div class="mine-grid">
       <div class="mine-tile gold">
-        <b><span data-icon="flame"></span>{{ my_stats.current_streak }}</b><span>زنجیرهٔ فعلی</span>
+        <b><span data-icon="flame"></span>{{ my_stats.current_streak | fa_num }}</b><span>زنجیرهٔ فعلی</span>
       </div>
       <div class="mine-tile gold">
-        <b><span data-icon="seal"></span>{{ my_stats.longest_streak }}</b><span>بهترین زنجیره</span>
+        <b><span data-icon="seal"></span>{{ my_stats.longest_streak | fa_num }}</b><span>بهترین زنجیره</span>
       </div>
       <div class="mine-tile">
         {#- no spaces around the slash: "0 / 1" splits into two number runs
             that an RTL paragraph then orders right-to-left, so it reads back
             as "1 / 0". "0/1" is a single LTR run and stays put. -#}
-        <b>{{ history_summary.period_done }}<span class="dim">/{{ history_summary.period_total }}</span></b>
+        <b>{{ history_summary.period_done | fa_num }}<span class="dim">/{{ history_summary.period_total | fa_num }}</span></b>
         <span>{{ history_summary.period_label }}</span>
       </div>
     </div>
@@ -290,7 +308,7 @@
       <span class="lb-entry-icon"><span data-icon="trophy"></span></span>
       <div class="lb-entry-text">
         <b>جدول رتبه‌بندی</b>
-        <span>جایگاه تو بین {{ participant_count }} شرکت‌کننده</span>
+        <span>جایگاه تو بین {{ participant_count | fa_num }} شرکت‌کننده</span>
       </div>
       <span class="sr-chev" data-icon="chevronLeft"></span>
     </a>
@@ -302,12 +320,12 @@
         above the timeline's newest row. Deliberately unlabelled -- the
         timeline below is the readable version; this is the pattern. -#}
     <div class="sub-head-row">
-      <h3 class="sub-head">روند {{ history_strip | length }} وعدهٔ اخیر{{ explain("backfill") }}</h3>
+      <h3 class="sub-head">روند {{ history_strip | length | fa_num }} وعدهٔ اخیر{{ explain("backfill") }}</h3>
       {% if history_calendar %}
       {#- The strip is the shape of the recent run; the calendar is the whole
           of it, on the dates it actually happened. Beside the heading rather
           than below the grid because it expands what that heading names. -#}
-      <button type="button" class="cc-btn ghost tiny" id="calToggle"
+      <button type="button" class="btn btn-ghost btn-xs" id="calToggle"
         aria-expanded="false" aria-controls="historyCalendar">
         <span data-icon="calendar"></span>تقویم کامل
       </button>
@@ -316,9 +334,8 @@
     <div class="occ-strip" role="img"
       aria-label="روند {{ history_strip | length }} وعدهٔ اخیر، {{ history_summary.completed }} وعدهٔ تکمیل‌شده از {{ history_summary.total }}">
       {% for c in history_strip %}
-      <span class="occ {{ c.state }}" data-jalali="{{ c.date.isoformat() }}"
-        data-jalali-format="weekday-day-month" data-jalali-attr="title"
-        title="{{ c.date.isoformat() }}"></span>
+      <span class="occ {{ c.state }}"
+        title="{{ c.date | jalali('weekday-day-month') }}"></span>
       {% endfor %}
     </div>
     <div class="occ-key">
@@ -334,9 +351,9 @@
         client, i.e. the same code written twice. -#}
     <div class="hist-cal glass" id="historyCalendar" hidden>
       <div class="jp-nav">
-        <button type="button" class="jp-nav-btn cal-prev" data-icon="chevronRight" aria-label="ماه قبل"></button>
+        <button type="button" class="btn btn-nav cal-prev" data-icon="chevronRight" aria-label="ماه قبل"></button>
         <button type="button" class="jp-title cal-title" aria-live="polite"></button>
-        <button type="button" class="jp-nav-btn cal-next" data-icon="chevronLeft" aria-label="ماه بعد"></button>
+        <button type="button" class="btn btn-nav cal-next" data-icon="chevronLeft" aria-label="ماه بعد"></button>
       </div>
       <div class="jp-weekdays cal-weekdays"></div>
       <div class="jp-grid cal-grid" role="grid"></div>
@@ -372,10 +389,9 @@
       {% for row in quota_rows %}
       <div class="quota-row{{ ' current' if row.is_current else '' }}">
         <div class="quota-row-head">
-          <span class="quota-row-label" data-jalali="{{ row.start.isoformat() }}"
-            data-jalali-format="{{ 'month' if challenge.cadence.period == 'month' else 'day-month' }}"
-            data-jalali-prefix="{{ '' if challenge.cadence.period == 'month' else 'هفتهٔ ' }}">{{ row.start.isoformat() }}</span>
-          <span class="quota-row-count">{{ row.done }} از {{ row.target }}</span>
+          <span class="quota-row-label">{% if challenge.cadence.period == 'month'
+            %}{{ row.start | jalali('month') }}{% else %}هفتهٔ {{ row.start | jalali('day-month') }}{% endif %}</span>
+          <span class="quota-row-count">{{ row.done | fa_num }} از {{ row.target | fa_num }}</span>
         </div>
         <div class="quota-pips" role="img"
           aria-label="{{ row.done }} از {{ row.target }} وعده انجام شده">
@@ -400,14 +416,13 @@
     <dl class="fact-list boxed glass">
       <div class="fact">
         <dt>تاریخ شروع</dt>
-        <dd><span data-jalali="{{ my_stats.start_date.isoformat() }}"
-            data-jalali-format="day-month-year">{{ my_stats.start_date.isoformat() }}</span></dd>
+        <dd>{{ my_stats.start_date | jalali('day-month-year') }}</dd>
       </div>
       {% if my_stats.last_checkin_at %}
       <div class="fact">
         <dt>آخرین ثبت</dt>
         <dd><span data-jalali="{{ my_stats.last_checkin_at.isoformat() }}" data-jalali-format="datetime"
-            data-jalali-tz="{{ my_stats.timezone }}">{{ my_stats.last_checkin_at.isoformat() }}</span></dd>
+            data-jalali-tz="{{ my_stats.timezone }}">{{ my_stats.last_checkin_at | jalali('datetime', my_stats.timezone) }}</span></dd>
       </div>
       {% endif %}
       {% if challenge.goal_unit and my_stats.total_amount %}
@@ -438,7 +453,7 @@
     <div class="section-head">
       <h2>زمان‌بندی چالش{{ explain("cadence-plan") }}</h2>
       {% if cadence_plan.kind != 'once' %}
-      <span class="cc-tag" title="{{ cadence_plan.timezone }}">{{ cadence_plan.timezone }}</span>
+      <span class="pill pill-tag" title="{{ cadence_plan.timezone }}">{{ cadence_plan.timezone }}</span>
       {% endif %}
     </div>
 
@@ -463,7 +478,7 @@
       {% if cadence_plan.progress %}
       <div class="plan-progress">
         <div class="cc-progress"><i style="width:{{ cadence_plan.progress.pct }}%;"></i></div>
-        <span>{{ cadence_plan.progress.done }} از {{ cadence_plan.progress.total }}
+        <span>{{ cadence_plan.progress.done | fa_num }} از {{ cadence_plan.progress.total | fa_num }}
           {{ cadence_plan.progress.label }}</span>
       </div>
       {% endif %}
@@ -475,10 +490,8 @@
           <dt>{{ f.label }}</dt>
           <dd>
             {%- if f.date -%}
-            <span data-jalali="{{ f.date }}"
-              data-jalali-format="{{ f.format or 'day-month-year' }}">{{ f.date }}</span>
-            {%- if f.date_to %} تا <span data-jalali="{{ f.date_to }}"
-              data-jalali-format="{{ f.format or 'day-month-year' }}">{{ f.date_to }}</span>{% endif -%}
+            <span>{{ f.date | jalali(f.format or 'day-month-year') }}</span>
+            {%- if f.date_to %} تا <span>{{ f.date_to | jalali(f.format or 'day-month-year') }}</span>{% endif -%}
             {%- else -%}
             {{ f.text }}
             {%- endif -%}
@@ -492,7 +505,7 @@
         <div class="fact">
           <dt>مهلت کلی چالش</dt>
           <dd><span data-jalali="{{ challenge.due_date.isoformat() }}" data-jalali-format="day-month-year"
-              data-jalali-tz="{{ default_timezone }}">{{ challenge.due_date.isoformat() }}</span></dd>
+              data-jalali-tz="{{ default_timezone }}">{{ challenge.due_date | jalali('day-month-year', default_timezone) }}</span></dd>
         </div>
         {% endif %}
       </dl>
@@ -505,14 +518,12 @@
       {% for u in cadence_plan.upcoming %}
       <li class="up-row{{ ' next' if u.is_next else '' }}">
         <span class="up-dot" aria-hidden="true"></span>
-        <span class="up-date" data-jalali="{{ u.date }}"
-          data-jalali-format="{{ cadence_plan.upcoming_format }}"
-          data-jalali-prefix="{{ cadence_plan.upcoming_prefix }}">{{ u.date }}</span>
+        <span class="up-date">{{ cadence_plan.upcoming_prefix }}{{ u.date | jalali(cadence_plan.upcoming_format) }}</span>
         {%- if u.at %}
         {#- A scheduled occurrence is an instant, so it is read in the zone it
             was judged in -- not the viewer's. -#}
         <span class="up-time" data-jalali="{{ u.at }}" data-jalali-format="time"
-          data-jalali-tz="{{ cadence_plan.timezone }}">{{ u.at }}</span>
+          data-jalali-tz="{{ cadence_plan.timezone }}">{{ u.at | jalali('time', cadence_plan.timezone) }}</span>
         {%- endif %}
         {% if u.is_next %}<span class="up-flag">بعدی</span>{% endif %}
       </li>
@@ -556,22 +567,22 @@
               for a member enrolled anonymously -- their *own* avatar is
               recognisable to anyone who has seen it elsewhere, so they get
               the same unset placeholder as a member who never picked one. -#}
-          <div class="av"><img src="{{ enrollment | participant_avatar | avatar_url }}"
+          <div class="avatar avatar-sm"><img src="{{ enrollment | participant_avatar | avatar_url }}"
                                alt="" loading="lazy" width="30" height="30"></div>
           {% endfor %}
         </div>
         {% endif %}
-        <span>{% if participant_count %}{{ participant_count }} شرکت‌کننده{% else %}هنوز شرکت‌کننده‌ای نیست{% endif %}</span>
+        <span>{% if participant_count %}{{ participant_count | fa_num }} شرکت‌کننده{% else %}هنوز شرکت‌کننده‌ای نیست{% endif %}</span>
       </div>
       <div class="cc-progress"><i style="width:{{ progress_pct }}%;"></i></div>
       <p class="progress-note">
         {% if challenge.goal_amount %}
-        {{ total_amount | num }} از {{ challenge.goal_amount | num }} {{ challenge.goal_unit or '' }} ({{ progress_pct }}٪)
+        {{ total_amount | num }} از {{ challenge.goal_amount | num }} {{ challenge.goal_unit or '' }} ({{ progress_pct | fa_num }}٪)
         {% else %}
-        {{ total_completions }} ثبت تکمیل‌شده ({{ progress_pct }}٪)
+        {{ total_completions | fa_num }} ثبت تکمیل‌شده ({{ progress_pct | fa_num }}٪)
         {% endif %}
         {%- if last_activity_at %} · آخرین فعالیت <span data-jalali="{{ last_activity_at.isoformat() }}"
-          data-jalali-format="day-month" data-jalali-tz="{{ default_timezone }}">{{ last_activity_at.isoformat() }}</span>
+          data-jalali-format="day-month" data-jalali-tz="{{ default_timezone }}">{{ last_activity_at | jalali('day-month', default_timezone) }}</span>
         {%- endif %}
       </p>
     </div>
@@ -592,7 +603,7 @@
         <div>
           <b {% if challenge.created_at %}data-jalali="{{ challenge.created_at.isoformat() }}"
             data-jalali-format="day-month-year"
-            data-jalali-tz="{{ default_timezone }}"{% endif %}>{{ challenge.created_at.isoformat() if challenge.created_at else '—' }}</b>
+            data-jalali-tz="{{ default_timezone }}"{% endif %}>{{ challenge.created_at | jalali('day-month-year', default_timezone) if challenge.created_at else '—' }}</b>
           <span>تاریخ ساخت</span>
         </div>
       </div>
@@ -637,7 +648,7 @@
       <span class="lb-entry-icon"><span data-icon="message"></span></span>
       <div class="lb-entry-text">
         <b>نظرها</b>
-        <span>{% if comment_count %}<b data-comment-count>{{ comment_count }}</b> نظر و پاسخ{% else %}هنوز نظری نیست؛ اولین نفر باش{% endif %}</span>
+        <span>{% if comment_count %}<b data-comment-count>{{ comment_count | fa_num }}</b> نظر و پاسخ{% else %}هنوز نظری نیست؛ اولین نفر باش{% endif %}</span>
       </div>
       <span class="sr-chev" data-icon="chevronUp"></span>
     </button>
@@ -650,7 +661,7 @@
     this page to check in, not to quit. -#}
 <div class="sticky-cta">
   <div class="cta-row">
-    <button class="btn-primary" id="detailCta"></button>
+    <button class="btn btn-primary" id="detailCta"></button>
     <button type="button" class="cta-side" id="leaveBtn" hidden
       aria-label="ترک چالش"><span data-icon="x"></span></button>
   </div>
@@ -735,10 +746,10 @@
   const topbar = document.querySelector(".topbar");
   if (topbar) {
     const syncTabOffset = () => {
-      // The topbar does not always park at 0: on desktop the bottom nav moves
-      // to the top and the topbar parks under it (top:var(--nav-top-h)), so
-      // the tab bar has to clear that offset *plus* the header, or it sticks
-      // where the header already is and slides underneath it.
+      // The topbar parks at 0 on every width today -- the app is the same
+      // phone column at every size -- but the offset is still *read* rather
+      // than assumed, so a page that ever parks the header lower keeps a tab
+      // bar that clears it instead of sliding underneath.
       const parked = parseFloat(getComputedStyle(topbar).top) || 0;
       tabBar.style.setProperty("--topbar-h", parked + topbar.offsetHeight + "px");
     };
@@ -750,8 +761,8 @@
     if ("ResizeObserver" in window) {
       new ResizeObserver(syncTabOffset).observe(topbar, { box: "border-box" });
     }
-    // Crossing the 900px breakpoint changes where the topbar parks without
-    // changing its height, so a ResizeObserver alone would not see it.
+    // A width change can move where the topbar parks without changing its
+    // height, which a ResizeObserver alone would not see.
     window.addEventListener("resize", syncTabOffset);
   }
 
@@ -786,13 +797,13 @@
 
   // Asks the joiner how they want to appear, and resolves to the choice --
   // or to null if they backed out. A `member_choice` challenge is the only
-  // one that reaches the sheet; everyone else gets the same confirm() this
-  // has always been, because there is nothing to decide.
+  // one that reaches the sheet; everyone else joins on the tap, because there
+  // is nothing to decide.
   function askJoinIdentity() {
     return new Promise((resolve) => {
       let answered = false;
       createSheet({
-        title: "چطور عضو بشی؟",
+        title: "چطور عضو شوی؟",
         confirmLabel: "پیوستن",
         fields: [{
           name: "identity", label: "نمایش تو در این چالش", type: "chips",
@@ -816,33 +827,34 @@
     if (busy) return;
     let anonymous = false;
     if (enrolled) {
-      if (!confirm("این چالش را ترک می‌کنی؟")) return;
+      // Leaving gives up the history logged here, so it is asked; joining is
+      // neither destructive nor irreversible and is not.
+      const ok = await confirmSheet({
+        title: "ترک چالش",
+        text: "با ترک چالش، ثبت‌های تو در آن پاک می‌شود و برگشت‌پذیر نیست.",
+        confirmLabel: "ترک چالش",
+      });
+      if (!ok) return;
     } else if (identityAsksJoiner) {
       anonymous = await askJoinIdentity();
       if (anonymous === null) return; // sheet dismissed -- not a join
-    } else if (!confirm("می‌خوای در این چالش ثبت‌نام کنی؟")) {
-      return;
     }
 
     busy = true;
     try {
-      const res = await fetch(`/enrollments/${challengeId}`, {
+      const result = await apiFetch(`/enrollments/${challengeId}`, {
         method: enrolled ? "DELETE" : "POST",
-        headers: enrolled ? undefined : { "Content-Type": "application/json" },
         body: enrolled
           ? undefined
-          : JSON.stringify({
+          : {
               timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
               is_anonymous: anonymous,
-            }),
+            },
       });
-      if (res.status === 401) {
-        window.location.href = `/views/auth/?next=/views/challenges/${challengeId}`;
-        return;
-      }
-      if (!res.ok && res.status !== 409) {
-        const err = await res.json().catch(() => ({}));
-        alert("خطا: " + (err.detail || res.statusText));
+      if (result.status === 401) return; // apiFetch is already redirecting
+      // 409 = already enrolled; the page's own state was stale, not the tap.
+      if (!result.ok && result.status !== 409) {
+        showRequestError(result, enrolled ? "ترک چالش" : "ثبت‌نام");
         return;
       }
       enrolled = !enrolled;
@@ -851,8 +863,6 @@
       // rebuilds the page -- landing on the panel that now makes sense.
       window.location.hash = enrolled ? "#me" : "#plan";
       window.location.reload();
-    } catch (e) {
-      alert("خطای شبکه: " + e.message);
     } finally {
       busy = false;
     }
@@ -899,7 +909,7 @@
       identBusy = false;
       if (!ok) {
         paintIdent(!wanted);
-        showToast("خطا: " + ((data && data.detail) || "ذخیره نشد"));
+        showRequestError({ ok, data }, "ذخیره");
         return;
       }
       // Painted from the response, not from the tap: the challenge's own
@@ -954,7 +964,7 @@
 
       const { ok, data } = await apiFetch("/checkins/", { method: "POST", body: payload });
       if (!ok) {
-        showToast("خطا: " + (data && data.detail ? data.detail : "ثبت انجام نشد"));
+        showRequestError({ ok, data }, "ثبت");
         return false;
       }
       reloadPage();
@@ -1014,17 +1024,23 @@
       fields: fields,
       confirmLabel: "ذخیره",
       danger: {
+        // One sheet at a time: this one closes and the confirmation takes its
+        // place, rather than stacking a second backdrop over the first.
         label: "حذف ثبت",
-        onClick: async () => {
-          if (!confirm("این ثبت حذف بشه؟")) return false;
-          const { ok, data } = await apiFetch(`/checkins/${checkinId}`, {
-            method: "DELETE",
-          });
-          if (!ok) {
-            showToast("خطا: " + (data && data.detail ? data.detail : "حذف انجام نشد"));
-            return false;
-          }
-          reloadPage();
+        onClick: () => {
+          setTimeout(() => confirmSheet({
+            title: "حذف ثبت",
+            text: "این ثبت پاک می‌شود و برگشت‌پذیر نیست.",
+            confirmLabel: "حذف ثبت",
+            onConfirm: async () => {
+              const result = await apiFetch(`/checkins/${checkinId}`, { method: "DELETE" });
+              if (!result.ok) {
+                showRequestError(result, "حذف ثبت");
+                return;
+              }
+              reloadPage();
+            },
+          }), 0);
           return true;
         },
       },
@@ -1036,7 +1052,7 @@
           body: payload,
         });
         if (!ok) {
-          showToast("خطا: " + (data && data.detail ? data.detail : "ذخیره نشد"));
+          showRequestError({ ok, data }, "ذخیره");
           return false;
         }
         reloadPage();
@@ -1090,9 +1106,10 @@
       }
       dayPane.hidden = false;
       const date = jc.parseIsoDate(selectedIso);
-      const heading =
-        `<div class="cal-day-head" data-jalali="${selectedIso}"` +
-        ` data-jalali-format="weekday-day-month">${selectedIso}</div>`;
+      const headingText =
+        window.formatJalali(selectedIso, { format: "weekday-day-month" }) ||
+        selectedIso;
+      const heading = `<div class="cal-day-head">${headingText}</div>`;
 
       // The challenge's own milestones lead the day: they are the reason the
       // occurrences around them start, stop, or are missing entirely, so they
@@ -1120,8 +1137,8 @@
 
       const rows = entries.map((e, i) => {
         const bits = [stateLabels[e.state] || e.state];
-        if (e.amount) bits.push(`${e.amount} ${goalUnit || ""}`.trim());
-        if (entries.length > 1) bits.unshift(`وعدهٔ ${i + 1}`);
+        if (e.amount) bits.push(`${faDigits(e.amount)} ${goalUnit || ""}`.trim());
+        if (entries.length > 1) bits.unshift(`وعدهٔ ${faDigits(i + 1)}`);
         const note = e.note
           ? `<div class="cal-note">${e.note.replace(/[<&]/g, (c) =>
               c === "<" ? "&lt;" : "&amp;")}</div>`
@@ -1139,7 +1156,7 @@
         // Same .tl-row vocabulary the timeline used, so a day reads exactly
         // the way the history list did -- badge, state, amount, action.
         return (
-          `<div class="tl-row ${e.state}"><span class="tl-badge" aria-hidden="true"></span>` +
+          `<div class="tl-row ${e.state}"><span class="badge badge-mark" aria-hidden="true"></span>` +
           `<div class="tl-main"><div class="tl-meta">${bits.join(" · ")}</div>${note}</div>` +
           action + `</div>`
         );
@@ -1266,126 +1283,6 @@
     });
   }
 
-  // ---- owner management --------------------------------------------------
-  // The API is the authority on what may change -- cadence and goal are
-  // locked once others enrol, and hard delete is refused then too -- so this
-  // sheet deliberately offers only the always-editable fields and hides
-  // delete when the server would answer 409 anyway.
-  const manageBtn = document.getElementById("manageBtn");
-  if (manageBtn) {
-    const challengeData = {{ {
-      "title": challenge.title,
-      "description": challenge.description or "",
-      "rules": challenge.rules or "",
-      "visibility": challenge.visibility,
-      "identity_mode": challenge.identity_mode,
-      "lifecycle_status": challenge.lifecycle_status,
-      "image_square": challenge.image_square or "",
-      "image_tall": challenge.image_tall or "",
-    } | tojson }};
-    const visibilityOptions = {{ visibility_options | tojson }};
-    const lifecycleOptions = {{ lifecycle_options | tojson }};
-    const canDelete = {{ 'true' if can_delete else 'false' }};
-    // Locked by the same count that locks cadence and goal, and for the same
-    // kind of reason: changing it would rewrite the deal the people already
-    // here joined under. The sheet offers only what the API would accept, so
-    // it drops the field entirely rather than showing one that 409s.
-    const canEditIdentity = {{ 'true' if can_edit_identity else 'false' }};
-
-    function asOptions(map) {
-      return Object.entries(map).map(([value, label]) => ({ value, label }));
-    }
-
-    async function deleteChallenge() {
-      if (!confirm("این چالش برای همیشه حذف بشه؟ این کار برگشت‌پذیر نیست.")) return false;
-      const { ok, status, data } = await apiFetch(`/challenges/${challengeId}`, {
-        method: "DELETE",
-      });
-      if (!ok) {
-        // 409 = someone joined between page render and this click.
-        showToast(
-          status === 409
-            ? "دیگران در این چالش عضو شده‌اند؛ به‌جای حذف بایگانی‌اش کن."
-            : "خطا: " + (data && data.detail ? data.detail : "حذف انجام نشد")
-        );
-        return false;
-      }
-      window.location.href = "/views/challenges/";
-      return true;
-    }
-
-    manageBtn.addEventListener("click", () => {
-      createSheet({
-        title: "مدیریت چالش",
-        // Why zamanbandi/hadaf are not in this sheet at all, and what
-        // «بایگانی» is for. The sheet shows only what the API would accept,
-        // so without this the absent fields look like an oversight.
-        explainHtml: {{ explain("locked-fields") | tojson }},
-        confirmLabel: "ذخیره",
-        fields: [
-          { name: "title", label: "عنوان", required: true, maxlength: 50,
-            value: challengeData.title },
-          { name: "description", label: "توضیح", type: "textarea", rows: 3,
-            value: challengeData.description },
-          { name: "rules", label: "قوانین", type: "textarea", rows: 3,
-            value: challengeData.rules },
-          // The two pictures, edited where the rest of the challenge's
-          // authorship is. Two fields rather than one because the surfaces
-          // are two shapes and no single crop is honest in both -- the hint
-          // on each says where it lands, since a picker whose frame you
-          // cannot place is a crop made blind.
-          { name: "image_square", label: "تصویر کارت", type: "image",
-            frame: "challenge_square", value: challengeData.image_square || "",
-            url: {{ (challenge.image_square | media_url) | tojson }},
-            hint: "بالای صفحهٔ چالش و روی کارت‌های فهرست." },
-          { name: "image_tall", label: "تصویر سربرگ", type: "image",
-            frame: "challenge_tall", value: challengeData.image_tall || "",
-            url: {{ (challenge.image_tall | media_url) | tojson }},
-            hint: "نمای کارتی وقتی تمام‌صفحه باز می‌شود." },
-          { name: "visibility", label: "چه کسی می‌بیند", type: "select",
-            options: asOptions(visibilityOptions), value: challengeData.visibility },
-          ...(canEditIdentity ? [{
-            name: "identity_mode", label: "هویت اعضا", type: "select",
-            options: identityOptions.map(({ value, label }) => ({ value, label })),
-            value: challengeData.identity_mode,
-            hint: "تا وقتی کسی عضو نشده قابل تغییر است.",
-          }] : []),
-          { name: "lifecycle_status", label: "وضعیت", type: "select",
-            options: asOptions(lifecycleOptions), value: challengeData.lifecycle_status },
-        ],
-        danger: canDelete ? { label: "حذف چالش", onClick: deleteChallenge } : undefined,
-        onConfirm: async (values) => {
-          const payload = {
-            title: values.title,
-            description: values.description || null,
-            rules: values.rules || null,
-            visibility: values.visibility,
-            lifecycle_status: values.lifecycle_status,
-            // "" is the sheet's "no picture"; the column's is NULL.
-            image_square: values.image_square || null,
-            image_tall: values.image_tall || null,
-          };
-          if (canEditIdentity) payload.identity_mode = values.identity_mode;
-          const { ok, status, data } = await apiFetch(`/challenges/${challengeId}`, {
-            method: "PATCH",
-            body: payload,
-          });
-          if (!ok) {
-            showToast(
-              status === 409
-                ? (data && data.detail) || "این تغییر دیگر مجاز نیست."
-                : "خطا: " + (data && data.detail ? data.detail : "ذخیره نشد")
-            );
-            return false;
-          }
-          showToast("ذخیره شد");
-          window.location.reload();
-          return true;
-        },
-      });
-    });
-  }
-
   const shareBtn = document.getElementById("shareBtn");
   shareBtn.addEventListener("click", async () => {
     const shareData = {
@@ -1405,7 +1302,7 @@
         await navigator.clipboard.writeText(shareData.url);
         showToast("لینک چالش کپی شد");
       } catch {
-        showToast("اشتراک‌گذاری ممکن نشد");
+        showToast("اشتراک‌گذاری انجام نشد. دوباره تلاش کن.");
       }
     }
   });

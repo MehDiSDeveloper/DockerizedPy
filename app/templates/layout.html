@@ -7,6 +7,29 @@
     <title>{{ title }} | چالش</title>
     <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
 
+{# ---- PWA -------------------------------------------------------------
+   Installability lives in the <head>, and this app has no base document, so
+   this block is repeated verbatim in layout.html, user/auth.html and
+   common/error.html. A shell that misses it is a page the app cannot be
+   installed from -- which fails silently, so tests/test_pwa.py walks all
+   three and fails loudly instead.
+
+   The two theme-color metas are the pair the *browser chrome* reads. The
+   manifest carries one static colour (it is one document; the app's theme has
+   three states), so the device preference is honoured here by media, and an
+   explicit choice is honoured by the script below, which replaces them. -#}
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#f8f4ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16120d" media="(prefers-color-scheme: dark)">
+{#- Safari reads none of the manifest, so iOS needs its own four. Without
+    them «افزودن به صفحهٔ خانه» produces a bookmark that opens in the browser
+    with its chrome, rather than the standalone app. -#}
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="چالش">
+<link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
+<link rel="icon" href="/static/img/icon-192.png" type="image/png">
+
     {#- Theme, applied before first paint. The stylesheet ships the light
         theme «شن و مریم‌گلی» on :root and the dark «شب کرمی» under both
         prefers-color-scheme and [data-theme="dark"]; this only has to carry
@@ -16,7 +39,16 @@
     <script>
       try {
         var t = localStorage.getItem("chalesh-theme");
-        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+        if (t === "light" || t === "dark") {
+          document.documentElement.dataset.theme = t;
+          // A media-keyed pair cannot honour a choice that contradicts the
+          // device, so an explicit one replaces both metas outright.
+          document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) { m.remove(); });
+          var c = document.createElement("meta");
+          c.name = "theme-color";
+          c.content = t === "dark" ? "#16120d" : "#f8f4ee";
+          document.head.appendChild(c);
+        }
       } catch (e) { /* private mode: fall back to the device preference */ }
     </script>
 {% block head %}
@@ -126,6 +158,17 @@
                 data-tour="nav-explore">
                 <span data-icon="list"></span>
                 چالش‌ها
+            </a>
+            {#- «فضای من»: groups and roadmaps. They are content -- something a
+                member joins, builds and returns to -- so they get a destination
+                rather than a row in settings, which is where preferences live.
+                Five is the ceiling for this bar; nothing else moves in. -#}
+            <a href="/views/space/" class="nav-item{{ ' active' if active_nav == 'space' else '' }}">
+                {#- `building` from the app's own set: a place, which is what
+                    this tab is. `nest` says "inside" more exactly but draws
+                    as an arrow, and an arrow in a nav bar reads as «back». -#}
+                <span data-icon="building"></span>
+                فضای من
             </a>
             <a href="{{ '/views/users/' ~ current_user_id if current_user_id else '/views/auth/' }}"
                 class="nav-item{{ ' active' if active_nav == 'profile' else '' }}"

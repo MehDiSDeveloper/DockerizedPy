@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.auth import get_page_user
 from app.config import BASE_DIR
+from app.date_filters import register_date_filters
 from app.explainers import register_explainer_filters
 from app.models.user import User
 from app.notifications import notification_settings
@@ -11,6 +12,7 @@ from app.permissions import is_admin
 
 router = APIRouter(prefix="/views/settings", tags=["settings-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_date_filters(templates.env)
 register_explainer_filters(templates.env)
 
 

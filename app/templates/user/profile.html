@@ -61,18 +61,18 @@
         pointing at nothing. A reader who may not edit gets the same picture
         with no button and no badge. -#}
     {% if can_edit %}
-    <button type="button" class="profile-avatar" id="avatarEdit" aria-label="تغییر آواتار">
+    <button type="button" class="avatar avatar-xl avatar-profile" id="avatarEdit" aria-label="تغییر آواتار">
       <img src="{{ user.avatar | avatar_url }}" alt="آواتار {{ user.name }}" width="84" height="84">
       <span class="edit-badge"><span data-icon="camera"></span></span>
     </button>
     {% else %}
-    <div class="profile-avatar">
+    <div class="avatar avatar-xl avatar-profile">
       <img src="{{ user.avatar | avatar_url }}" alt="آواتار {{ user.name }}" width="84" height="84">
     </div>
     {% endif %}
     <h1 id="profileName">{{user.name}}</h1>
     <p>عضو از <span data-jalali="{{ user.created_at.isoformat() }}"
-      data-jalali-format="day-month-year">{{ user.created_at.strftime('%Y-%m-%d') }}</span></p>
+      data-jalali-format="day-month-year">{{ user.created_at | jalali('day-month-year') }}</span></p>
   </div>
 
   {#- Said once, at the top, and never again: everything below this line
@@ -87,11 +87,11 @@
 
   <section class="stats">
     <div class="stat-card glass accent">
-      <span class="stat-num" id="statActive">{{stat_active}}</span>
+      <span class="stat-num" id="statActive">{{ stat_active | fa_num }}</span>
       <span class="stat-label">چالش فعال</span>
     </div>
     <div class="stat-card glass mohr">
-      <span class="stat-num" id="statDone">{{stat_done}}</span>
+      <span class="stat-num" id="statDone">{{ stat_done | fa_num }}</span>
       <span class="stat-label">چالش تمام‌شده</span>
     </div>
   </section>
@@ -174,7 +174,7 @@
           <span class="sr-label">نقش در اپ</span>
           <span class="sr-hint">مدیر به پنل مدیریت، پروفایل همهٔ اعضا و همهٔ چالش‌ها دسترسی دارد.</span>
         </div>
-        <span class="role-pill {{ 'is-admin' if user.role == 'admin' else '' }}"
+        <span class="pill pill-role {{ 'is-admin' if user.role | role_is_elevated else '' }}"
           data-role-pill>{{ role_labels.get(user.role, user.role) }}</span>
         <span class="sr-chev" data-icon="chevronLeft"></span>
       </div>
@@ -202,7 +202,7 @@
     <a class="menu-item glass" href="/views/admin/">
       <div class="mi-icon"><span data-icon="shield"></span></div>
       <span class="mi-label">پنل مدیریت</span>
-      <span class="role-pill is-admin">مدیر</span>
+      <span class="pill pill-role is-admin">مدیر</span>
       <span class="mi-chev" data-icon="chevronLeft"></span>
     </a>
     {% endif %}
@@ -317,17 +317,15 @@
           // The same endpoint for both readers -- an operator's edit is
           // permitted by `Perm.USER_EDIT_ANY` on the server, not by a
           // second route here.
-          const res = await fetch("/users/{{ user.id }}", {
+          const result = await apiFetch("/users/{{ user.id }}", {
             method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ avatar: picked || null }),
+            body: { avatar: picked || null },
           });
-          if (!res.ok) {
-            showToast("تغییر تصویر انجام نشد");
+          if (!result.ok) {
+            showRequestError(result, "تغییر تصویر");
             return false;
           }
-          const updated = await res.json();
-          currentAvatar = updated.avatar || "";
+          currentAvatar = result.data.avatar || "";
           // Nothing else on the page renders the avatar, so swapping the src
           // is the whole update -- no reload needed.
           avatarImg.src = urlFor.get(currentAvatar) || {{ default_avatar_url | tojson }};
@@ -388,24 +386,23 @@
             maxlength: 255, value: infoValues.address, placeholder: "اختیاری" },
         ],
         onConfirm: async (values) => {
-          const res = await fetch("/users/{{ user.id }}", {
+          const result = await apiFetch("/users/{{ user.id }}", {
             method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(values),
+            body: values,
           });
-          if (res.status === 409) {
+          if (result.status === 409) {
             showToast("این ایمیل قبلاً ثبت شده است");
             return false;
           }
-          if (res.status === 422) {
+          if (result.status === 422) {
             showToast("شماره موبایل یا ایمیل معتبر نیست");
             return false;
           }
-          if (!res.ok) {
-            showToast("ذخیرهٔ اطلاعات انجام نشد");
+          if (!result.ok) {
+            showRequestError(result, "ذخیرهٔ اطلاعات");
             return false;
           }
-          paintInfo(await res.json());
+          paintInfo(result.data);
           showToast("اطلاعات حساب به‌روز شد");
           return true;
         },
@@ -446,7 +443,7 @@
           body: { role: values.role },
         });
         if (!ok) {
-          showToast("خطا: " + ((data && data.detail) || "ذخیره نشد"));
+          showToast(((data && data.detail) || "ذخیره نشد. دوباره تلاش کن."));
           return false;
         }
         roleEdit.dataset.memberRole = data.role;
@@ -464,8 +461,14 @@
   const logoutBtn = document.getElementById("logoutBtn");
   if (logoutBtn) {
     logoutBtn.addEventListener("click", async () => {
-      if (!confirm("از حساب کاربری خارج بشی؟")) return;
-      await fetch("/auth/logout", { method: "POST" });
+      const confirmed = await confirmSheet({
+        title: "خروج از حساب",
+        text: "از حساب کاربری خارج می‌شوی و برای برگشتن باید دوباره وارد شوی.",
+        confirmLabel: "خروج",
+        danger: false,
+      });
+      if (!confirmed) return;
+      await apiFetch("/auth/logout", { method: "POST" });
       window.location.href = "/views/auth/";
     });
   }

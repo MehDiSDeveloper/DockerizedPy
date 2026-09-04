@@ -75,7 +75,7 @@
   // What a handover step says when it does not name its own target. Kept
   // beside the steps rather than in the CSS or the markup, because it is
   // copy: a step may override it with `actionHint`.
-  const HANDOVER_HINT = "برای ادامه، بخش مشخص‌شده رو بزن";
+  const HANDOVER_HINT = "برای ادامه، بخش مشخص‌شده را بزن";
 
   const TOUR_STEPS = [
     {
@@ -83,16 +83,16 @@
       path: ANY_PAGE,
       target: "nav",
       title: "مسیرهای اصلی",
-      body: "چهار بخش برنامه همیشه همین‌جاست: امروز، خانه، چالش‌ها و پروفایل. از این نوار به هر کدوم می‌ری.",
+      body: "چهار بخش برنامه همیشه همین‌جاست: امروز، خانه، چالش‌ها و پروفایل. از این نوار به هر کدام می‌روی.",
     },
     {
       id: "nav-home",
       path: ANY_PAGE,
       target: "nav-home",
       action: "click",
-      actionHint: "برای ادامه، «خانه» رو بزن تا با هم بریم اونجا",
+      actionHint: "برای ادامه، «خانه» را بزن تا با هم برویم آنجا",
       title: "خانه",
-      body: "خانه میز کار توئه: می‌بینی این مدت چطور گذشته و چالش‌ها و برنامهٔ پیش‌روت کجاست. روی «خانه» بزن تا با هم بریم.",
+      body: "خانه میز کار توست: می‌بینی این مدت چطور گذشته و چالش‌ها و برنامهٔ پیش‌رویت کجاست. روی «خانه» بزن تا با هم برویم.",
     },
     {
       id: "home-pulse",
@@ -120,83 +120,83 @@
       path: "/views/home/",
       target: "home-challenges",
       title: "چالش‌های من",
-      body: "چالش‌هایی که توشون هستی همین‌جاست؛ با یک ضربه سراغ هرکدوم برو.",
+      body: "چالش‌هایی که در آن‌ها هستی همین‌جاست؛ با یک ضربه سراغ هرکدام برو.",
     },
     {
       id: "nav-today",
       path: ANY_PAGE,
       target: "nav-today",
       action: "click",
-      actionHint: "برای ادامه، «امروز» رو بزن تا با هم بریم اونجا",
+      actionHint: "برای ادامه، «امروز» را بزن تا با هم برویم آنجا",
       title: "امروز",
-      body: "امروز می‌گه همین امروز چه وعده‌هایی داری و چی مونده. روی «امروز» بزن.",
+      body: "«امروز» می‌گوید همین امروز چه وعده‌هایی داری و چه چیزی مانده. روی «امروز» بزن.",
     },
     {
       id: "today-count",
       path: "/views/today/",
       target: "today-count",
       title: "مانده تا پایان امروز",
-      body: "هر روز از اینجا شروع کن. این عدد می‌گه امروز چند وعده مونده که ثبتش کنی.",
+      body: "هر روز از اینجا شروع کن. این عدد می‌گوید امروز چند وعده مانده که ثبتش کنی.",
     },
     {
       id: "today-item",
       path: "/views/today/",
       target: "today-item",
       title: "کارت هر وعده",
-      body: "هر کارت یک وعده از یک چالشه. با یک ضربه ثبتش می‌کنی: انجام شد، یا انجام ندادم.",
+      body: "هر کارت یک وعده از یک چالش است. با یک ضربه ثبتش می‌کنی: انجام شد، یا انجام ندادم.",
     },
     {
       id: "nav-explore",
       path: ANY_PAGE,
       target: "nav-explore",
       action: "click",
-      actionHint: "برای ادامه، «چالش‌ها» رو بزن تا با هم بریم اونجا",
+      actionHint: "برای ادامه، «چالش‌ها» را بزن تا با هم برویم آنجا",
       title: "چالش‌ها",
-      body: "حالا بریم سراغ خود چالش‌ها. روی «چالش‌ها» بزن.",
+      body: "حالا سراغ خود چالش‌ها می‌رویم. روی «چالش‌ها» بزن.",
     },
     {
       id: "explore-filters",
       path: "/views/challenges/",
       target: "explore-filters",
       title: "فیلترها",
-      body: "از اینجا چالش‌ها رو بر اساس دسته یا اینکه فقط چالش‌های خودت باشن، فیلتر کن.",
+      body: "از اینجا چالش‌ها را بر اساس دسته، یا اینکه فقط چالش‌های خودت باشند، فیلتر کن.",
     },
     {
       id: "explore-create",
       path: "/views/challenges/",
       target: "explore-create",
       title: "ساخت چالش",
-      body: "و از اینجا چالش خودت رو بساز.",
+      body: "و از اینجا چالش خودت را بساز.",
     },
     {
       id: "nav-profile",
       path: ANY_PAGE,
       target: "nav-profile",
       action: "click",
-      actionHint: "برای ادامه، «پروفایل» رو بزن تا با هم بریم اونجا",
+      actionHint: "برای ادامه، «پروفایل» را بزن تا با هم برویم آنجا",
       title: "پروفایل",
-      body: "می‌مونه حساب خودت. روی «پروفایل» بزن تا آخرین بخش رو ببینی.",
+      body: "می‌ماند حساب خودت. روی «پروفایل» بزن تا آخرین بخش را ببینی.",
     },
     {
       id: "profile-account",
       path: "/views/users/*",
       target: "profile-account",
       title: "اطلاعات حساب",
-      body: "نام و راه‌های تماست اینجاست؛ با دکمهٔ ویرایش هر وقت خواستی عوضشون کن.",
+      body: "نام و راه‌های تماست اینجاست؛ با دکمهٔ ویرایش هر وقت خواستی عوضشان کن.",
     },
     {
       id: "profile-groups",
       path: "/views/users/*",
       target: "profile-groups",
       title: "گروه‌ها",
-      body: "اگر جایی تو رو به گروهی اضافه کرده، گروه‌ها و چالش‌هاشون از اینجا در دسترسه.",
+      body: "اگر جایی تو را به گروهی اضافه کرده، گروه‌ها و چالش‌هایشان از اینجا در دسترس است.",
     },
     {
       id: "profile-settings",
       path: "/views/users/*",
       target: "profile-settings",
       title: "تنظیمات",
-      body: "ظاهر، اعلان‌ها و بقیهٔ تنظیمات برنامه اینجاست. همین! خوش بگذره.",
+      body: "ظاهر، اعلان‌ها و بقیهٔ تنظیمات برنامه اینجاست. همین. خوش بگذرد.",
     },
   ];
 
@@ -382,9 +382,16 @@
       "px; border-radius:" + ringRad + "px;";
 
     if (session.canClip) {
+      // The path is drawn in the veil's *own* box, which is not the viewport
+      // on a wide screen: the veil is clamped to the phone column (see the
+      // «ستون گوشی» section of styles.css), so its origin is the column's
+      // top-left and the hole -- measured in viewport coordinates like
+      // everything else here -- has to be shifted back by it. On a phone the
+      // veil is the viewport and both terms are zero.
+      const vb = session.veil.getBoundingClientRect();
       session.veil.style.clipPath =
-        'path(evenodd, "M0,0H' + vw + "V" + vh + 'H0Z ' +
-        roundedRectPath(hx, hy, hw, hh, rad) + '")';
+        'path(evenodd, "M0,0H' + vb.width + "V" + vb.height + 'H0Z ' +
+        roundedRectPath(hx - vb.left, hy - vb.top, hw, hh, rad) + '")';
     }
 
     // Measure the callout at its natural size before deciding where it goes.
@@ -412,7 +419,15 @@
     }
 
     const centre = hx + hw / 2;
-    const left = Math.max(EDGE, Math.min(centre - pw / 2, vw - pw - EDGE));
+    // The callout is `position:fixed` and so still lives in viewport
+    // coordinates, but it may not run past the column's edges into the ground
+    // beside it -- hence shellBounds() rather than the viewport width.
+    const col = window.shellBounds
+      ? window.shellBounds()
+      : { left: 0, right: vw };
+    const leftMin = col.left + EDGE;
+    const leftMax = Math.max(leftMin, col.right - pw - EDGE);
+    const left = Math.max(leftMin, Math.min(centre - pw / 2, leftMax));
 
     pop.style.left = Math.round(left) + "px";
     pop.style.top = Math.round(top) + "px";

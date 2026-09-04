@@ -30,6 +30,7 @@ from app.comments import (
 )
 from app.config import BASE_DIR
 from app.database import get_db
+from app.date_filters import fa_num, register_date_filters
 from app.explainers import register_explainer_filters
 from app.groups import is_group_member, leaving_is_allowed, register_group_filters
 from app.icons import register_icon_filters
@@ -69,6 +70,7 @@ from app.routers.challenge import (
     STATUS_ALL,
     challenge_status,
     challenge_visibility_filter,
+    count_non_owner_enrollments,
     create_challenge_record,
     fetch_challenge_page,
 )
@@ -203,6 +205,7 @@ LEADERBOARD_SORT_PATTERN = "^({})$".format("|".join(LEADERBOARD_SORTS))
 
 router = APIRouter(prefix="/views/challenges", tags=["challenge-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_date_filters(templates.env)
 register_explainer_filters(templates.env)
 
 
@@ -211,7 +214,7 @@ def _clean_number(value) -> str:
     if value is None:
         return ""
     text = f"{float(value):.2f}".rstrip("0").rstrip(".")
-    return text or "0"
+    return fa_num(text or "0")
 
 
 templates.env.filters["num"] = _clean_number
@@ -1006,6 +1009,13 @@ async def challenge_detail(
         )
     is_enrolled = my_enrollment is not None
 
+    # The row, not the id: `can()` reads a User, and both answers this page
+    # needs from it (the gear, and a group administrator's own controls) are
+    # asked of the same one.
+    viewer_user = (
+        await db.get(User, current_user_id) if current_user_id is not None else None
+    )
+
     # The owner's management affordances mirror the API's own guards rather
     # than guessing at them: cadence/goal are locked and hard delete is
     # refused once anyone else has joined (see update_challenge /
@@ -1130,11 +1140,8 @@ async def challenge_detail(
                     )
                 )
             ).scalar_one_or_none()
-            viewer = (
-                await db.execute(select(User).where(User.id == current_user_id))
-            ).scalar_one_or_none()
             group_can_manage = can(
-                viewer,
+                viewer_user,
                 Perm.GROUP_MANAGE_MEMBERS,
                 group=db_challenge.group,
                 membership=group_membership,
@@ -1159,6 +1166,17 @@ async def challenge_detail(
             "my_stats": my_stats,
             "is_enrolled": is_enrolled,
             "is_owner": is_owner,
+            # Whether the gear in the topbar renders. Asked through `can()`
+            # rather than reused from `is_owner`, so this affordance and the
+            # manage page's own gate are one definition -- and so an operator
+            # keeps *not* seeing it (CHALLENGE_EDIT is deliberately not an
+            # admin grant: moderation is not authorship).
+            "can_manage": can(
+                viewer_user,
+                Perm.CHALLENGE_EDIT,
+                challenge=db_challenge,
+                enrollment=my_enrollment,
+            ),
             "group_can_manage": group_can_manage,
             "can_leave": can_leave,
             # Whether this member may change their own answer, and what it
@@ -1244,6 +1262,95 @@ async def challenge_detail(
 # other. Someone who has not joined a public challenge can still read it, its
 # size and its collective progress -- everything except who the other people
 # are.
+
+
+# ---------------------------------------------------------------------------
+# Managing one challenge
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{challenge_id}/manage")
+async def challenge_manage_page(
+    challenge_id: int,
+    request: Request,
+    viewer: User = Depends(get_page_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """The challenge's settings screen -- the same shape a group's and a
+    course's already had.
+
+    A challenge, a group and a roadmap are three instances of one idea to a
+    member, so "where are this thing's settings?" gets one answer for all
+    three: the gear in the detail page's topbar opens a page of rows, one row
+    per editable value with the value on the row. The sheets this replaces
+    were a single «مدیریت چالش» dialog holding eight fields at once -- the
+    same shape `group/manage.html` and `roadmap/manage.html` reject, and for
+    the same reason: a row naming a noun and hiding four answers behind it
+    does not read as something you can change.
+
+    The gate is `can(..., CHALLENGE_EDIT)` rather than a hand-written owner
+    comparison, so this page and `PATCH /challenges/{id}` answer "is this
+    yours" from one definition. **Not** the operator's door: `CHALLENGE_EDIT`
+    is deliberately absent from the admin grants (moderation is not
+    authorship), and the moderation roster is where that work happens.
+    """
+    result = await db.execute(
+        select(Challenge)
+        .options(selectinload(Challenge.owner))
+        .where(Challenge.id == challenge_id, challenge_visibility_filter(viewer.id))
+    )
+    challenge = result.scalar_one_or_none()
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+
+    my_enrollment = (
+        await db.execute(
+            select(Enrollment).where(
+                Enrollment.challenge_id == challenge_id,
+                Enrollment.user_id == viewer.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not can(
+        viewer, Perm.CHALLENGE_EDIT, challenge=challenge, enrollment=my_enrollment
+    ):
+        # 404, not 403: a page fails authorization the way the rest of the app
+        # does, and the two other manage screens answer a non-administrator
+        # exactly this.
+        raise HTTPException(status_code=404, detail="Challenge not found")
+
+    # The same count the API's own guards use: it locks `identity_mode` and
+    # refuses a hard delete, so the page draws only what would succeed rather
+    # than offering a control that answers 409.
+    others = await count_non_owner_enrollments(db, challenge_id, challenge.owner_id)
+    return templates.TemplateResponse(
+        "challenge/manage.html",
+        {
+            "title": "مدیریت چالش",
+            "request": request,
+            "current_user_id": viewer.id,
+            "active_nav": "challenges",
+            "challenge": challenge,
+            "visibility_options": VISIBILITY_LABELS,
+            "visibility_label": VISIBILITY_LABELS.get(
+                challenge.visibility, challenge.visibility
+            ),
+            "lifecycle_options": LIFECYCLE_LABELS,
+            "lifecycle_label": LIFECYCLE_LABELS.get(
+                challenge.lifecycle_status, challenge.lifecycle_status
+            ),
+            "identity_options": [
+                {"value": value, "label": label, "icon": IDENTITY_ICONS[value]}
+                for value, label in IDENTITY_LABELS.items()
+            ],
+            "identity_label": IDENTITY_LABELS.get(
+                challenge.identity_mode, challenge.identity_mode
+            ),
+            "can_edit_identity": others == 0,
+            "can_delete": others == 0,
+            "is_archived": challenge.lifecycle_status == "archived",
+        },
+    )
 
 
 async def _leaderboard_challenge(

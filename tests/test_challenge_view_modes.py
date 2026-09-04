@@ -14,9 +14,9 @@ that has already broken once in this codebase's shape:
   filter set than the challenge router's. A filter added to the partial
   without checking that env is a 500 on the group page and nowhere else.
 * **«لیست» is unchanged** — the card is still one real `<a href>` to the
-  challenge, which is both the list mode's whole behaviour and the reader's
-  «صفحه چالش» action (it declines to preventDefault rather than navigating
-  itself).
+  challenge, which is both the list mode's whole behaviour and the way out
+  of the reader (inside it the listener declines to preventDefault, so the
+  anchor navigates as it always did).
 * **the default is «ریل»**, and the switch offers exactly the two modes.
 """
 
@@ -83,7 +83,6 @@ async def test_a_card_carries_the_readers_extras_on_both_doors(
         # nothing, so the control appeared to do nothing at all.
         assert 'class="rd-short"' in res.text, path
         assert 'class="rd-full"' in res.text, path
-        assert "data-rail-open" in res.text, path
 
 
 async def test_a_short_description_gets_no_toggle(

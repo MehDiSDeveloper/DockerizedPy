@@ -112,7 +112,7 @@
     <div class="sg-head">
       <h2>لینک‌های دعوت{{ explain("roadmap-invite") }}</h2>
       <button type="button" class="icon-btn xs accent" id="rmNewInvite"
-        aria-label="ساختن لینک دعوت جدید" title="لینک جدید"><span data-icon="plus"></span></button>
+        aria-label="ساخت لینک دعوت جدید" title="لینک جدید"><span data-icon="plus"></span></button>
     </div>
     <div id="rmInvites">
       {% for i in invites %}
@@ -125,9 +125,9 @@
             <span class="sr-hint">{% if i.max_uses %}{{ i.uses }} از {{ i.max_uses }}{% else %}{{ i.uses }}
               نفر · نامحدود{% endif %}{% if i.expires_at %} · تا <span
                 data-jalali="{{ i.expires_at.isoformat() }}"
-                data-jalali-format="day-month">{{ i.expires_at.strftime('%Y-%m-%d') }}</span>{% endif %}</span>
+                data-jalali-format="day-month">{{ i.expires_at | jalali('day-month') }}</span>{% endif %}</span>
           </div>
-          <span class="invite-pill is-{{ i.state }}">{{ invite_state_labels[i.state] }}</span>
+          <span class="pill pill-invite is-{{ i.state }}">{{ invite_state_labels[i.state] }}</span>
           <div class="sr-actions">
             {% if i.state == 'active' %}
             <button type="button" class="icon-btn xs" data-revoke aria-label="غیرفعال کردن این لینک"
@@ -479,7 +479,7 @@
               const { ok } = await apiFetch(
                 `/roadmaps/${ROADMAP_ID}/steps/${stepId}`, { method: "DELETE" }
               );
-              if (!ok) { showToast("انجام نشد"); return false; }
+              if (!ok) { showToast("این کار انجام نشد. دوباره تلاش کن."); return false; }
               window.location.reload();
               return true;
             },
@@ -493,7 +493,7 @@
         // carry it -- one read of the step list is cheaper than putting a
         // whole challenge into a data attribute on every row.
         const { ok, data } = await apiFetch(`/roadmaps/${ROADMAP_ID}/steps`);
-        if (!ok) { showToast("انجام نشد"); return; }
+        if (!ok) { showToast("این کار انجام نشد. دوباره تلاش کن."); return; }
         const step = (data || []).find((s) => String(s.id) === stepId);
         if (!step) { showToast("این قدم دیگر نیست"); return; }
         const { ok: cOk, data: challenge } = await apiFetch(`/challenges/${step.challenge_id}`);
@@ -525,7 +525,7 @@
         await navigator.clipboard.writeText(text);
         showToast("لینک کپی شد");
       } catch {
-        showToast("کپی نشد؛ لینک را دستی بردار");
+        showToast("کپی نشد؛ لینک را دستی بردار.");
       }
     }
 
@@ -549,7 +549,7 @@
               max_uses: max ? Number(max) : null,
             },
           });
-          if (!ok) { showToast("ساخت لینک انجام نشد"); return false; }
+          if (!ok) { showToast("ساخت لینک انجام نشد. دوباره تلاش کن."); return false; }
           await copyText(inviteUrl(data.code));
           window.location.reload();
           return true;
@@ -580,7 +580,7 @@
                 `/roadmaps/${ROADMAP_ID}/invites/${row.dataset.inviteId}`,
                 { method: "DELETE" }
               );
-              if (!ok) { showToast("انجام نشد"); return false; }
+              if (!ok) { showToast("این کار انجام نشد. دوباره تلاش کن."); return false; }
               window.location.reload();
               return true;
             },
@@ -598,7 +598,7 @@
         body,
       });
       if (!ok) {
-        showToast((status === 409 && data && data.detail) || "ذخیره نشد");
+        showToast((status === 409 && data && data.detail) || "ذخیره نشد. دوباره تلاش کن.");
         return false;
       }
       window.location.reload();
@@ -691,7 +691,7 @@
               method: "DELETE",
             });
             if (!ok) {
-              showToast((status === 409 && data && data.detail) || "حذف انجام نشد");
+              showToast((status === 409 && data && data.detail) || "حذف انجام نشد. دوباره تلاش کن.");
               return false;
             }
             window.location.href = "/views/roadmaps/";

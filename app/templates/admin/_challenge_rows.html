@@ -10,12 +10,17 @@
     advance the offset.
 
     The row shows two different things about the same challenge and both
-    earn their place: the **status pill** is what a member sees on the public
+    earn their place: **«چراغ وضعیت»** is what a member sees on the public
     list (derived, via `challenge_status`, so this screen can never disagree
     with that one), while the hint spells out the two *stored* fields
     moderation actually writes -- lifecycle and visibility. A screen that
-    only showed the derived badge could not tell a draft from a challenge
+    only showed the derived state could not tell a draft from a challenge
     that has not started, or an archived one from one that has ended.
+
+    The lamp here is the card's own component and the card's own markup --
+    a real `<button>`, since this row is a `<div role="button">` rather than
+    an `<a>`. Its handler stops the event, so naming the status is not also
+    opening the moderation sheet.
 
     Everything the action sheet needs rides on the row as data attributes
     rather than a page-level JSON array: rows arriving on page two would
@@ -55,8 +60,10 @@
         {{ lifecycle_labels.get(c.lifecycle_status, c.lifecycle_status) }} ·
         {{ visibility_labels.get(c.visibility, c.visibility) }}</span>
     </div>
-    <span class="status-pill st-{{ status }}"><span
-        data-icon="{{ status_meta[status].icon }}"></span>{{ status_meta[status].label }}</span>
+    <button class="st-lamp {{ status }}" type="button"
+      aria-label="وضعیت: {{ status_meta[status].label }}" aria-expanded="false">
+      <span class="ring"></span><span class="label">{{ status_meta[status].label }}</span>
+    </button>
     <span class="sr-chev" data-icon="chevronLeft"></span>
   </div>
   {#- The roster drill-down: a real <a> inside the row rather than an entry

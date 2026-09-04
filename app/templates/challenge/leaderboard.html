@@ -43,7 +43,7 @@
     <span class="lb-head-icon"><span data-icon="{{ challenge.category | category_icon }}"></span></span>
     <div class="lb-head-text">
       <b>{{ challenge.title }}</b>
-      <span>{{ total }} شرکت‌کننده</span>
+      <span>{{ total | fa_num }} شرکت‌کننده</span>
     </div>
     <span class="sr-chev" data-icon="chevronLeft"></span>
   </a>
@@ -56,15 +56,15 @@
       and the row it points at cannot disagree. -#}
   <div class="lb-mine glass">
     <div class="lb-mine-rank">
-      <b>{{ standing.rank }}</b>
+      <b>{{ standing.rank | fa_num }}</b>
       <span>جایگاه</span>
     </div>
     <div class="lb-mine-figs">
       <div><b>{{ standing.completions }}</b><span>ثبت</span></div>
-      <div class="gold"><b><span data-icon="flame"></span>{{ standing.streak }}</b><span>زنجیره</span></div>
-      <div><b>{{ total }}</b><span>شرکت‌کننده</span></div>
+      <div class="gold"><b><span data-icon="flame"></span>{{ standing.streak | fa_num }}</b><span>زنجیره</span></div>
+      <div><b>{{ total | fa_num }}</b><span>شرکت‌کننده</span></div>
     </div>
-    <button type="button" class="cc-btn ghost tiny" id="lbFindMe">
+    <button type="button" class="btn btn-ghost btn-xs" id="lbFindMe">
       <span data-icon="target"></span>جایگاه
     </button>
   </div>
@@ -85,7 +85,7 @@
   <div class="seg-row">
     <nav class="seg" aria-label="ترتیب رتبه‌بندی">
       {% for opt in sort_options %}
-      <a class="seg-btn{{ ' active' if active_sort == opt.value }}"
+      <a class="btn btn-seg{{ ' active' if active_sort == opt.value }}"
         href="?sort={{ opt.value }}"
         {% if active_sort == opt.value %}aria-current="page"{% endif %}><span
           data-icon="{{ opt.icon }}"></span>{{ opt.label }}</a>
@@ -105,6 +105,7 @@
   <div class="empty" id="lbEmpty" {{ 'hidden' if rows }}>
     <span data-icon="empty"></span>
     <p>هنوز کسی در این چالش وعده‌ای ثبت نکرده.</p>
+    <p class="empty-hint">اولین وعده را که ثبت کنی، نامت بالای همین فهرست می‌آید.</p>
   </div>
   <div class="scroll-sentinel" id="lbSentinel" aria-hidden="true"></div>
   <div class="list-loading" id="lbLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>

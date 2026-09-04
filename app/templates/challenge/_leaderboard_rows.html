@@ -24,11 +24,11 @@
   {#- The rank is spelled out on every row rather than implied by position:
       ties share a number (see `leaderboard_rank`), so position and rank are
       genuinely different things here and only one of them is true. -#}
-  <span class="lb-rank" aria-label="رتبه {{ row.rank }}">{{ row.rank }}</span>
+  <span class="lb-rank" aria-label="رتبه {{ row.rank }}">{{ row.rank | fa_num }}</span>
 
   {#- An opaque neutral behind every avatar: several catalogue styles ship a
       transparent ground (CLAUDE.md, Avatars). -#}
-  <span class="lb-av"><img src="{{ row.who.avatar | avatar_url }}" alt=""
+  <span class="avatar avatar-lg"><img src="{{ row.who.avatar | avatar_url }}" alt=""
       loading="lazy" width="36" height="36"></span>
 
   <div class="lb-who">
@@ -39,6 +39,6 @@
     <span class="lb-other">{{ row.other }} {{ other_label }}</span>
   </div>
 
-  <span class="lb-score"><b>{{ row.score }}</b><span>{{ score_label }}</span></span>
+  <span class="lb-score"><b>{{ row.score | fa_num }}</b><span>{{ score_label }}</span></span>
 </div>
 {% endfor %}

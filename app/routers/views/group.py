@@ -47,6 +47,7 @@ from app.auth import get_current_user, get_page_user
 from app.avatars import AVATAR_IDS, avatar_url, register_avatar_filters
 from app.config import BASE_DIR
 from app.database import get_db
+from app.date_filters import register_date_filters
 from app.explainers import register_explainer_filters
 from app.groups import (
     INVITE_ACTIVE,
@@ -66,7 +67,7 @@ from app.models.group import (
     JoinRequestStatus,
 )
 from app.models.user import User
-from app.permissions import Perm, can, group_role
+from app.permissions import Perm, can, group_role, register_role_filters
 from app.routers.challenge import (
     DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE,
@@ -97,12 +98,14 @@ router = APIRouter(prefix="/views/groups", tags=["group-views"])
 invite_router = APIRouter(prefix="/views/invites", tags=["group-views"])
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+register_date_filters(templates.env)
 register_explainer_filters(templates.env)
 # Every views router builds its own environment and owes the registrations
 # for what it renders: pictures (a group's emblem is an avatar id -- one
 # catalogue, one filter), the shell's icons, and the derived challenge status
 # the group's own challenge cards wear.
 register_avatar_filters(templates.env)
+register_role_filters(templates.env)
 register_media_filters(templates.env)
 register_icon_filters(templates.env)
 templates.env.filters["challenge_status"] = challenge_status
@@ -120,7 +123,7 @@ register_group_filters(templates.env)
 # why only one list on this screen pages).
 MEMBERS_PREVIEW = 12
 
-def _emblem_options() -> list[dict]:
+def emblem_options() -> list[dict]:
     """The picker's options, in the catalogue's own order.
 
     The same list the profile's avatar sheet renders, built the same way --
@@ -180,42 +183,10 @@ async def _group_context(
 
 
 # ---------------------------------------------------------------------------
-# My groups
+# My groups -- the page itself lives in `routers/views/space.py` («فضای من»),
+# which renders this list and the roadmap one as two segments of the fifth
+# nav destination. Only the fragment stays here, beside the query it pages.
 # ---------------------------------------------------------------------------
-
-
-@router.get("/")
-async def groups_page(
-    request: Request,
-    viewer: User = Depends(get_page_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """The member's own groups -- the only listing of groups that exists.
-
-    There is no discovery here and there will not be one: groups are not
-    public, so the empty state offers the two things that actually get
-    somebody into one (open your own, or use a link) rather than a search box
-    that could only ever find nothing.
-    """
-    groups, has_more = await fetch_group_page(
-        db, user_id=viewer.id, offset=0, limit=DEFAULT_GROUP_PAGE_SIZE
-    )
-    counts = await member_counts(db, [g.id for g in groups])
-    return templates.TemplateResponse(
-        "group/index.html",
-        {
-            "title": "گروه‌ها",
-            "request": request,
-            "current_user_id": viewer.id,
-            "active_nav": "profile",
-            "groups": groups,
-            "member_counts": counts,
-            "parent_names": await parent_names(db, groups),
-            "has_more": has_more,
-            "page_size": DEFAULT_GROUP_PAGE_SIZE,
-            "emblem_options": _emblem_options(),
-        },
-    )
 
 
 @router.get("/fragment")
@@ -309,7 +280,7 @@ async def group_detail(
             "pending_count": pending,
             "my_optional": my_optional,
             "my_mandatory": my_mandatory,
-            "emblem_options": _emblem_options(),
+            "emblem_options": emblem_options(),
         },
     )
 
@@ -499,7 +470,7 @@ async def group_manage_page(
             "more_requests": has_more_requests,
             "invites": [i for i in all_invites if i is not public_invite],
             "public_invite": public_invite,
-            "emblem_options": _emblem_options(),
+            "emblem_options": emblem_options(),
         },
     )
 

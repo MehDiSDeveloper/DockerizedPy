@@ -1,10 +1,14 @@
 """The management affordances on challenge-detail.
 
-Both the owner's manage sheet and the check-in edit button exist to reach
-JSON endpoints that already worked but had no caller in the SSR layer. The
-value of these tests is that the page only *offers* an action the API would
+The gear in the topbar and the check-in edit button exist to reach JSON
+endpoints that already worked but had no caller in the SSR layer. The value
+of these tests is that the page only *offers* an action the API would
 actually accept -- the guards live in the routers, and the template must
 mirror them rather than invent its own.
+
+The owner's editing itself now lives on `/views/challenges/{id}/manage`, one
+row per field, the same screen a group and a course have; the detail page's
+job is the gear that opens it.
 """
 
 from __future__ import annotations
@@ -50,14 +54,20 @@ async def test_manage_button_shown_to_owner_only(
     authenticate(client, owner.id)
     challenge_id = await _make_challenge(client)
 
+    gear = f'href="/views/challenges/{challenge_id}/manage"'
     page = await client.get(f"/views/challenges/{challenge_id}")
-    assert 'id="manageBtn"' in page.text
+    assert gear in page.text
     assert "مدیریت چالش" in page.text
 
     authenticate(client, visitor.id)
     page = await client.get(f"/views/challenges/{challenge_id}")
     assert page.status_code == 200
-    assert 'id="manageBtn"' not in page.text
+    assert gear not in page.text
+    # ...and the page behind it refuses them too, so the affordance and the
+    # gate agree without either trusting the other.
+    assert (
+        await client.get(f"/views/challenges/{challenge_id}/manage")
+    ).status_code == 404
 
 
 @pytest.mark.asyncio
@@ -71,7 +81,7 @@ async def test_anonymous_visitor_gets_no_manage_button(
     client.cookies.clear()
     page = await client.get(f"/views/challenges/{challenge_id}")
     assert page.status_code == 200
-    assert 'id="manageBtn"' not in page.text
+    assert f'href="/views/challenges/{challenge_id}/manage"' not in page.text
 
 
 @pytest.mark.asyncio
@@ -86,16 +96,16 @@ async def test_delete_offered_only_while_owner_is_alone(
     authenticate(client, owner.id)
     challenge_id = await _make_challenge(client)
 
-    page = await client.get(f"/views/challenges/{challenge_id}")
-    assert "const canDelete = true;" in page.text
+    page = await client.get(f"/views/challenges/{challenge_id}/manage")
+    assert 'id="chDelete"' in page.text
 
     authenticate(client, other.id)
     enrolled = await client.post(f"/enrollments/{challenge_id}")
     assert enrolled.status_code == 201, enrolled.text
 
     authenticate(client, owner.id)
-    page = await client.get(f"/views/challenges/{challenge_id}")
-    assert "const canDelete = false;" in page.text
+    page = await client.get(f"/views/challenges/{challenge_id}/manage")
+    assert 'id="chDelete"' not in page.text
 
 
 @pytest.mark.asyncio

@@ -44,9 +44,9 @@
   {#- The spacer is not decoration: without it a grouped bubble slides back to
       the rail and the block stops reading as one person's turn. -#}
   {% if grouped %}
-  <span class="cm-av is-ghost" aria-hidden="true"></span>
+  <span class="avatar is-ghost{{ ' avatar-xs' if is_reply else ' avatar-md' }}" aria-hidden="true"></span>
   {% else %}
-  <span class="cm-av"><img src="{{ c.user.avatar | avatar_url }}" alt=""
+  <span class="avatar{{ ' avatar-xs' if is_reply else ' avatar-md' }}"><img src="{{ c.user.avatar | avatar_url }}" alt=""
       loading="lazy" width="{{ 28 if is_reply else 34 }}" height="{{ 28 if is_reply else 34 }}"></span>
   {% endif %}
   <div class="cm-main">
@@ -57,7 +57,7 @@
       <div class="cm-head">
         <b>{{ c.user.name }}</b>
         <span class="cm-when" data-jalali="{{ c.created_at.isoformat() }}"
-          data-jalali-format="day-month">{{ c.created_at.isoformat() }}</span>
+          data-jalali-format="day-month">{{ c.created_at | jalali('day-month') }}</span>
       </div>
       {% endif %}
       {{ comment_body(c) }}
