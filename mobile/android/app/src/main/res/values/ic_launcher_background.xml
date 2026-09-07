@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The adaptive icon's background layer. Deliberately *not* night-aware: a
+     launcher icon that changed with the phone's theme would be a different
+     app on the home screen every week. The deep sage of the logo's roundel,
+     with the pastel mark over it — the same pair the PWA's icons are drawn
+     in and the same one `.brand-mark` paints. -->
+<resources>
+    <color name="ic_launcher_background">#1e3b33</color>
+</resources>

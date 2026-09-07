@@ -59,12 +59,48 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_format: str = "auto"
 
+    # --- Web Push (VAPID) -----------------------------------------------
+    # The deploy's identity to every push service, generated once with
+    # `python -m app.scripts.generate_vapid_keys`. Both are base64url: the
+    # private key is the raw 32-byte scalar and the public key the
+    # uncompressed 65-byte point, which is exactly the string the browser
+    # hands to `subscribe()` -- so there is nothing to convert between the
+    # env file and the page.
+    #
+    # Empty means "no push", and that is the *default*: with no keys the
+    # subscribe route answers "unavailable", the settings row never appears
+    # and nothing is ever sent. Same trade as the SMS gateway -- development
+    # runs the whole stack offline -- except that push simply does not exist
+    # rather than falling back to a log line, because there is no code a
+    # member has to read out of one.
+    #
+    # Rotating these invalidates every existing subscription (a browser binds
+    # its subscription to the public key it was created with), so it is the
+    # same class of decision as rotating `secret_key`.
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    # RFC 8292 wants a way to reach whoever is sending, for a push service
+    # with a problem. A `mailto:` or an https URL; it is never shown to a
+    # member.
+    vapid_subject: str = "mailto:support@chalesh.ir"
+
     kavenegar_api_key: str = ""
     kavenegar_otp_template: str = ""
     kavenegar_sender: str = ""
     otp_sms_text: str = "کد ورود به چالش: {code}"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+    @property
+    def push_enabled(self) -> bool:
+        """Whether this deploy can send a push at all.
+
+        Asked in exactly two places -- the route that hands the browser the
+        public key, and the dispatcher -- so a deploy with no keys is one
+        `if` away from the whole subsystem being inert, rather than a set of
+        failures scattered across a send.
+        """
+        return bool(self.vapid_public_key and self.vapid_private_key)
 
     @property
     def is_sqlite(self) -> bool:

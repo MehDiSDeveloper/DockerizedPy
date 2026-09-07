@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The icon slot of Android 12's own splash screen API. That slot is 288dp and
+  shows only the middle 192dp of it, so the mark is inset here rather than
+  drawn at the drawable's full size — an icon sized for the outer box loses
+  its corners to the platform's mask.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="150dp"
+        android:height="150dp"
+        android:gravity="center"
+        android:drawable="@drawable/ic_brand_mark" />
+</layer-list>

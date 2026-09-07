@@ -1267,6 +1267,9 @@ function setTheme(mode) {
     // private mode: the theme still applies, it just won't survive the page
   }
   document.querySelectorAll(THEME_CONTROLS).forEach(syncThemeControl);
+  // A no-op in a browser. Inside the Android shell the status bar is painted
+  // natively and cannot see [data-theme], so it is repainted from here.
+  paintNativeChrome();
   return next;
 }
 
@@ -2071,7 +2074,7 @@ window.addEventListener("beforeinstallprompt", (e) => {
 window.addEventListener("appinstalled", () => {
   deferredInstall = null;
   paintInstall();
-  showToast("«چالش» روی دستگاهت نصب شد");
+  showToast("«اکت‌پکت» روی دستگاهت نصب شد");
 });
 
 function initInstallRow() {
@@ -2094,9 +2097,355 @@ function initInstallRow() {
   });
 }
 
+// ---- Push: a notification on the phone itself ---------------------------
+//
+// The bell is only read by somebody who already opened the app. Push is the
+// same notification, delivered to the device: the service worker above is
+// what makes it possible at all, because a message arrives with no tab open
+// and a worker is the only thing a browser can hand it to.
+//
+// Everything here is *device* state, not account state, and that is the whole
+// shape of the feature. Whether this browser may push, whether the member
+// granted permission, and what endpoint their push service minted are three
+// facts only the browser holds -- so the server renders the row `hidden` and
+// this un-hides whichever applies, exactly like the install row. The switch
+// reads its state from the browser's own subscription rather than from
+// anything stored, so a member who turned notifications off in the system
+// settings sees an off switch and not a lie.
+//
+// The account-level question -- *which kinds* may reach me -- stays where it
+// was, in the switches below this row, and both halves share it: muting a
+// kind silences it on the phone too, because `notify()` drops it before push
+// ever sees it.
+
+const PUSH_SYNCED_KEY = "chalesh-push-synced";
+
+function pushSupported() {
+  return (
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    "Notification" in window &&
+    window.isSecureContext
+  );
+}
+
+// Web Push on iOS exists only from 16.4 *and only inside an installed app*:
+// Safari in a tab does not have the API at all. So a member on an iPhone is
+// told to install rather than shown a switch that could never work.
+function pushNeedsInstall() {
+  return isIOS() && !appIsInstalled();
+}
+
+// The application server key travels as base64url and `subscribe()` wants the
+// raw bytes. Nothing else in the app needs this, so it stays local.
+function urlBase64ToUint8Array(value) {
+  const padded = (value + "=".repeat((4 - (value.length % 4)) % 4))
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
+  const raw = atob(padded);
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+
+let pushKeyPromise = null;
+
+// One request per page, shared by the switch and the re-sync below. Plain
+// fetch and not apiFetch: this route is open, and a background probe must
+// never bounce a reader to the login page.
+function pushKey() {
+  if (!pushKeyPromise) {
+    pushKeyPromise = fetch("/push/key")
+      .then((res) => (res.ok ? res.json() : { enabled: false }))
+      .catch(() => ({ enabled: false }));
+  }
+  return pushKeyPromise;
+}
+
+async function currentPushSubscription() {
+  const reg = await navigator.serviceWorker.ready;
+  return { reg, sub: await reg.pushManager.getSubscription() };
+}
+
+// A browser may replace a subscription on its own (a `pushsubscriptionchange`
+// nobody was awake for, site data partly cleared, a long-idle install), and a
+// stale endpoint fails silently -- the switch still looks on and nothing ever
+// arrives. So whatever this browser currently holds is re-posted once per
+// session; the server upserts on the endpoint, so it costs one request and
+// creates nothing.
+async function resyncPushSubscription() {
+  if (!pushSupported() || Notification.permission !== "granted") return;
+  try {
+    if (sessionStorage.getItem(PUSH_SYNCED_KEY)) return;
+  } catch (e) {
+    /* private mode: re-sync every load rather than not at all */
+  }
+  const { sub } = await currentPushSubscription();
+  if (!sub) return;
+  const { ok } = await apiFetch("/push/subscriptions", {
+    method: "POST",
+    body: sub.toJSON(),
+    redirectOn401: false,
+  });
+  if (!ok) return;
+  try {
+    sessionStorage.setItem(PUSH_SYNCED_KEY, "1");
+  } catch (e) {
+    /* nothing to remember it with; harmless */
+  }
+}
+
+async function enablePush(key) {
+  // Asked only on a real tap. A permission prompt on page load is the single
+  // fastest way to be denied forever -- the answer is remembered by the
+  // browser, and there is no second chance to explain first.
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") return { ok: false, denied: true };
+
+  const { reg } = await currentPushSubscription();
+  const sub = await reg.pushManager.subscribe({
+    // Required by every browser: a subscription that could push silently is
+    // one they refuse to hand out.
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(key),
+  });
+  const { ok } = await apiFetch("/push/subscriptions", {
+    method: "POST",
+    body: sub.toJSON(),
+  });
+  // A subscription the server never stored is one nothing will ever send to,
+  // so it is given back rather than left behind looking enabled.
+  if (!ok) await sub.unsubscribe();
+  return { ok };
+}
+
+async function disablePush() {
+  const { sub } = await currentPushSubscription();
+  if (!sub) return { ok: true };
+  // The server first: a browser-side unsubscribe that succeeded while the row
+  // stayed behind leaves this deploy pushing at a dead endpoint until the
+  // push service says so. The other order costs nothing if it fails.
+  const { ok } = await apiFetch("/push/subscriptions", {
+    method: "DELETE",
+    body: { endpoint: sub.endpoint },
+  });
+  if (ok) await sub.unsubscribe();
+  return { ok };
+}
+
+async function initPushSwitch() {
+  const input = document.querySelector("[data-push-switch]");
+  const group = document.querySelector("[data-push-group]");
+  const row = document.querySelector("[data-push-row]");
+  const install = document.querySelector("[data-push-install]");
+  if (!input && !install) return;
+
+  if (pushNeedsInstall()) {
+    if (install) install.hidden = false;
+    if (group) group.hidden = false;
+    return;
+  }
+  if (!input || !pushSupported()) return;
+
+  const key = await pushKey();
+  // No keys on this deploy, so there is nowhere to send: the row stays gone
+  // rather than becoming a switch that would fail on the tap.
+  if (!key.enabled || !key.public_key) return;
+
+  const { sub } = await currentPushSubscription();
+  input.checked = Notification.permission === "granted" && !!sub;
+  if (row) row.hidden = false;
+  if (group) group.hidden = false;
+
+  // A member who denied the prompt cannot be asked again from here -- only
+  // the browser's own site settings can undo that -- so the switch says so
+  // instead of pretending otherwise.
+  if (Notification.permission === "denied") {
+    input.disabled = true;
+    if (row) row.classList.add("is-blocked");
+    return;
+  }
+
+  input.addEventListener("change", async () => {
+    const wanted = input.checked;
+    const wrap = input.closest(".switch");
+    input.disabled = true;
+    if (wrap) wrap.classList.add("is-saving");
+
+    let result;
+    try {
+      result = wanted ? await enablePush(key.public_key) : await disablePush();
+    } catch (err) {
+      result = { ok: false };
+    }
+
+    input.disabled = false;
+    if (wrap) wrap.classList.remove("is-saving");
+
+    if (!result.ok) {
+      input.checked = !wanted;
+      if (result.denied) {
+        input.disabled = true;
+        if (row) row.classList.add("is-blocked");
+        showToast("مرورگر اجازه نداد. از تنظیمات خودش می‌توانی اجازه بدهی.");
+      } else {
+        showToast("انجام نشد. دوباره تلاش کن.");
+      }
+      return;
+    }
+    showToast(wanted ? "اعلان روی این دستگاه روشن شد" : "اعلان این دستگاه خاموش شد");
+  });
+}
+
+// ---- The native shell ---------------------------------------------------
+//
+// «چالش» also ships as an Android app (`mobile/` in this repository), and
+// that app is this same site: a Capacitor WebView pointed at the deploy,
+// loading every page, cookie, asset and service worker exactly as a browser
+// tab does. Nothing else in `app/` knows the shell exists, and nothing here
+// changes what a browser gets -- every function below returns immediately
+// when `window.Capacitor` is absent, which is almost every reader.
+//
+// Only two things are done here, and they are the two a page inside a
+// WebView cannot leave to the browser: the system bars are painted by the
+// native theme rather than by CSS, and the launch splash is a native window
+// that has to be told the page arrived.
+
+function nativePlugin(name) {
+  const cap = window.Capacitor;
+  if (!cap || typeof cap.isNativePlatform !== "function" || !cap.isNativePlatform()) return null;
+  return (cap.Plugins && cap.Plugins[name]) || null;
+}
+
+// The shell's own `values/` and `values-night/` already answer the *device*
+// preference. What an Android resource qualifier cannot express is the third
+// state: an explicit «روشن»/«تاریک» chosen inside the app on a phone set the
+// other way. So that case is carried across here, and `setTheme` calls this
+// -- the bar moves with the segmented control rather than on the next cold
+// start, which is when the mismatch would otherwise be noticed.
+function paintNativeChrome() {
+  const bar = nativePlugin("StatusBar");
+  if (!bar) return;
+  const chosen = document.documentElement.dataset.theme;
+  const dark = chosen
+    ? chosen === "dark"
+    : window.matchMedia("(prefers-color-scheme: dark)").matches;
+  // The two --bg-0 values, by value: a native call cannot read a CSS
+  // variable. Same pair as the theme-color metas in the three shells and
+  // `status_bar` in the Android project's colors.xml.
+  bar.setBackgroundColor({ color: dark ? "#16120d" : "#f8f4ee" }).catch(() => {});
+  // Capacitor names the style after the *ink*, not the ground: "DARK" is the
+  // light text a dark bar needs.
+  bar.setStyle({ style: dark ? "DARK" : "LIGHT" }).catch(() => {});
+}
+
+/* ---------------------------------------------------------------------------
+   «پردهٔ آغاز» — taking the launch screen down
+
+   The curtain is already painted: the <head> script in layout.html marked the
+   load a launch and CSS put it up in the first frame, so nothing here has to
+   *show* anything. All this owes it is a decent exit.
+
+   It waits out SPLASH_MIN_MS before starting the fade, which is the one thing
+   a launch screen has to get right in both directions: on a warm start the
+   page is ready almost immediately and a curtain that vanished mid-draw would
+   read as a glitch, while on a cold one this has long since elapsed and the
+   fade begins the moment the page is up. Then `data-launching` comes off the
+   root, which is what returns the element to `display:none` — the same mark
+   that raised it lowers it, so there is one switch rather than two.
+
+   The Android shell needs one more beat than a browser does, because there
+   the platform paints a splash of its own *over* this page first. The mark
+   arrives as "hold": the curtain is up but frozen on its first frame, and the
+   clock below has not started. `releaseAppSplash()` is what starts both, and
+   `initNativeShell()` calls it in the same breath as hiding the native
+   splash — so the two dissolve into each other on the same logo in the same
+   place, and the member sees the drawing come alive instead of a still frame
+   that was already over.
+   ------------------------------------------------------------------------- */
+const SPLASH_MIN_MS = 1150;
+const SPLASH_FADE_MS = 460;
+//: Longest the curtain may stay frozen waiting for the shell to release it.
+//: Only reachable when the UA says «shell» but the bridge never arrived, in
+//: which case the platform's own `launchShowDuration` (2500ms) is what takes
+//: the splash away and nothing else would ever start the animation.
+const SPLASH_HOLD_MAX_MS = 2600;
+
+function initAppSplash() {
+  const root = document.documentElement;
+  if (!root.dataset.launching) return;
+  const el = document.getElementById("appSplash");
+  if (!el) {
+    delete root.dataset.launching;
+    return;
+  }
+  if (root.dataset.launching === "hold") {
+    window.setTimeout(releaseAppSplash, SPLASH_HOLD_MAX_MS);
+    return;
+  }
+
+  // performance.now() is time since this document started loading, which is
+  // exactly how long the curtain has already been on screen.
+  const elapsed = (window.performance && performance.now()) || 0;
+  window.setTimeout(() => hideAppSplash(el), Math.max(SPLASH_MIN_MS - elapsed, 0));
+}
+
+/** Start the curtain's animation, and its clock with it. Idempotent: the
+ *  shell calls it and so does the timeout above, and whichever is first
+ *  wins. */
+function releaseAppSplash() {
+  const root = document.documentElement;
+  if (root.dataset.launching !== "hold") return;
+  root.dataset.launching = "run";
+  const el = document.getElementById("appSplash");
+  if (!el) {
+    delete root.dataset.launching;
+    return;
+  }
+  window.setTimeout(() => hideAppSplash(el), SPLASH_MIN_MS);
+}
+
+function hideAppSplash(el) {
+  el.classList.add("is-gone");
+  window.setTimeout(() => {
+    delete document.documentElement.dataset.launching;
+    el.classList.remove("is-gone");
+  }, SPLASH_FADE_MS);
+}
+
+function initNativeShell() {
+  paintNativeChrome();
+  // "system" is the default mode, so a phone that switches itself to dark at
+  // sunset has to take the bars with it.
+  window
+    .matchMedia("(prefers-color-scheme: dark)")
+    .addEventListener("change", paintNativeChrome);
+
+  // The splash stands until either this line runs or the ceiling in
+  // capacitor.config.js expires, whichever is first. This is the half that
+  // makes a warm start feel immediate; the ceiling is only there so a page
+  // whose script never ran cannot leave a member staring at it.
+  //
+  // «پردهٔ آغاز» is released in the same breath rather than after the promise
+  // settles: `launchFadeOutDuration` is a 200ms cross-fade, and starting the
+  // web curtain now means the same mark, at the same size and the same place,
+  // is already drawing itself in as the native one dissolves. Waiting for the
+  // promise would blank the logo for a frame and then pop it back.
+  const splash = nativePlugin("SplashScreen");
+  if (splash) {
+    releaseAppSplash();
+    splash.hide().catch(() => {});
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  initAppSplash();
   initServiceWorker();
   initInstallRow();
+  initPushSwitch();
+  // Every page, not just the settings screen: a subscription the browser
+  // quietly replaced is invisible until something re-posts it, and the row
+  // that would notice is one most members never open twice.
+  resyncPushSubscription();
+  initNativeShell();
 });
 
 document.addEventListener("DOMContentLoaded", () => {

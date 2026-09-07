@@ -1,0 +1,9 @@
+node_modules/
+
+# The release signing key and the file naming it. Losing this key means never
+# being able to update the published app again; committing it means anybody
+# with the repository can publish as us. It lives outside the repository and
+# is referenced by android/keystore.properties, which is why both are here.
+*.jks
+*.keystore
+android/keystore.properties

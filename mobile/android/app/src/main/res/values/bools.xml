@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The one thing a colour cannot carry: over the cream ground the status
+     bar's own icons have to be dark, and that is a boolean. Its night twin
+     is in values-night/, so the theme below stays a single block instead of
+     one copy per qualifier.
+
+     This answers the *device* preference only. An explicit theme chosen
+     inside the app contradicts the device, which no resource qualifier can
+     express, so that case is carried at runtime by the StatusBar plugin. -->
+<resources>
+    <bool name="light_system_bars">true</bool>
+</resources>

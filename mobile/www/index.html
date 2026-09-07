@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>actpact</title>
+
+<!-- =======================================================================
+     The only page this project ships. It is what the WebView shows when the
+     server cannot be reached at all, and it is the reason `webDir` exists.
+
+     Everything here is self-contained on purpose: no stylesheet, no font and
+     no script from the network, because the one situation this page renders
+     in is the one where the network is gone. It cannot read the member's
+     stored theme either -- that lives on the server's origin and this page is
+     served from the shell's own -- so it follows the device preference alone.
+
+     The palette is «شن و مریم‌گلی» copied by value from styles.css. A copy
+     rather than an import, and a small one, because the alternative is a page
+     that needs a server in order to say the server is unreachable.
+     ======================================================================= -->
+
+<style>
+  :root{
+    --bg-0:#f8f4ee; --bg-2:#ffffff;
+    --text-1:#2c2822; --text-2:#6b6255;
+    --sage:#46806f; --sage-dim:#35655a; --on-sage:#ffffff;
+    --border:rgba(44,40,34,0.14);
+    /* the brand's own three, from the --brand-* tokens in styles.css. They do
+       not move with the theme: the logo's roundel is one picture everywhere,
+       the same way the launcher icon is. */
+    --tile-1:#24443b; --tile-2:#152e28;
+    --cool:#9fd9c3; --warm:#f0a06a;
+    --word-1:#3f8873; --word-2:#c4763f;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg-0:#16120d; --bg-2:#221c15;
+      --text-1:#f2ebe0; --text-2:#b6a894;
+      --border:rgba(255,255,255,0.12);
+      --word-1:#9fd9c3; --word-2:#f0a06a;
+    }
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg-0); color:var(--text-1);
+    font-family:Vazirmatn,"Segoe UI",Tahoma,"Iranian Sans",sans-serif;
+    display:flex; align-items:center; justify-content:center;
+    padding:24px calc(24px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left));
+    -webkit-user-select:none; user-select:none;
+  }
+  .card{width:100%; max-width:340px; text-align:center;}
+  .mark{
+    width:84px; height:84px; margin:0 auto 14px; border-radius:26px;
+    background:radial-gradient(circle at 32% 26%,var(--tile-1),var(--tile-2));
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 10px 28px rgba(70,128,111,.30);
+  }
+  .mark svg{width:84%; height:84%; display:block;}
+  /* classes rather than stroke="var(--cool)": a presentation attribute is not
+     a CSS value and does not resolve custom properties. */
+  .mark .c{stroke:var(--cool);}
+  .mark .w{stroke:var(--warm);}
+  .mark .p{fill:var(--warm);}
+  .word{
+    direction:ltr; font-size:1.5rem; font-weight:600; letter-spacing:.06em;
+    color:var(--word-1); margin:0 0 20px;
+  }
+  .word b{font-weight:600; color:var(--word-2);}
+  h1{font-size:1.22rem; font-weight:700; margin:0 0 10px;}
+  p{font-size:.94rem; line-height:1.9; color:var(--text-2); margin:0 0 26px;}
+  button{
+    width:100%; border:0; border-radius:14px; padding:14px 18px;
+    font-family:inherit; font-size:1rem; font-weight:600;
+    background:var(--sage); color:var(--on-sage); cursor:pointer;
+    transition:transform .12s ease, opacity .12s ease;
+  }
+  button:active{transform:scale(.97); opacity:.9;}
+  .again{margin-top:14px; font-size:.82rem; color:var(--text-2); min-height:1.2em;}
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="mark" aria-hidden="true">
+    <svg viewBox="0 0 200 200" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path class="c" stroke-width="22" d="M34 162 L100 34"/>
+      <path class="w" stroke-width="22" d="M166 162 L100 34"/>
+      <path class="c" stroke-width="20" d="M66 120 L134 120"/>
+      <path class="c" stroke-width="20" d="M100 120 L100 164"/>
+      <polygon class="p" points="108,124 140,144 108,164"/>
+    </svg>
+  </div>
+  <div class="word">act<b>pact</b></div>
+  <h1>به سرور وصل نشدیم</h1>
+  <p>«اکت‌پکت» همه‌چیز را زنده از سرور می‌خواند، پس تا اینترنت وصل نشود صفحه‌ای برای نشان دادن ندارد. اتصالت را بررسی کن و دوباره تلاش کن.</p>
+  <button type="button" id="retry">تلاش دوباره</button>
+  <div class="again" id="note"></div>
+</div>
+
+<script src="server-url.js"></script>
+<script>
+  // The splash sits above this page too, so it is dismissed here as well as
+  // in the web app: the two paths out of a cold start are "the server
+  // answered" and "it did not", and neither may leave the splash up.
+  (function hideSplash(){
+    var sp = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SplashScreen;
+    if (sp) sp.hide().catch(function(){});
+  })();
+
+  var note = document.getElementById("note");
+
+  document.getElementById("retry").addEventListener("click", function () {
+    if (!window.__SERVER_URL__) return;
+    note.textContent = "در حال تلاش…";
+    // A full navigation rather than location.reload(): reloading would reload
+    // *this* page, which is the one thing that cannot succeed.
+    window.location.href = window.__SERVER_URL__;
+  });
+
+  // Coming back online is the commonest way out of this screen, and waiting
+  // for a tap after that is a screen that looks stuck when it is not.
+  window.addEventListener("online", function () {
+    if (window.__SERVER_URL__) window.location.href = window.__SERVER_URL__;
+  });
+</script>
+
+</body>
+</html>

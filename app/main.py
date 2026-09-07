@@ -25,6 +25,7 @@ from app.routers import (
     media,
     notification,
     otp,
+    push,
     pwa,
     reaction,
     roadmap,
@@ -187,6 +188,9 @@ app.include_router(media.router)
 # cannot serve: one needs a media type Python does not know, the other needs
 # the origin's root for its scope.
 app.include_router(pwa.router)
+# The three routes a device uses to ask to be woken. No page of its own -- the
+# notification settings screen drives them.
+app.include_router(push.router)
 
 app.include_router(admin_views.router)
 app.include_router(auth_views.router)

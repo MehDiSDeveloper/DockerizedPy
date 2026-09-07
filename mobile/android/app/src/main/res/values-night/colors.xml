@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- «شب کرمی», for a device asking for dark. Only the grounds move; the
+     brand hue is the same in both themes, as it is in styles.css. -->
+<resources>
+    <color name="app_background">#16120d</color>
+    <color name="splash_background">#16120d</color>
+    <color name="status_bar">#16120d</color>
+</resources>

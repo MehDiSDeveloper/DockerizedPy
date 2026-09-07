@@ -15,3 +15,17 @@ __pycache__/
 .DS_Store
 # SQLite database files (local dev; the deploy keeps its own on a disk)
 data/
+
+# Capacitor / Android
+mobile/node_modules/
+mobile/www/server-url.js
+mobile/android/build/
+mobile/android/app/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/capacitor-cordova-android-plugins/build/
+mobile/android/app/src/main/assets/capacitor*
+*.apk
+*.aab
+*.jks
+*.keystore

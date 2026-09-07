@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="false"
+        android:theme="@style/AppTheme">
+
+        <!--
+          `screenOrientation="portrait"`: the web app is a phone-shaped RTL
+          layout with a bottom navigation bar and the PWA manifest already
+          declares the same. Landscape would render, but nothing in the
+          stylesheet is designed for it.
+
+          `configChanges` is Capacitor's own list and is load-bearing: without
+          it a rotation, a keyboard, or the system switching to dark mode
+          recreates the activity, which reloads the WebView and throws away
+          the page the member was on — including anything they had typed.
+        -->
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:screenOrientation="portrait"
+            android:launchMode="singleTask"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+        <!--
+          What the WebView hands a `<input type="file">` to when a member
+          picks a picture. The avatar and challenge pickers are plain file
+          inputs, so this is the whole of what they need on the native side —
+          and it is why there is no camera permission below: the system
+          chooser opens the camera app, which asks for its own.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+    </application>
+
+    <!--
+      One permission, and it is the only one this shell can justify. A store
+      reviewer reads this list, and every entry that is not obviously required
+      by what the app does is a question to answer. Push adds POST_NOTIFICATIONS
+      here when it lands, and nothing else should.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+</manifest>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The adaptive icon (API 26+). The launcher masks the two layers to whatever
+  shape it wants, so the background is a flat sage and the foreground is the
+  mark inset well inside the safe area — `@drawable/`, not `@mipmap/`,
+  because it is a vector rather than the five bitmaps Capacitor's template
+  shipped.
+
+  `<monochrome>` is the same drawing again, for Android 13's themed icons: the
+  system re-tints it to the wallpaper's palette and ignores the stroke colour,
+  so no second file is needed.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>

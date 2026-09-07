@@ -12,3 +12,7 @@ tests/
 *.db
 *.session.sql
 data/
+# The native shell. It is built by the Android toolchain, never by the
+# image, and node_modules/ plus the Gradle output would be the largest thing
+# in a `COPY . .` that has no use for any of it.
+mobile/

@@ -38,6 +38,50 @@
 {% block content %}
 <div class="settings-page">
 
+  {#- «روی این دستگاه» -- the one section on this screen the server does not
+      decide, and it is above the kind switches on purpose: it answers
+      *where* an allowed notification lands, and the list below answers
+      *which*. The two are one rule read twice -- a muted kind is dropped in
+      `notify()` before push ever sees it -- so a member never has to turn
+      the same thing off in two places.
+
+      Everything here ships `hidden` and `initPushSwitch()` in app.js
+      un-hides whichever row applies, the install row's own trade: whether
+      this browser can push at all, and whether it was ever given
+      permission, are facts only the browser holds. A deploy with no VAPID
+      keys renders nothing, which is this page's rule about a row that
+      would only toast. -#}
+  <section class="setting-group" data-push-group hidden>
+    <h2>روی این دستگاه</h2>
+    <div class="setting-row glass" data-push-row hidden>
+      <label class="sr-head" for="push-device">
+        <span class="notif-icon" data-icon="bell" aria-hidden="true"></span>
+        <span class="sr-text">
+          <span class="sr-label">اعلان روی این دستگاه</span>
+          <span class="sr-hint">حتی وقتی «اکت‌پکت» باز نیست، خبر روی همین دستگاه نشان داده می‌شود. برای هر دستگاه جداگانه است.</span>
+        </span>
+        <span class="switch">
+          <input type="checkbox" id="push-device" role="switch" data-push-switch>
+          <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+        </span>
+      </label>
+    </div>
+    {#- iOS has no Web Push in a Safari tab at all -- only inside an app added
+        to the home screen -- so an iPhone that has not installed it gets an
+        explanation rather than a switch that could never work. A `div` and
+        not a `label`, because the «؟» inside a label would toggle whatever
+        the label is for. -#}
+    <div class="setting-row glass" data-push-install hidden>
+      <div class="sr-head">
+        <span class="notif-icon" data-icon="bell" aria-hidden="true"></span>
+        <div class="sr-text">
+          <span class="sr-label">اول «اکت‌پکت» را به صفحهٔ خانه اضافه کن{{ explain("push-device") }}</span>
+          <span class="sr-hint">روی آیفون، اعلان روی دستگاه فقط در نسخهٔ نصب‌شده کار می‌کند. راه نصب در «تنظیمات» آمده است.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="setting-group">
     <h2>کدام اعلان‌ها برسند</h2>
     {% for pref in notification_prefs %}
@@ -63,7 +107,7 @@
       </label>
     </div>
     {% endfor %}
-    <p class="settings-note">اعلان‌ها داخل برنامه، در همان زنگولهٔ بالای صفحه نشان داده می‌شوند.</p>
+    <p class="settings-note">هر اعلانی که اینجا روشن باشد در زنگولهٔ بالای صفحه می‌آید — و اگر بالا اجازه داده باشی، روی خود دستگاه هم.</p>
   </section>
 
 </div>

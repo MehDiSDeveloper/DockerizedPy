@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The splash on API 23-30, where the window's own background is the only
+  splash there is. A layer-list rather than the eleven `splash.png` files
+  Capacitor's template ships: the ground is a colour that already answers to
+  the night qualifier, and the mark is a vector, so one file covers every
+  density and both orientations and neither half can go stale.
+
+  It is the same ground and the same mark, at the same place, that «پردهٔ
+  آغاز» draws once the WebView has a page — so what a member sees at a cold
+  start is one drawing that comes alive, not two screens in a row.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splash_background" />
+    <item
+        android:width="112dp"
+        android:height="112dp"
+        android:gravity="center"
+        android:drawable="@drawable/ic_brand_mark" />
+</layer-list>

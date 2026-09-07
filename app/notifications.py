@@ -44,6 +44,13 @@ printing it. The drop rule above still runs against the *real* actor, so an
 owner who re-joins their own challenge is not told about themselves by a
 notification that has since forgotten who they were.
 
+**Invariant five: a member who allowed it is also woken on their device.**
+The row is handed to ``app/push.py`` from the same private helper, *after*
+the four rules above have run -- so a push can never say something the bell
+does not, and a new emitting site gets push without knowing push exists.
+Nothing is sent from here: the row is only queued, and the queue is drained
+once the caller's transaction has committed.
+
 This module is deliberately not a router, a template, or a model: the same
 shape as ``app/icons.py`` and ``app/avatars.py`` -- domain logic that both
 front doors read, registered onto a views router's Jinja environment with
@@ -55,6 +62,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import push
 from app.models.challenge import Visibility
 from app.models.notification import Notification, NotificationKind
 from app.models.user import User
@@ -396,6 +404,14 @@ def _add(
         roadmap_id=roadmap_id,
     )
     db.add(notification)
+    # Invariant five, and the only one this function does not itself enforce:
+    # a member who allowed it is woken on their own device. The row is merely
+    # *queued* -- nothing is sent until the caller's transaction commits, and
+    # the sending happens after the response (see `app/push.py`). It is here,
+    # inside the one door, for the reason the mute check is: a policy honoured
+    # only by the call sites that remembered it stops working the first time
+    # a new event is added.
+    push.queue(notification)
     return notification
 
 

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- The application theme. `DayNight` is what makes values-night/ apply
+         at all; without it those files are dead. -->
+    <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/brand</item>
+        <item name="colorPrimaryDark">@color/brand_dim</item>
+        <item name="colorAccent">@color/brand</item>
+    </style>
+
+    <!-- The activity's theme once the splash is gone. Capacitor's
+         BridgeActivity swaps to this *by name*, so the name must not change.
+
+         `android:background` stays @null: the WebView paints the page and a
+         second surface under it is one more thing to flash the wrong colour.
+         `windowBackground` is the frame around it, which is what shows for
+         the instant between the splash going and the first paint arriving.
+
+         The navigation bar is deliberately left to the platform. Painting it
+         needs `windowLightNavigationBar`, which does not exist before API 27,
+         and a cream bar with the platform's white buttons on it is worse on
+         those devices than the black one they already have. -->
+    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:background">@null</item>
+        <item name="android:windowBackground">@color/app_background</item>
+        <item name="android:statusBarColor">@color/status_bar</item>
+        <item name="android:windowLightStatusBar">@bool/light_system_bars</item>
+    </style>
+
+    <!-- The launch theme, and it is two mechanisms rather than one because
+         they belong to two eras: `android:background` is the whole splash on
+         API 23-30, and the three `windowSplashScreen*` items are Android 12's
+         own API, which ignores it. -->
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="android:background">@drawable/splash</item>
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_icon</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+    </style>
+</resources>

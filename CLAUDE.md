@@ -18,6 +18,7 @@ alembic upgrade head                   # only relevant on Postgres
 python -m app.scripts.generate_mock_data          # seed 10 users / 30 challenges / 60 enrollments
 python -m app.scripts.set_user_role EMAIL admin   # make the first admin (--list to see roles)
 python -m app.scripts.seed_admin                  # ensure the SEED_ADMIN_* account exists
+python -m app.scripts.generate_vapid_keys          # the Web Push key pair, once per deploy
 .venv\Scripts\python -m pytest tests\ -q          # in-memory SQLite, no Postgres needed
 ```
 
@@ -651,6 +652,82 @@ A challenge, a group and a roadmap are three instances of one idea to a member: 
 - **The spotlight is a hole in the veil, not a raised element.** The veil is clipped with `clip-path: path(evenodd, …)`; the target is never re-parented, re-stacked or cloned — lifting it with `z-index` dies on the first ancestor owning a stacking context, which here is most of them. Where `path()` is unsupported the `@supports` fallback drops the blur and only dims. Blur and tint are kept light so the page behind stays legible as context; the ring does the pointing instead (`tourBreathe` swells and fades its hairline and halo together without the ring ever moving). `--tour-veil` is the one theme token (all three blocks). The callout is opaque like `.sheet-panel` — its arrow overlaps that background by half its width, and a translucent pane shows the seam.
 - **`place()` floors the hole's width and height at 0.** A target mid-scroll (or one `scrollIntoView` hasn't committed yet) can hand back a rect whose far edge is on the near side of the clamped start — an unfloored subtraction goes negative and the clip path, the ring radius and the popup's above/below/centre branch all key off that same corrupted number, which is what a fully broken-looking overlay (a solid veil, a popup off-screen) turns out to be upstream of. **The corrective `scrollIntoView` in `render()`'s settle callback is followed by a double `requestAnimationFrame`, not an immediate `place()`** — a non-smooth `scrollIntoView` does not commit its new offset synchronously, so measuring in the same tick can still see the pre-scroll position.
 
+### «نشان» — the logo, the wordmark, and the launch screen
+
+The mark is «actpact»'s own drawing: an A whose crossbar and stem make the t,
+with a play triangle in its lower quadrant. **The form is fixed artwork.**
+What belongs to this app is the colour, the ground and the light — the four
+stroke paths and the polygon are copied verbatim into every surface that draws
+it and are not ours to move.
+
+**It is one picture, in one pair of hues, everywhere.** The mark always sits
+inside the same deep-sage roundel, in the same pastel sage/apricot pair, in
+both themes — so the glyph on the sign-in card, the one on the launch screen
+and the one on a home screen are the same drawing rather than three cousins.
+The tokens are `--brand-tile-1..2` / `--brand-cool` / `--brand-warm` in all
+three theme blocks of `styles.css`, and the values are *copied* (never
+imported) into three other places that cannot read a CSS variable:
+`generate_app_icons.py`, `mobile/.../res/values/colors.xml`, and
+`mobile/www/index.html`. Only the **wordmark** is theme-aware
+(`--brand-word-1/2`), because that one is ink on the page's own ground.
+
+The roundel is deep rather than cream on purpose: a launcher icon sits on
+somebody else's wallpaper, and the pastel pair is what the logo is actually
+made of. It also means `values-night/colors.xml` carries no `brand_*` twin —
+the roundel travels with the mark, so one vector serves the splash in both
+themes.
+
+**The two halves are classed, not painted with presentation attributes**
+(`.bm-cool` / `.bm-warm` / `.bm-play`): `stroke="var(--x)"` is not something an
+attribute can say, only a rule.
+
+**`.brand-word` is where the app says its name in Latin letters** — `act` in
+the cool half, `pact` in the warm one, split exactly where the logo splits.
+`direction:ltr; unicode-bidi:isolate`, or an RTL page drags its letters about.
+
+**«پردهٔ آغاز» is one launch screen for both shells.** The Capacitor WebView
+and an installed PWA both open an ordinary page of this app, so a splash the
+app renders itself is the same screen on both — and it is the only splash a
+PWA can have that is more than a colour and an icon. It ships in
+`layout.html`, is gated **in CSS** (`:root[data-launching] .app-splash`) off a
+mark a pre-paint `<head>` script sets, and `initAppSplash()` in `app.js` takes
+it down after `SPLASH_MIN_MS`. Three things are load-bearing:
+
+- **The decision is pre-paint**, for the theme script's reason: un-hiding a
+  curtain a frame later is a curtain dropping over a page that had drawn.
+- **It shows only on a launch** — standalone *and* once per session, keyed on
+  `sessionStorage["chalesh-launched"]`. A browser tab never sees it: somebody
+  reading the site did not launch anything, and a curtain over a page they
+  navigated to is a page that feels slow.
+- **The Android shell is recognised by its user agent, not by
+  `window.Capacitor`.** A WebView reports `display-mode: browser`, so the test
+  every installed PWA passes fails there; and with a remote `server.url` the
+  native bridge is injected from `onPageStarted`, which is not guaranteed to
+  have run by the time a `<head>` script does. `appendUserAgent:
+  "ActpactShell"` in `mobile/capacitor.config.js` is on the first byte of
+  every request and survives every navigation, so it is the only answer
+  available early enough. Without it the curtain simply never appeared in the
+  APK — the symptom being a static native splash and nothing after it.
+- **In the shell the curtain is held, not run.** The mark carries two values:
+  `run` (a browser launch, this page is the topmost thing there is) and `hold`
+  (the platform's own splash is still painted over the WebView). Under `hold`
+  every animation is `animation-play-state: paused` and the clock has not
+  started — an animation played under the native splash would be over by the
+  time anybody could see it. `releaseAppSplash()` turns it into `run`, and
+  `initNativeShell()` calls it *in the same breath as* `SplashScreen.hide()`
+  rather than after the promise settles: `launchFadeOutDuration` is a 200ms
+  cross-fade, and the native splash paints the same ground with the same mark
+  at the same place, so those 200ms are one logo dissolving into itself.
+  Waiting would blank the mark for a frame and pop it back. `SPLASH_HOLD_MAX_MS`
+  is the floor under it, for the case where the UA says «shell» but the bridge
+  never arrived.
+
+The strokes draw themselves in with `stroke-dasharray` over `pathLength="100"`
+— one dash length correct for all four paths, so the stagger cannot drift the
+first time the artwork is nudged — and the play mark arrives last, because it
+is the half of the logo that means «برو». `prefers-reduced-motion` still gets
+the screen (a blank frame is worse than a still one) with nothing animating.
+
 ### Installable — the PWA layer
 
 `app/routers/pwa.py` (the manifest and the worker's address), `app/static/js/sw.js` (the worker), `app/static/offline.html`, `app/scripts/generate_app_icons.py` + the four PNGs in `app/static/img/`, the `<head>` block in all three shells, and `initServiceWorker()` / `paintInstall()` in `app.js`. No model, JSON router or visibility rule is touched by any of it.
@@ -669,9 +746,115 @@ A challenge, a group and a roadmap are three instances of one idea to a member: 
 
 **The install row is the one thing on `/views/settings/` the server does not decide.** Whether a browser will offer an install is a fact only that browser holds, so the section and both rows ship `hidden` and `paintInstall()` un-hides what applies — the nav trail's trade, honouring the page's own rule that a row which only toasts is worse than no row. `beforeinstallprompt` is caught at *parse* time (it can fire before `DOMContentLoaded`) and the event is kept, since a browser hands it over once. iOS gets the other row: no prompt exists there, so it explains, and the steps live in the `install-ios` explainer rather than in the hint.
 
-**Everything ships in the image.** The icons are generated once by `python -m app.scripts.generate_app_icons` and committed — the avatars' and emoji catalogue's rule, because the app runs with no outbound network — and the mark is `.brand-mark`'s own path at the same proportions. The maskable one is drawn smaller: Android crops to the launcher's shape and would take the ring off an "any"-sized mark.
+**Everything ships in the image.** The icons are generated once by `python -m app.scripts.generate_app_icons` and committed — the avatars' and emoji catalogue's rule, because the app runs with no outbound network — and the mark is the logo's own path at the same proportions (see «نشان» above). The maskable one is drawn smaller: Android crops to the launcher's shape and would take the corners off an "any"-sized mark.
+
+**Push notifications are no longer «not here»** -- see «Push» below; the worker's `push`/`notificationclick` handlers are the one part of it that had to live in this file.
 
 **Offline check-ins are deliberately not here.** The `(enrollment_id, occurrence_key)` idempotency and the `BACKFILL_DAYS` window would make Background Sync possible, but it is a feature with its own questions and its own plan.
+
+### Push — the notification, delivered to the device
+
+`app/webpush.py` (the protocol and nothing else), `app/push.py` (the queue, the dispatcher, the table's writes), `app/models/push.py`, `app/schemas/push.py`, `app/routers/push.py` (three routes, no page), the `push` / `notificationclick` half of `app/static/js/sw.js`, and `initPushSwitch()` / `resyncPushSubscription()` in `app.js`. `python -m app.scripts.generate_vapid_keys` mints the one credential it needs.
+
+**It is a consequence of `notify()`, never a second way to reach a member.** `push.queue()` is called from `notifications._add` — the one door — *after* the four invariants have run, so a push cannot say something the bell does not, cannot report your own action back to you, cannot carry a name an anonymous participant dropped, and cannot arrive for a kind that was muted. A new emitting site gets push for free and has nothing to remember. That is invariant five, and it is enforced in the same three lines as the rest.
+
+**Nothing is sent before the transaction commits.** `notify()` adds and does not commit; there is no un-sending a notification from a lock screen. So the row is *queued* into a list `RequestLogMiddleware` created before the handler ran, and `push.dispatch()` reads that list after the handler returned — the first moment the transaction is known to have ended, and off the path of the response the member is waiting on. Two mechanics carry it:
+
+- **The queue is a mutable list in a `ContextVar`, not a var each caller rebinds.** Starlette's `BaseHTTPMiddleware` runs the endpoint in a task of its own, so a `ContextVar` *set* downstream is invisible upstream — while a list the middleware created and the endpoint appended to is the same object on both sides. Outside a request (a script, a boot task, a test) the var is unset and `queue()` does nothing, so nothing anywhere branches on "are we in a request".
+- **Whether a queued row committed is read from the identity map** (`inspect(obj).identity`), never by touching `notification.id`: a rolled-back pending object goes back to transient and loses its identity, a committed one keeps it with no refresh and no I/O. That is why a refused enrolment silently pushes nothing.
+
+**One row per device, and the endpoint is its identity.** `PushSubscriptions` is a table rather than a column on `Users` because a member reads on a phone and a laptop and switching one off must not switch the other. The endpoint is UNIQUE and `save_subscription` upserts on it, so re-subscribing — a browser refreshing its own handle, a member re-granting permission, the page's once-per-session re-post — updates rather than accumulates. **A dead subscription is deleted, never flagged**: 404/410 from a push service is the only reliable signal, and every send is therefore also the sweep (there is no job runner; see `purge_expired_codes`).
+
+**The protocol is hand-rolled, and that is a smaller dependency than the alternative.** RFC 8291 (encrypt to the device), RFC 8188 (the aes128gcm container) and RFC 8292 (the VAPID assertion) come to about a hundred lines together, they cannot change under us, and `pywebpush`/`py-vapid` are wrappers over `cryptography` — which is now the one new pin. `app/webpush.py` knows nothing about this app, the way `app/sms.py` knows nothing about OTP policy; the two easy things to get wrong are both commented there (ES256 wants the raw `r||s` pair, not `cryptography`'s DER; the `\x02` delimiter is plaintext, not framing).
+
+**No keys means the feature does not exist.** `settings.push_enabled` is the whole switch: `GET /push/key` answers `{"enabled": false}`, the settings row never un-hides, `subscribe` stores nothing and `dispatch` returns before doing any work. That is the default, and unlike the SMS gateway there is no development fallback — a code can be read out of a log, a lock screen cannot. Rotating the pair invalidates every existing subscription, the same class of decision as rotating `secret_key`.
+
+**The switch is device state, so the server does not decide it.** «روی این دستگاه» ships `hidden` on `/views/settings/notifications` and `initPushSwitch()` un-hides whichever row applies — the install row's own trade. It reads its state from the browser's own `getSubscription()` rather than from anything stored, so a member who revoked permission in the system settings sees an off switch instead of a lie; a `denied` permission disables the row and says only the browser can undo it. It sits **above** the kind switches because it answers *where* an allowed notification lands while they answer *which*, and the two are one rule read twice.
+
+Permission is asked **only on the tap**. A prompt on page load is the fastest way to be denied forever — the browser remembers the answer and there is no second chance to explain first.
+
+**Where it does not work, and why the screen says so.** iOS has Web Push from 16.4 and **only inside an installed app**: Safari in a tab has no `PushManager` at all, so an iPhone that has not added «چالش» to the home screen gets an explanation and a pointer at the install steps rather than a switch. The **Android Capacitor shell is the same case** and deliberately unaddressed: an Android WebView implements no Push API, so the row simply does not render there — the installed PWA is the way to get push on Android today, and the native gateway `docs/ANDROID.md` names is the other half, unbuilt.
+
+**The worker holds the only code a push can reach**, since a message arrives with no tab open. It words nothing: `build_payload` builds the title and the sentence from `NOTIFICATION_META` through the same `notification_title`/`notification_text` the feed renders with, so rewording a kind moves the bell, its switch and the lock screen together. `tag` is `kind:challenge_id`, so a second comment on one challenge replaces the first rather than stacking — a phone is not where a list is read. A tap navigates a window that is already open (`clients.matchAll` → `focus()` → `navigate()`) instead of launching a second copy of the app, and `target_url` falls back to the feed, which is always a real page.
+
+**Where it grows.** The dispatcher is one background task doing bounded-concurrency HTTP (`MAX_CONCURRENT_SENDS`); a broadcast to a few hundred members is a few hundred small POSTs. The day that is not enough, the change is `deliver()` writing to a queue instead of to the push services — `notify()` does not know `app/push.py` exists, and `app/push.py` does not know what raised the row.
+
+### The Android shell — Capacitor over the deployed site
+
+`mobile/` (its own runbook is `docs/ANDROID.md`). A Capacitor WebView pointed
+at the deploy, packaged as an APK for Cafe Bazaar. It renders nothing: the web
+app is loaded from `serverUrl`, so every page, cookie, service worker and
+asset arrives exactly as it does in a browser tab. **No model, router,
+template or visibility rule is touched by any of it**, and the only thing in
+`app/` that knows the shell exists is `initNativeShell()` / `paintNativeChrome()`
+in `app.js`, both of which return immediately when `window.Capacitor` is absent.
+
+**One file is the source of truth for everything that separates the shell
+under development from the shell that ships.** `mobile/app.config.json` holds
+`serverUrl`, `appId`, `appName` and the version pair, and it is read by
+`capacitor.config.js`, by `android/app/build.gradle` (which parses it with
+`JsonSlurper` rather than restating the values) and by
+`scripts/apply-config.mjs`, which writes the address into the one local page.
+Nothing is typed twice, so the shell cannot point at one server while the
+package is versioned for another.
+
+**`MainActivity.java` is the whole of the native code, and it exists for one
+correction.** `server.errorPath` puts the app's own «به سرور وصل نشدیم» page
+in front of a member instead of the WebView's `net::ERR_*` screen -- a shell
+has no address bar, so that screen is a dead end. But Capacitor loads that
+page from *two* callbacks, and the second is `onReceivedHttpError`. A 404 here
+is a designed answer with a page behind it (somebody else's profile, an admin
+screen, a group you are not in), and swapping in the offline page would tell a
+member their connection is down while they look at a healthy server -- and
+hide the app's own error page with it. So the HTTP half is overridden to do
+nothing, which is what `WebViewClient` itself does, and the transport half is
+left alone. **Removing `errorPath` means removing that override too.**
+
+**The native chrome answers a question CSS cannot.** Android resource
+qualifiers (`values/` vs `values-night/`) can express the device preference
+and nothing else; this app's theme has three states, and the third -- an
+explicit «روشن»/«تاریک» on a phone set the other way -- is carried at runtime
+by `paintNativeChrome()`, which `setTheme` calls so the bar moves with the
+segmented control rather than on the next cold start. The two `--bg-0` values
+are copied by value into `colors.xml` and into that function, for the reason
+the icon generator copies them: neither a theme nor a native call can read a
+CSS variable.
+
+**The splash has a ceiling and a release, and both are needed.** The web app
+calls `SplashScreen.hide()` once it has painted, which is what makes a warm
+start feel immediate; `launchShowDuration` is the ceiling under it, so a page
+whose script never ran cannot leave a member staring at a splash with no way
+out.
+
+**The artwork is the same drawing as everywhere else.**
+`app.scripts.generate_android_icons` imports `render` from its PWA sibling
+rather than copying it, and rasterises only what has to be a bitmap: the
+legacy launcher icon on API 23-25. The adaptive icon, the splash and Android
+12's splash icon are hand-written `<vector>`s, so Capacitor's eleven
+`splash.png` files and five `ic_launcher_foreground.png` are deleted rather
+than regenerated.
+
+**`adjustMarginsForEdgeToEdge: "auto"`** is not cosmetic: Android 15 forces
+edge-to-edge on anything targeting SDK 35, and the top bar reads
+`env(safe-area-inset-top)` nowhere, so without it the app's own header paints
+under the status bar's clock.
+
+**Two things are deliberately absent.** There is no `google-services.json` and
+the Gradle block looking for one is deleted -- FCM is not dependable from
+Iran, which is why push goes to a native gateway, and a dead branch reading
+for a file that is never coming is a question the next person has to answer
+again. And the manifest carries exactly one permission, `INTERNET`: a store
+reviewer reads that list, and the file picker the avatar and challenge
+uploaders use needs no camera permission of its own because the system chooser
+asks for its own.
+
+**Before publishing**, `docs/ANDROID.md` carries the checklist. Two items on
+it are irreversible: `appId` is `run.liara.challenges` today and must become
+the real one (`ir.chalesh.app`) *before* the first Bazaar upload, since a
+published package id can never change; and `serverUrl` must move to the custom
+domain, because the address inside a published APK can only be changed by an
+update everybody has to install.
+
 
 ### Logging
 

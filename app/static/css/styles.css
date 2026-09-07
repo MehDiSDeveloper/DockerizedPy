@@ -2,7 +2,36 @@
    چالش | Design tokens & shared styles
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap');
+/* --------------------------------------------------------------------------
+   Vazirmatn, self-hosted. This was an @import from fonts.googleapis.com, which
+   inside Iran is slow at best and blocked at worst -- and in the installed
+   Android shell that shows far more than it does in a browser tab, because a
+   WebView with no address bar has nothing else to look at while text is
+   invisible. Same rule the avatars, the emoji catalogue and Cropper.js follow:
+   nothing this app draws with comes off the network at runtime.
+
+   One variable file rather than five static weights: it carries 100-900, so it
+   covers the 400/500/600/700/800 this sheet actually uses (and any weight added
+   later) in 111KB instead of 255KB and one request instead of five. That is
+   safe here because the sheet already requires `dvh` (Chrome 108), which is
+   five years past the Chrome 62 that brought variable fonts -- a WebView too
+   old for this @font-face could not lay the app out at all.
+
+   `swap` on purpose: the text is Farsi and the fallback is a system sans, so a
+   member reads immediately and the shapes correct themselves a moment later.
+   The file is served from /static, which the service worker holds cache-first,
+   so it is fetched once ever.
+
+   Licence: SIL OFL 1.1 -- app/static/fonts/OFL.txt, kept beside the file it
+   covers, as the licence requires of a redistributed copy.
+   -------------------------------------------------------------------------- */
+@font-face{
+  font-family:'Vazirmatn';
+  src:url('../fonts/Vazirmatn-Variable.woff2') format('woff2-variations');
+  font-weight:100 900;
+  font-style:normal;
+  font-display:swap;
+}
 
 :root{
   /* ==========================================================================
@@ -52,6 +81,23 @@
   --mohr-rgb:178,106,85;
   --gold:#b8863f;              /* burnt sand — streak / highlight, sparingly */
   --gold-rgb:184,134,63;
+
+  /* --- «actpact» — the brand mark and its wordmark.
+     The mark is always drawn inside its own deep-sage roundel, so the glyph
+     on the sign-in card, the one on the splash and the one on a home screen
+     are the same picture in the same colours; only the wordmark beside it
+     is theme-aware, because that one is ink on the page's own ground.
+     The pair is the app's sage and clay run pastel — the palette «شن و
+     مریم‌گلی» already ships those two hues, and the logo is where they are
+     allowed to sit side by side. --- */
+  --brand-tile-1:#24443b;
+  --brand-tile-2:#152e28;
+  --brand-cool:#9fd9c3;        /* the «act» strokes, on the roundel */
+  --brand-cool-rgb:159,217,195;
+  --brand-warm:#f0a06a;        /* the «pact» stroke and the play mark */
+  --brand-warm-rgb:240,160,106;
+  --brand-word-1:#3f8873;      /* «act», as ink on the page */
+  --brand-word-2:#c4763f;      /* «pact» */
 
   /* --- foreground on a *filled* accent surface. A pastel fill needs dark
      ink and a deep fill needs light ink, so this flips with the theme and
@@ -271,6 +317,15 @@
     --gold:#e3c07c;
     --gold-rgb:227,192,124;
 
+    --brand-tile-1:#24443b;
+    --brand-tile-2:#152e28;
+    --brand-cool:#9fd9c3;
+    --brand-cool-rgb:159,217,195;
+    --brand-warm:#f0a06a;
+    --brand-warm-rgb:240,160,106;
+    --brand-word-1:#9fd9c3;
+    --brand-word-2:#f0a06a;
+
     --on-accent:#0e2a22;
     --on-gold:#35270a;
     --on-finished:#16120d;
@@ -355,6 +410,15 @@
   --mohr-rgb:237,168,147;
   --gold:#e3c07c;
   --gold-rgb:227,192,124;
+
+  --brand-tile-1:#24443b;
+  --brand-tile-2:#152e28;
+  --brand-cool:#9fd9c3;
+  --brand-cool-rgb:159,217,195;
+  --brand-warm:#f0a06a;
+  --brand-warm-rgb:240,160,106;
+  --brand-word-1:#9fd9c3;
+  --brand-word-2:#f0a06a;
 
   --on-accent:#0e2a22;
   --on-gold:#35270a;
@@ -570,15 +634,50 @@ ul{list-style:none; margin:0; padding:0;}
 /* The topbar is space-between, so multiple trailing actions have to be one
    flex child or they get pushed to opposite ends of the header. */
 .topbar-actions{display:flex; align-items:center; gap:var(--space-3); flex-shrink:0;}
+/* --------------------------------------------------------------------------
+   «actpact» — the mark, and the wordmark beside it
+
+   The mark is the logo's own drawing (an A whose crossbar and stem make the
+   t, with the play triangle sitting in its lower quadrant) and the *form* is
+   fixed: everything this app is allowed to do to it is colour, ground and
+   light. It is always drawn inside the same deep-sage roundel, in the same
+   pastel pair, in both themes -- so the glyph on the sign-in card, the one on
+   the splash and the one on a home screen are one picture rather than three.
+
+   The two halves are classed rather than painted with presentation
+   attributes, because `stroke="var(--x)"` is not a thing an attribute can
+   say; only a rule can.
+   -------------------------------------------------------------------------- */
 .brand-mark{
-  width:38px; height:38px; border-radius:50%;
+  width:38px; height:38px; border-radius:30%;
   display:grid; place-items:center;
-  background:radial-gradient(circle at 35% 30%, var(--fayrouzeh), var(--fayrouzeh-dim));
-  box-shadow:var(--glow-accent-lift);
+  background:radial-gradient(circle at 32% 26%, var(--brand-tile-1), var(--brand-tile-2));
+  box-shadow:
+    0 8px 26px rgba(var(--accent-rgb),0.30),
+    inset 0 1px 0 rgba(var(--brand-cool-rgb),0.22);
+  overflow:hidden;
 }
-/* the mark's glyph is stroke="currentColor" in auth.html so it can flip with
-   the theme -- a presentation attribute cannot read a custom property */
-.brand-mark svg{width:20px; height:20px; color:var(--on-accent);}
+.brand-mark svg{width:84%; height:84%; display:block; overflow:visible;}
+.bm-cool{stroke:var(--brand-cool);}
+.bm-warm{stroke:var(--brand-warm);}
+.bm-play{fill:var(--brand-warm);}
+/* The glow is on the glyph, not the tile: the strokes are what should look
+   lit, and a shadow on the tile would only smudge its own edge. */
+.brand-mark .bm-warm,
+.brand-mark .bm-play{filter:drop-shadow(0 0 6px rgba(var(--brand-warm-rgb),0.45));}
+.brand-mark .bm-cool{filter:drop-shadow(0 0 6px rgba(var(--brand-cool-rgb),0.35));}
+
+/* The English name, wherever the app says it in Latin letters. Two colours,
+   split exactly where the logo splits: «act» takes the cool half and «pact»
+   the warm one, so the word and the mark tell the same story. `ltr` because
+   the page around it is RTL and a Latin word inside an RTL run drags its
+   punctuation to the wrong side. */
+.brand-word{
+  direction:ltr; unicode-bidi:isolate;
+  font-weight:600; letter-spacing:.06em;
+  color:var(--brand-word-1); line-height:1;
+}
+.brand-word b{font-weight:600; color:var(--brand-word-2);}
 
 /* Every icon in the app is an inline <svg> injected into a [data-icon] span
    by renderIcons(). An inline svg sits on a text baseline, so its span is a
@@ -963,8 +1062,10 @@ body[data-admin-scope] .crumb.current{
   justify-content:center; padding:32px var(--space-12);
 }
 .auth-logo{text-align:center; margin-bottom:28px;}
-.auth-logo .brand-mark{margin:0 auto var(--space-7); width:56px; height:56px;}
-.auth-logo .brand-mark svg{width:28px; height:28px;}
+.auth-logo .brand-mark{margin:0 auto var(--space-6); width:76px; height:76px; border-radius:26px;}
+/* mark, then wordmark: the Latin name is the brand's own signature, so it is
+   set larger than the Farsi welcome under it and carries the two hues. */
+.auth-logo .brand-word{font-size:26px; margin-bottom:var(--space-6);}
 .auth-logo h1{font-size:var(--fs-2xl); font-weight:800; margin:0 0 var(--space-3);}
 .auth-logo p{font-size:var(--fs-lg); color:var(--text-3); margin:0;}
 
@@ -1773,6 +1874,12 @@ a.setting-row, .setting-row[role="button"]{cursor:pointer;}
 /* Mid-flight: the row is showing what the server has not confirmed yet, so
    it says so rather than looking settled. */
 .switch.is-saving{opacity:.55;}
+/* A device whose browser was told «never ask again». The row stays visible and
+   readable -- it is the only place the member finds out *why* the switch will
+   not move -- but it stops reading as something to tap. Only the browser's own
+   site settings can undo it, so nothing here can. */
+.setting-row.is-blocked{opacity:.6;}
+.setting-row.is-blocked label.sr-head{cursor:default;}
 /* The notification rows are labels wrapping a control, so the label must lay
    out like the `.sr-head` it replaces and must not inherit the pointer-less
    look of a static row. */
@@ -4059,7 +4166,11 @@ button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
 .challenge-list.is-immersive{
   position:fixed; inset:0; z-index:var(--z-immersive);
   padding:0; gap:0; margin:0;
-  background:transparent;
+  /* a half-opaque sheet of the card's own ground, laid under the panels and
+     over whatever page the reader opened from -- theme-aware because it is
+     mixed from --bg-2 itself, and half rather than solid so a coverless
+     card's faint tint still has something behind it to show through to */
+  background:color-mix(in srgb, var(--bg-2) 50%, transparent);
   overflow-y:auto; overscroll-behavior:contain;
   scroll-snap-type:y mandatory;
   /* the reader is a sheet of glass over the page it opened from, not a second
@@ -4493,4 +4604,92 @@ button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
   /* the two that hang off an edge by a fixed offset rather than filling it */
   .floating-back{inset-inline-start:calc(var(--shell-gutter) + 18px);}
   .icon-btn.rail-close{inset-inline-end:calc(var(--shell-gutter) + 16px);}
+}
+
+/* ==========================================================================
+   «پردهٔ آغاز» — the launch screen
+
+   What an installed app shows between the tap on its icon and its first
+   painted screen. It exists in *one* place and serves both shells: the
+   Capacitor WebView and an installed PWA both open a normal page of this app,
+   so a splash rendered by the app itself is the same screen on both — and it
+   is the only splash a PWA can have that is more than a colour and an icon,
+   since a manifest cannot express anything else.
+
+   It is deliberately invisible in a browser tab. A visitor who is *reading*
+   the site did not launch anything, and a curtain over a page they navigated
+   to is a page that feels slow. `initAppSplash()` in app.js is what takes it
+   down, once the app has painted.
+
+   The native Android splash under it paints the same ground with the same
+   mark at the same place, so the handover is the drawing coming alive rather
+   than a second screen arriving.
+   ========================================================================== */
+/* Gated in CSS rather than by an attribute app.js would have to remove: the
+   <head> script marks the load and the curtain is already up in the very
+   first painted frame. Taking it down is that mark going away.
+
+   The mark carries two values. "run" is a browser launch, where this page is
+   the topmost thing there is. "hold" is the Android shell, where the
+   platform's own splash is still painted over the WebView -- the curtain is
+   up underneath it, but frozen on its first frame, because an animation that
+   played there would be over by the time anybody could see it. `app.js` turns
+   it into "run" at the moment it hides that splash, so the two cross-fade
+   with the same mark in the same place. */
+.app-splash{display:none;}
+:root[data-launching="hold"] .app-splash *{animation-play-state:paused;}
+:root[data-launching] .app-splash{
+  position:fixed; inset:0; z-index:9000;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:var(--space-7);
+  background:var(--bg-0);
+  /* two soft washes in the logo's own hues, so the ground is not flat cream */
+  background-image:
+    radial-gradient(60% 44% at 50% 34%, rgba(var(--brand-cool-rgb),0.20), transparent 70%),
+    radial-gradient(52% 40% at 50% 78%, rgba(var(--brand-warm-rgb),0.14), transparent 72%);
+  opacity:1; transition:opacity .42s var(--ease);
+}
+:root[data-launching] .app-splash.is-gone{opacity:0; pointer-events:none;}
+
+.app-splash .brand-mark{
+  width:112px; height:112px; border-radius:34px;
+  animation:splashTile .62s var(--ease-press-out) both;
+}
+.app-splash .brand-word{font-size:30px; animation:splashWord .5s var(--ease-press-out) .42s both;}
+
+/* The strokes draw themselves in. `pathLength="100"` on each path is what
+   makes one dash length correct for all four of them — without it every
+   stroke would need its own measured length and the stagger would drift the
+   first time the artwork is nudged. */
+.app-splash .bm-cool,
+.app-splash .bm-warm{
+  stroke-dasharray:100; stroke-dashoffset:100;
+  animation:splashDraw .58s var(--ease-press-out) both;
+}
+.app-splash .bm-warm{animation-delay:.16s;}
+.app-splash .bm-cross{animation-delay:.30s;}
+.app-splash .bm-stem{animation-delay:.38s;}
+/* The play mark is the last thing to arrive, because it is the half of the
+   logo that means «برو» — it should read as the app switching on. */
+.app-splash .bm-play{
+  transform-origin:118px 144px;
+  animation:splashPlay .42s var(--ease-press-out) .54s both;
+}
+
+@keyframes splashTile{
+  from{opacity:0; scale:.82; filter:blur(6px);}
+  to{opacity:1; scale:1; filter:blur(0);}
+}
+@keyframes splashDraw{ to{stroke-dashoffset:0;} }
+@keyframes splashPlay{ from{opacity:0; transform:scale(.35);} to{opacity:1; transform:scale(1);} }
+@keyframes splashWord{ from{opacity:0; transform:translateY(9px);} to{opacity:1; transform:none;} }
+
+/* Reduced motion still gets the screen — it is the app starting, and a blank
+   frame is worse than a still one — but nothing draws, spins or scales. */
+@media (prefers-reduced-motion: reduce){
+  .app-splash .brand-mark,
+  .app-splash .brand-word,
+  .app-splash .bm-cool,
+  .app-splash .bm-warm,
+  .app-splash .bm-play{animation:none; stroke-dashoffset:0; opacity:1; scale:1; transform:none; filter:none;}
 }

@@ -22,6 +22,15 @@ Three deliberate choices:
 Slow requests are logged at ``WARNING`` with the same event name, so the
 "is anything slow" question is a level filter rather than a separate metric
 pipeline -- the simplest thing that answers it without adding a dependency.
+
+One thing here is not about logging, and it is here because this is the only
+place that wraps every request from the outside: the **push batch**. Any
+notification raised while the request ran is collected in a list this
+middleware creates, and handed to a background send once the handler has
+returned -- which is the first moment its transaction is known to have
+committed, and the last moment before the response leaves. See
+``app/push.py`` for why the list is created out here rather than by whoever
+raises the notification.
 """
 
 import logging
@@ -31,6 +40,7 @@ import uuid
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
+from app import push
 from app.auth import verify_session_cookie
 from app.logging_config import log_event, request_id_var, user_id_var
 
@@ -49,6 +59,12 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
         request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
         id_token = request_id_var.set(request_id)
         user_token = user_id_var.set(verify_session_cookie(request.cookies.get("session")))
+        # Created before the handler and read after it: a notification raised
+        # anywhere downstream lands in this list. It has to be *this* object
+        # on both sides -- BaseHTTPMiddleware runs the handler in a task of
+        # its own, so a ContextVar rebound down there is invisible up here,
+        # while a list appended to is shared.
+        push_batch = push.open_batch()
         started = time.perf_counter()
 
         try:
@@ -65,6 +81,12 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
         finally:
             request_id_var.reset(id_token)
             user_id_var.reset(user_token)
+
+        # After the handler returned, so after `get_db` closed its session and
+        # whatever transaction the notification rode in either committed or
+        # did not. Fire-and-forget: nothing about the response waits on a push
+        # service, and a request that raised nothing does no work at all.
+        push.dispatch(push_batch)
 
         response.headers["X-Request-ID"] = request_id
         if not request.url.path.startswith(_UNLOGGED_PREFIXES):

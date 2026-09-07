@@ -15,6 +15,7 @@ from app.models.group import (
 )
 from app.models.notification import Notification, NotificationKind
 from app.models.otp import OtpCode
+from app.models.push import PushSubscription
 from app.models.reaction import Reaction, ReactionKind, ReactionSubject
 from app.models.roadmap import (
     Roadmap,
@@ -46,6 +47,7 @@ __all__ = [
     "Notification",
     "NotificationKind",
     "OtpCode",
+    "PushSubscription",
     "Reaction",
     "ReactionKind",
     "ReactionSubject",

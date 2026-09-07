@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  «شن و مریم‌گلی», the light theme, plus the brand's own three, copied by
+  value from styles.css.
+
+  A copy because a PNG, an XML drawable and a window background cannot read a
+  CSS variable; a *small* copy because only the values the native chrome
+  actually paints are here. Everything else the member sees is the web app's
+  own stylesheet, unchanged. The night twin is in values-night/, which is what
+  the device preference switches — an explicit choice made inside the app
+  contradicts the device and is carried at runtime by the StatusBar plugin.
+
+  The three `brand_*` values are deliberately absent from values-night/: they
+  paint the logo's roundel, which is one picture in both themes for the same
+  reason the launcher icon is.
+-->
+<resources>
+    <!-- The CSS tokens brand-tile-1..2 / brand-cool / brand-warm -->
+    <color name="brand_tile">#1e3b33</color>
+    <color name="brand_cool">#9fd9c3</color>
+    <color name="brand_warm">#f0a06a</color>
+
+    <!-- The CSS tokens fayrouzeh / fayrouzeh-dim -->
+    <color name="brand">#46806f</color>
+    <color name="brand_dim">#35655a</color>
+
+    <!-- The CSS token bg-0: behind the WebView before its first paint, and the splash. -->
+    <color name="app_background">#f8f4ee</color>
+    <color name="splash_background">#f8f4ee</color>
+    <color name="status_bar">#f8f4ee</color>
+</resources>

@@ -1,1 +1,14 @@
 *.sh text eol=lf
+
+# The Gradle wrapper. `gradlew` is a POSIX script and must keep LF endings
+# even though it is checked out on Windows -- git's autocrlf would otherwise
+# hand a macOS or CI machine a file its shell cannot run. Its .bat twin is the
+# opposite, and the wrapper jar must never be touched at all.
+mobile/android/gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary
+
+# The self-hosted typeface. Git's own heuristic already treats it as binary,
+# but saying so keeps a future autocrlf or a text-mode diff from ever touching
+# a font file the browser then refuses to parse.
+*.woff2 binary

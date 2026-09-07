@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>{{ title }} | چالش</title>
+    <title>{{ title }} | اکت‌پکت</title>
     <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
 
 {# ---- PWA -------------------------------------------------------------
@@ -26,7 +26,7 @@
     with its chrome, rather than the standalone app. -#}
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="چالش">
+<meta name="apple-mobile-web-app-title" content="اکت‌پکت">
 <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
 <link rel="icon" href="/static/img/icon-192.png" type="image/png">
 
@@ -51,6 +51,40 @@
         }
       } catch (e) { /* private mode: fall back to the device preference */ }
     </script>
+
+    {#- Whether this page is a *launch* or a navigation, decided before first
+        paint for the same reason the theme is: the launch screen ships in the
+        markup below and un-hiding it a frame later would be a curtain
+        dropping over a page that had already drawn.
+
+        It is a launch when the window is standalone (an installed PWA, or the
+        Capacitor shell) *and* this session has not painted one yet — so the
+        curtain comes up once per cold start and never again while the member
+        walks around the app. A browser tab never sees it: somebody reading
+        the site did not launch anything. -#}
+    <script>
+      try {
+        // The Android shell is recognised by its user agent and not by
+        // `window.Capacitor`: with a remote server.url the native bridge is
+        // injected from onPageStarted, which is not guaranteed to have run by
+        // the time this script does. A WebView also reports `display-mode:
+        // browser`, so the test every installed PWA passes fails there -- the
+        // UA is the only answer available this early. (`appendUserAgent` in
+        // mobile/capacitor.config.js is the other half.)
+        var native = /ActpactShell/.test(navigator.userAgent) || !!window.Capacitor;
+        var standalone = native
+          || window.matchMedia("(display-mode: standalone)").matches
+          || window.navigator.standalone === true;
+        if (standalone && !sessionStorage.getItem("chalesh-launched")) {
+          sessionStorage.setItem("chalesh-launched", "1");
+          // "hold" in the shell: the platform's own splash is still over this
+          // page, so an animation started now would play where nobody can see
+          // it and the member would get the still frame that is left. app.js
+          // turns it into "run" at the moment it hides that splash.
+          document.documentElement.dataset.launching = native ? "hold" : "run";
+        }
+      } catch (e) { /* private mode: no curtain, which is the safe way to fail */ }
+    </script>
 {% block head %}
 {% endblock %}
 </head>
@@ -70,6 +104,17 @@
     those routes gates itself on get_admin_page_user, and an attribute on
     <body> is not a permission. -#}
 <body data-user-id="{{ current_user_id or '' }}"{% if admin_scope %} data-admin-scope{% endif %}>
+    {#- «پردهٔ آغاز». Rendered on every page but shown only when the script
+        in <head> marked this load a launch; initAppSplash() in app.js takes
+        it away once the app has painted. One screen for both shells: the
+        native Android splash under it paints the same ground with the same
+        mark, so what the member sees is that drawing coming alive rather
+        than a second screen arriving. -#}
+    <div class="app-splash" id="appSplash" aria-hidden="true">
+      <div class="brand-mark"><svg viewBox="0 0 200 200" fill="none" stroke-linecap="round" stroke-linejoin="round"><path class="bm-cool" pathLength="100" stroke-width="22" d="M34 162 L100 34"/><path class="bm-warm" pathLength="100" stroke-width="22" d="M166 162 L100 34"/><path class="bm-cool bm-cross" pathLength="100" stroke-width="20" d="M66 120 L134 120"/><path class="bm-cool bm-stem" pathLength="100" stroke-width="20" d="M100 120 L100 164"/><polygon class="bm-play" points="108,124 140,144 108,164"/></svg></div>
+      <div class="brand-word">act<b>pact</b></div>
+    </div>
+
     <div class="app-bg"></div>
 
     <div class="shell">

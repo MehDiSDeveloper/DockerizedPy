@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>چالش | ورود</title>
+<title>اکت‌پکت | ورود</title>
 <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
 {# ---- PWA -------------------------------------------------------------
    Installability lives in the <head>, and this app has no base document, so
@@ -24,7 +24,7 @@
     with its chrome, rather than the standalone app. -#}
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="چالش">
+<meta name="apple-mobile-web-app-title" content="اکت‌پکت">
 <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
 <link rel="icon" href="/static/img/icon-192.png" type="image/png">
 
@@ -54,8 +54,14 @@
   <div class="auth-wrap">
 
     <div class="auth-logo">
-      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
-      <h1>به چالش خوش آمدی</h1>
+      {#- The logo, and the app's own name under it in Latin letters. The
+          mark's form is fixed artwork; what belongs to this app is the pair
+          of hues it is drawn in and the roundel it sits on, both of which
+          come from styles.css so the sign-in card, the launch screen and the
+          home-screen icon are one picture. -#}
+      <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 200 200" fill="none" stroke-linecap="round" stroke-linejoin="round"><path class="bm-cool" pathLength="100" stroke-width="22" d="M34 162 L100 34"/><path class="bm-warm" pathLength="100" stroke-width="22" d="M166 162 L100 34"/><path class="bm-cool bm-cross" pathLength="100" stroke-width="20" d="M66 120 L134 120"/><path class="bm-cool bm-stem" pathLength="100" stroke-width="20" d="M100 120 L100 164"/><polygon class="bm-play" points="108,124 140,144 108,164"/></svg></div>
+      <div class="brand-word">act<b>pact</b></div>
+      <h1>به اکت‌پکت خوش آمدی</h1>
       <p>خودتو محک بزن، پیشرفت کن، ادامه بده</p>
     </div>
 

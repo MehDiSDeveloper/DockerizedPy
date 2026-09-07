@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The adaptive icon's foreground layer (API 26+). Android draws this into a
+  108dp box and lets the launcher crop it to whatever shape it wants, so the
+  logo is scaled and centred to sit inside the 72dp safe area: it spans 67 of
+  the 108 units, the same proportion `MARK_MASKABLE` gives the PWA's maskable
+  icon.
+
+  No roundel here — @color/ic_launcher_background is the layer underneath and
+  is the same deep sage the roundel is painted in, so the two layers together
+  are the tile every other copy of this mark draws for itself.
+
+  The <group> carries the scale so the strokes scale with it; the numbers
+  inside stay the 200-unit ones the artwork is drawn in.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group
+        android:translateX="20.5"
+        android:translateY="20.5"
+        android:scaleX="0.335"
+        android:scaleY="0.335">
+        <path
+            android:pathData="M34,162 L100,34"
+            android:strokeColor="@color/brand_cool"
+            android:strokeWidth="22"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M166,162 L100,34"
+            android:strokeColor="@color/brand_warm"
+            android:strokeWidth="22"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M66,120 L134,120"
+            android:strokeColor="@color/brand_cool"
+            android:strokeWidth="20"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M100,120 L100,164"
+            android:strokeColor="@color/brand_cool"
+            android:strokeWidth="20"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M108,124 L140,144 L108,164 Z"
+            android:fillColor="@color/brand_warm" />
+    </group>
+</vector>

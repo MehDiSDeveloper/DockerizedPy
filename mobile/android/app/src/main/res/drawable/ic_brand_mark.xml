@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  «actpact»'s logo, on its own roundel: an A whose crossbar and stem make the
+  t, with the play triangle in its lower quadrant. The numbers are the SVG's
+  own 200-unit box, unchanged — the form is fixed artwork and only the
+  colours and the ground belong to this app.
+
+  The roundel travels *with* the mark rather than being left to whatever is
+  behind it, which is what lets one drawable serve the splash in both themes:
+  the ground under it moves between cream and near-black with the device
+  preference, and the mark reads the same on either. It is the same tile
+  `.brand-mark` draws in styles.css and the same one the launcher icon is
+  rasterised on, so the splash, the home-screen icon and the sign-in card are
+  one picture.
+
+  Flat rather than the gradient the PNG icons carry: a <gradient> inside a
+  vector is API 24+, minSdkVersion here is 23, and at splash size the two
+  stops are a difference nobody can see.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+
+    <!-- the roundel: a 200x200 square with a 60-unit corner, i.e. the 30%
+         border-radius `.brand-mark` uses -->
+    <path
+        android:pathData="M60,0 L140,0 A60,60 0 0 1 200,60 L200,140 A60,60 0 0 1 140,200 L60,200 A60,60 0 0 1 0,140 L0,60 A60,60 0 0 1 60,0 Z"
+        android:fillColor="@color/brand_tile" />
+
+    <!-- the logo, at the 84% of the tile the CSS gives it -->
+    <group
+        android:pivotX="100"
+        android:pivotY="100"
+        android:scaleX="0.84"
+        android:scaleY="0.84">
+        <path
+            android:pathData="M34,162 L100,34"
+            android:strokeColor="@color/brand_cool"
+            android:strokeWidth="22"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M166,162 L100,34"
+            android:strokeColor="@color/brand_warm"
+            android:strokeWidth="22"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M66,120 L134,120"
+            android:strokeColor="@color/brand_cool"
+            android:strokeWidth="20"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M100,120 L100,164"
+            android:strokeColor="@color/brand_cool"
+            android:strokeWidth="20"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M108,124 L140,144 L108,164 Z"
+            android:fillColor="@color/brand_warm" />
+    </group>
+</vector>
