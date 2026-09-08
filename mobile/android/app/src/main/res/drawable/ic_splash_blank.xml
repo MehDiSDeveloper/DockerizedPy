@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Deliberately empty, and it has to exist.
+
+  Android 12's splash screen always draws an icon: leaving
+  `windowSplashScreenAnimatedIcon` unset does not remove it, it falls back to
+  the launcher icon from the manifest — which is how a mark kept appearing
+  after the app's own one was taken out of the launch theme. The only way to
+  say «no icon» is to hand it one with nothing in it.
+
+  The point is that the *only* logo a launch shows is «پردهٔ آغاز», the web
+  app's own, drawing itself in from its first stroke. See the launch theme in
+  values/styles.xml and the «پردهٔ آغاز» section of CLAUDE.md.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108" />

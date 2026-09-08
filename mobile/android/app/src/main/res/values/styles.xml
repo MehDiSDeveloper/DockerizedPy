@@ -30,14 +30,32 @@
         <item name="android:windowLightStatusBar">@bool/light_system_bars</item>
     </style>
 
-    <!-- The launch theme, and it is two mechanisms rather than one because
-         they belong to two eras: `android:background` is the whole splash on
-         API 23-30, and the three `windowSplashScreen*` items are Android 12's
-         own API, which ignores it. -->
+    <!-- The launch theme, and it carries *no mark*. Android cannot be talked
+         out of showing a window at a cold start, but it can be given nothing
+         to show: the app's own ground colour, which is the same colour
+         «پردهٔ آغاز» paints on. So the platform's window reads as the app
+         opening rather than as a splash of its own, and the first drawing a
+         member sees is the web curtain's, from its first stroke. app.js hides
+         this the moment it runs.
+
+         Two mechanisms rather than one because they belong to two eras:
+         `android:background` is the whole splash on API 23-30, and the
+         `windowSplashScreen*` items are Android 12's own API, which ignores
+         it. On API 23-30 a flat colour is the whole story; on 12+ the icon
+         has to be named and named *empty*, because leaving
+         `windowSplashScreenAnimatedIcon` unset does not mean «no icon» — the
+         platform falls back to the launcher icon, which is how a mark kept
+         appearing on every relaunch after the app's own was removed. Hence
+         `@drawable/ic_splash_blank`, and a 0ms animation duration so there
+         is not even a beat spent revealing nothing.
+
+         `@drawable/splash` and `@drawable/ic_splash_icon` are kept for the
+         day the mark comes back here; nothing references them today. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="android:background">@drawable/splash</item>
+        <item name="android:background">@color/splash_background</item>
         <item name="windowSplashScreenBackground">@color/splash_background</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_icon</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_blank</item>
+        <item name="windowSplashScreenAnimationDuration">0</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

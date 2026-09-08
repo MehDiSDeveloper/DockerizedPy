@@ -11,6 +11,24 @@ def appConfig = new JsonSlurper().parse(file("../../app.config.json"))
 
 apply plugin: 'com.android.application'
 
+/* What the built file is called. Gradle's default is `<module>-<buildType>`,
+ * and the module is called `app`, so every APK this project has ever produced
+ * was `app-debug.apk` -- indistinguishable from every other Android project's
+ * on a desktop full of them.
+ *
+ * The name is nothing the phone or the store reads: the launcher label is
+ * `app_name` in strings.xml («اکت‌پکت») and Bazaar identifies the upload by
+ * `applicationId` and `versionCode`. This is only for the human handling the
+ * file, which is exactly why it should say which app and which version it is.
+ *
+ * A Latin literal rather than `appConfig.appName`: that value is Farsi, and a
+ * filename is the one place in this project that has to survive a shell, a
+ * zip listing and an upload form. The version comes from app.config.json like
+ * everything else, so a release cannot be named after the wrong one. */
+base {
+    archivesName = "actpact-${appConfig.versionName}"
+}
+
 android {
     namespace "ir.actpact.app"
     compileSdk rootProject.ext.compileSdkVersion

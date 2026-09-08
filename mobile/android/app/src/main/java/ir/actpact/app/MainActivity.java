@@ -1,6 +1,7 @@
 package ir.actpact.app;
 
 import android.os.Bundle;
+import android.webkit.CookieManager;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
@@ -9,8 +10,8 @@ import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebViewClient;
 
 /**
- * The whole of the native code in this project, and it exists for one
- * correction.
+ * The whole of the native code in this project, and it exists for two
+ * corrections.
  *
  * <p>Capacitor's {@code server.errorPath} is what puts this app's own «به
  * سرور وصل نشدیم» page in front of the member instead of the WebView's
@@ -33,6 +34,20 @@ import com.getcapacitor.BridgeWebViewClient;
  * {@link android.webkit.WebViewClient} itself does: the response body the
  * server sent renders, like it does in a browser. The transport half is left
  * alone, because there the fallback page is the only thing there is.
+ *
+ * <p><b>The second correction is the session cookie.</b> This app's whole
+ * auth is one persistent cookie -- there is no server-side session store, so
+ * losing it is losing the login. A WebView writes its cookie jar to disk on
+ * its own schedule, and a process that is killed before that write happens
+ * takes every cookie set since the last one with it. Swiping the app out of
+ * recents is exactly that kill, which is why the symptom is "it forgets me
+ * every time I properly close it" rather than a steady logout. A browser tab
+ * never shows this, because Chrome flushes on its own lifecycle.
+ *
+ * <p>{@code CookieManager.flush()} is the one call that makes the write
+ * happen now. {@code onPause} is the right place for it: it is the last
+ * callback Android guarantees before a process may be killed, and it is cheap
+ * enough to run on every backgrounding.
  */
 public class MainActivity extends BridgeActivity {
 
@@ -59,5 +74,16 @@ public class MainActivity extends BridgeActivity {
                 }
             }
         );
+    }
+
+    // `public`, not `protected`: BridgeActivity widens onPause(), and Java
+    // refuses an override that narrows visibility.
+    @Override
+    public void onPause() {
+        super.onPause();
+        // Write the cookie jar to disk while the process is still alive. See
+        // the class comment: without this, the session cookie does not
+        // survive the app being swiped out of recents.
+        CookieManager.getInstance().flush();
     }
 }
