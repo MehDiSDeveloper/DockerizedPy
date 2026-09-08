@@ -32,9 +32,14 @@
 /* Bumping this retires every old cache on the next activation. It has to move
    with any change to the precached assets below -- the styles and the app
    script are in there, so a deploy that edits either and leaves this alone
-   hands returning members the previous release's CSS. Same discipline as
-   TOUR_VERSION in tour.js. */
-const CACHE_VERSION = "v5";
+   hands returning members the previous release's CSS.
+
+   It is therefore not maintained by hand: `app.scripts.bump_version` writes
+   the release's own number here, so every release retires the last one's
+   cache and nobody has to remember. Editing it is editing `app/version.py`
+   and running that script. (TOUR_VERSION in tour.js stays separate -- it
+   means "show the tour again", which is not a question a release answers.) */
+const CACHE_VERSION = "v1.0.2";
 const CACHE_NAME = `chalesh-${CACHE_VERSION}`;
 
 const OFFLINE_URL = "/static/offline.html";

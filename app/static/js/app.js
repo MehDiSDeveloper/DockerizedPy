@@ -2344,45 +2344,44 @@ function paintNativeChrome() {
    load a launch and CSS put it up in the first frame, so nothing here has to
    *show* anything. All this owes it is a decent exit.
 
-   It waits out SPLASH_MIN_MS before starting the fade, which is the one thing
-   a launch screen has to get right in both directions: on a warm start the
-   page is ready almost immediately and a curtain that vanished mid-draw would
-   read as a glitch, while on a cold one this has long since elapsed and the
-   fade begins the moment the page is up. Then `data-launching` comes off the
-   root, which is what returns the element to `display:none` — the same mark
-   that raised it lowers it, so there is one switch rather than two.
+   **The exit is the animations' own, not a clock's.** It waits for every
+   animation under the curtain to finish, then `--sp-linger` so the completed
+   mark is readable, and only then fades. That is the one thing a launch
+   screen has to get right and the one thing a timer cannot: the drawing
+   starts at the first *paint*, which is after the stylesheet has arrived, so
+   any schedule counted from the start of the navigation is short by however
+   long the page took to load — and the part it cuts is the end of the
+   drawing. `--sp-total` survives only as the ceiling under that, for a
+   browser that animates nothing (reduced motion) or a tab that was
+   backgrounded before it could. Then `data-launching` comes off the root,
+   which is what returns the element to `display:none` — the same mark that
+   raised it lowers it, so there is one switch rather than two.
 
-   The Android shell needs one more beat than a browser does, because there
-   the platform paints a splash of its own *over* this page first. The mark
-   arrives as "hold": the curtain is up but frozen on its first frame, and the
-   clock below has not started. `releaseAppSplash()` is what starts both, and
-   `initNativeShell()` calls it in the same breath as hiding the native
-   splash — so the two dissolve into each other on the same logo in the same
-   place, and the member sees the drawing come alive instead of a still frame
-   that was already over.
+   The Android shell is the same case as a browser launch and deliberately so:
+   its own splash carries no mark and is nothing but the app's ground colour,
+   and `initNativeShell()` hides it as soon as this script runs. So the first
+   drawing a member sees is this one, from its first stroke — there is no
+   second logo to cross-fade with and therefore nothing to hold the curtain
+   frozen for.
    ------------------------------------------------------------------------- */
-//: Fallback only. The real figure is `--sp-total` on `.app-splash`, read
-//: below: the timeline lives in the stylesheet beside the keyframes it has to
-//: agree with, and a second copy here that drifted low would take the curtain
-//: away in the middle of the drawing.
-const SPLASH_MIN_MS = 2750;
+//: Fallbacks only. The real figures are `--sp-total` / `--sp-linger` on
+//: `.app-splash`, read below: the timeline lives in the stylesheet beside the
+//: keyframes it has to agree with, and a second copy here that drifted low
+//: would take the curtain away in the middle of the drawing.
+const SPLASH_CEILING_MS = 1920;
+const SPLASH_LINGER_MS = 500;
 const SPLASH_FADE_MS = 460;
 
-/** How long the curtain stays up, in ms, from the moment its animation starts. */
-function splashDuration(el) {
-  const raw = getComputedStyle(el).getPropertyValue("--sp-total").trim();
+/** One of the curtain's own duration tokens, in ms. */
+function splashMs(el, prop, fallback) {
+  const raw = getComputedStyle(el).getPropertyValue(prop).trim();
   const ms = raw.endsWith("ms")
     ? parseFloat(raw)
     : raw.endsWith("s")
       ? parseFloat(raw) * 1000
       : NaN;
-  return Number.isFinite(ms) && ms > 0 ? ms : SPLASH_MIN_MS;
+  return Number.isFinite(ms) && ms >= 0 ? ms : fallback;
 }
-//: Longest the curtain may stay frozen waiting for the shell to release it.
-//: Only reachable when the UA says «shell» but the bridge never arrived, in
-//: which case the platform's own `launchShowDuration` (2500ms) is what takes
-//: the splash away and nothing else would ever start the animation.
-const SPLASH_HOLD_MAX_MS = 2600;
 
 function initAppSplash() {
   const root = document.documentElement;
@@ -2392,30 +2391,30 @@ function initAppSplash() {
     delete root.dataset.launching;
     return;
   }
-  if (root.dataset.launching === "hold") {
-    window.setTimeout(releaseAppSplash, SPLASH_HOLD_MAX_MS);
-    return;
-  }
 
-  // performance.now() is time since this document started loading, which is
-  // exactly how long the curtain has already been on screen.
-  const elapsed = (window.performance && performance.now()) || 0;
-  window.setTimeout(() => hideAppSplash(el), Math.max(splashDuration(el) - elapsed, 0));
-}
+  const linger = splashMs(el, "--sp-linger", SPLASH_LINGER_MS);
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    hideAppSplash(el);
+  };
 
-/** Start the curtain's animation, and its clock with it. Idempotent: the
- *  shell calls it and so does the timeout above, and whichever is first
- *  wins. */
-function releaseAppSplash() {
-  const root = document.documentElement;
-  if (root.dataset.launching !== "hold") return;
-  root.dataset.launching = "run";
-  const el = document.getElementById("appSplash");
-  if (!el) {
-    delete root.dataset.launching;
-    return;
+  // The animations themselves are the clock. `getAnimations()` answers for
+  // the whole subtree — the tile, the wordmark, the four strokes and the play
+  // mark — and an animation that has *already* finished (a slow app.js on a
+  // fast paint) hands back a resolved promise, so arriving late is not a way
+  // to miss the exit. Nothing here needs to know which of them lands last.
+  const anims = el.getAnimations ? el.getAnimations({ subtree: true }) : [];
+  if (anims.length) {
+    Promise.all(anims.map((a) => a.finished))
+      .then(() => window.setTimeout(finish, linger))
+      .catch(() => {});
   }
-  window.setTimeout(() => hideAppSplash(el), splashDuration(el));
+  // The ceiling, for the two cases where no animation will ever finish:
+  // reduced motion (nothing is animating at all, and the media block shortens
+  // `--sp-total` for exactly this) and a tab backgrounded before it painted.
+  window.setTimeout(finish, splashMs(el, "--sp-total", SPLASH_CEILING_MS) + linger);
 }
 
 function hideAppSplash(el) {
@@ -2434,21 +2433,15 @@ function initNativeShell() {
     .matchMedia("(prefers-color-scheme: dark)")
     .addEventListener("change", paintNativeChrome);
 
-  // The splash stands until either this line runs or the ceiling in
-  // capacitor.config.js expires, whichever is first. This is the half that
-  // makes a warm start feel immediate; the ceiling is only there so a page
-  // whose script never ran cannot leave a member staring at it.
-  //
-  // «پردهٔ آغاز» is released in the same breath rather than after the promise
-  // settles: `launchFadeOutDuration` is a 200ms cross-fade, and starting the
-  // web curtain now means the same mark, at the same size and the same place,
-  // is already drawing itself in as the native one dissolves. Waiting for the
-  // promise would blank the logo for a frame and then pop it back.
+  // The native splash stands until either this line runs or the ceiling in
+  // capacitor.config.js expires, whichever is first. It carries no mark — it
+  // is the app's own ground colour and nothing else — so hiding it as early
+  // as possible is the whole point: what replaces it is «پردهٔ آغاز», already
+  // painted underneath and already drawing itself in. The ceiling is only
+  // there so a page whose script never ran cannot leave a member staring at
+  // a blank window.
   const splash = nativePlugin("SplashScreen");
-  if (splash) {
-    releaseAppSplash();
-    splash.hide().catch(() => {});
-  }
+  if (splash) splash.hide().catch(() => {});
 }
 
 document.addEventListener("DOMContentLoaded", () => {

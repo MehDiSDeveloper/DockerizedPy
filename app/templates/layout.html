@@ -77,11 +77,11 @@
           || window.navigator.standalone === true;
         if (standalone && !sessionStorage.getItem("chalesh-launched")) {
           sessionStorage.setItem("chalesh-launched", "1");
-          // "hold" in the shell: the platform's own splash is still over this
-          // page, so an animation started now would play where nobody can see
-          // it and the member would get the still frame that is left. app.js
-          // turns it into "run" at the moment it hides that splash.
-          document.documentElement.dataset.launching = native ? "hold" : "run";
+          // "run" in both shells: the drawing is the first thing a launch
+          // shows. The Android shell's own splash is a bare ground colour
+          // with no mark on it and app.js hides it as soon as this page
+          // paints, so there is nothing over this to wait for.
+          document.documentElement.dataset.launching = "run";
         }
       } catch (e) { /* private mode: no curtain, which is the safe way to fail */ }
     </script>

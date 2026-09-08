@@ -77,18 +77,19 @@ module.exports = {
   },
   plugins: {
     SplashScreen: {
-      // Two mechanisms on purpose, and they do not overlap: the web app calls
-      // hide() the moment it has painted (which is well under a second on a
-      // warm connection), and this duration is the ceiling under it, so a
-      // page that never runs its script cannot leave the member staring at a
-      // splash with no way out.
+      // The native splash carries no mark (see the launch theme in
+      // android/.../values/styles.xml): it is the app's ground colour and
+      // nothing else, so the *only* logo a launch shows is «پردهٔ آغاز»,
+      // drawing itself in from its first stroke. Two mechanisms on purpose,
+      // and they do not overlap: the web app calls hide() the moment it has
+      // painted, and this duration is the ceiling under it, so a page that
+      // never runs its script cannot leave the member staring at a blank
+      // window with no way out.
       launchAutoHide: true,
       launchShowDuration: 2500,
-      // Short, because it is a cross-fade rather than an exit: the web
-      // curtain underneath starts drawing the same mark in the same place at
-      // the moment hide() is called, so these 200ms are one logo dissolving
-      // into itself.
-      launchFadeOutDuration: 200,
+      // Zero: there is nothing to dissolve. Both sides are the same flat
+      // colour, and a fade only delays the drawing the member is waiting on.
+      launchFadeOutDuration: 0,
       backgroundColor: "#f8f4ee",
       androidScaleType: "CENTER_CROP",
       showSpinner: false,

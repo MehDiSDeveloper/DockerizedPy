@@ -9,6 +9,7 @@ from app.explainers import register_explainer_filters
 from app.models.user import User
 from app.notifications import notification_settings
 from app.permissions import is_admin
+from app.version import __version__
 
 router = APIRouter(prefix="/views/settings", tags=["settings-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
@@ -60,6 +61,12 @@ async def settings_page(
             # Not the switches themselves -- just how many are on, so the
             # row states its current value without the reader opening it.
             "notification_prefs": notification_settings(viewer),
+            # The one screen that says which build a member is looking at.
+            # It is what makes "کدام نسخه؟" answerable in a support message
+            # without asking somebody to open a browser console -- and, on
+            # an installed PWA or the APK, the only way to tell a stale
+            # cached shell from the release that was actually deployed.
+            "app_version": __version__,
         },
     )
 

@@ -200,7 +200,12 @@
       </div>
     </div>
     -#}
-    <p class="settings-note">نسخهٔ آزمایشی — «اکت‌پکت»</p>
+    {#- Latin digits, `dir="ltr"`: this is an identifier a member reads back
+        in a support message and it has to match the git tag exactly, so it
+        is deliberately not run through `fa_num` like every other figure. -#}
+    <p class="settings-note">
+      «اکت‌پکت» — نسخهٔ <span dir="ltr">{{ app_version }}</span>
+    </p>
   </section>
 
 </div>

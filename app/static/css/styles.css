@@ -4629,35 +4629,39 @@ button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
    <head> script marks the load and the curtain is already up in the very
    first painted frame. Taking it down is that mark going away.
 
-   The mark carries two values. "run" is a browser launch, where this page is
-   the topmost thing there is. "hold" is the Android shell, where the
-   platform's own splash is still painted over the WebView -- the curtain is
-   up underneath it, but frozen on its first frame, because an animation that
-   played there would be over by the time anybody could see it. `app.js` turns
-   it into "run" at the moment it hides that splash, so the two cross-fade
-   with the same mark in the same place. */
+   The mark carries one value, "run", in both shells: the drawing is the
+   *first* thing a launch shows. The Android shell's own splash carries no
+   mark and is nothing but the app's ground colour, hidden the moment this
+   page paints, so there is no second logo to cross-fade with and nothing to
+   freeze the curtain for. */
 .app-splash{
   display:none;
   /* --------------------------------------------------------------------
      The whole timeline, in one place, and the only numbers below that may
      move. Two things are tuned here rather than in the keyframes:
 
-     `--sp-lead` is a beat of nothing before the first stroke. Even with the
-     hold above, the native splash is cross-fading out for its first 200ms
-     and a phone on a slow connection can start the curtain a moment before
-     the platform has finished with its own — this is what keeps the opening
-     of the drawing from happening under something else.
+     `--sp-lead` is a beat of nothing before the first stroke, and it is 0:
+     the curtain is the first thing on screen, so the drawing starts with it.
+     It stays as a token rather than being folded away because every delay
+     below is expressed against it.
 
-     `--sp-total` is when the last animation lands, plus a beat to read it,
-     and it is what app.js keeps the curtain up for. It is read from here by
-     `initAppSplash()` rather than restated in JS: a JS copy that drifts low
-     takes the curtain away mid-draw, which is exactly the failure this is
-     the fix for.
+     `--sp-linger` is the beat *after* the last stroke lands, so the finished
+     mark is readable rather than snatched away on the frame it completed.
+
+     `--sp-total` is when the last animation lands, and it is only a
+     **ceiling**: what actually takes the curtain down is the animations
+     themselves finishing (`getAnimations()` in app.js), because the drawing
+     starts at the first *paint* and only the animations know when that was.
+     The earlier design scheduled the exit off `performance.now()` — time
+     since navigation *started* — and so subtracted the whole page load from
+     the curtain's life, which is why a cold launch cut the drawing off
+     mid-stroke and a warm one did not. Both figures are read from here by
+     `initAppSplash()` rather than restated in JS.
      -------------------------------------------------------------------- */
-  --sp-lead:.35s;
-  --sp-total:2750ms;
+  --sp-lead:0s;
+  --sp-linger:.5s;
+  --sp-total:1920ms;
 }
-:root[data-launching="hold"] .app-splash *{animation-play-state:paused;}
 :root[data-launching] .app-splash{
   position:fixed; inset:0; z-index:9000;
   display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -4715,4 +4719,8 @@ button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
   .app-splash .bm-cool,
   .app-splash .bm-warm,
   .app-splash .bm-play{animation:none; stroke-dashoffset:0; opacity:1; scale:1; transform:none; filter:none;}
+  /* Nothing animates, so nothing can finish and app.js falls through to the
+     ceiling — which must therefore be short here: a still logo held for the
+     length of a drawing that is not happening is just a slow app. */
+  .app-splash{--sp-total:700ms;}
 }

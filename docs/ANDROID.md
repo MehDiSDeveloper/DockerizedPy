@@ -103,6 +103,14 @@ npm run open         # پروژه را در Android Studio باز می‌کند
   `ic_launcher_foreground.png` حذف و با `<vector>` جایگزین شدند. رنگ‌ها از
   `styles.css` کپی شده‌اند (یک PNG نمی‌تواند CSS variable بخواند) و در
   `values/colors.xml` + `values-night/colors.xml` هستند.
+* **اسپلش بومی هیچ نشانی ندارد.** اندروید را نمی‌شود از نشان‌دادن یک پنجره
+  در استارت سرد منصرف کرد، اما می‌شود چیزی برای نشان‌دادن به آن نداد: تم
+  لانچ در `values/styles.xml` فقط `splash_background` است — همان رنگ زمینهٔ
+  خود اپ — و `windowSplashScreenAnimatedIcon` حذف شده. پس تنها لوگویی که یک
+  لانچ نشان می‌دهد «پردهٔ آغاز» خود وب‌اپ است، از اولین حرکت قلم؛
+  `launchFadeOutDuration` هم صفر شد، چون دو طرفِ محو یک رنگ تختِ یکسان‌اند.
+  `@drawable/splash` و `@drawable/ic_splash_icon` سر جایشان مانده‌اند برای
+  روزی که نشان به اینجا برگردد، و امروز هیچ‌چیز به آن‌ها ارجاع نمی‌دهد.
 * **`android/.gitignore`**: دو خط keystore از حالت کامنت درآمدند. کلید امضا
   هرگز نباید در مخزن باشد.
 * **`adjustMarginsForEdgeToEdge: "auto"`** در پیکربندی: اندروید ۱۵ هر اپی را

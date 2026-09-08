@@ -46,8 +46,31 @@
     }
   } catch (e) { /* private mode: fall back to the device preference */ }
 </script>
+
+{#- «پردهٔ آغاز», same copy as layout.html and for the same reason this whole
+    <head> is duplicated: there is no base document, and the app can cold-start
+    into *either* shell. A member whose session is over lands here first, so a
+    curtain that lived only in layout.html would play after they signed in --
+    which is not a launch screen, it is an interruption. -#}
+<script>
+  try {
+    var native = /ActpactShell/.test(navigator.userAgent) || !!window.Capacitor;
+    var standalone = native
+      || window.matchMedia("(display-mode: standalone)").matches
+      || window.navigator.standalone === true;
+    if (standalone && !sessionStorage.getItem("chalesh-launched")) {
+      sessionStorage.setItem("chalesh-launched", "1");
+      document.documentElement.dataset.launching = "run";
+    }
+  } catch (e) { /* private mode: no curtain, which is the safe way to fail */ }
+</script>
 </head>
 <body>
+<div class="app-splash" id="appSplash" aria-hidden="true">
+  <div class="brand-mark"><svg viewBox="0 0 200 200" fill="none" stroke-linecap="round" stroke-linejoin="round"><path class="bm-cool" pathLength="100" stroke-width="22" d="M34 162 L100 34"/><path class="bm-warm" pathLength="100" stroke-width="22" d="M166 162 L100 34"/><path class="bm-cool bm-cross" pathLength="100" stroke-width="20" d="M66 120 L134 120"/><path class="bm-cool bm-stem" pathLength="100" stroke-width="20" d="M100 120 L100 164"/><polygon class="bm-play" points="108,124 140,144 108,164"/></svg></div>
+  <div class="brand-word">act<b>pact</b></div>
+</div>
+
 <div class="app-bg"></div>
 
 <div class="shell">

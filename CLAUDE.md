@@ -19,6 +19,7 @@ python -m app.scripts.generate_mock_data          # seed 10 users / 30 challenge
 python -m app.scripts.set_user_role EMAIL admin   # make the first admin (--list to see roles)
 python -m app.scripts.seed_admin                  # ensure the SEED_ADMIN_* account exists
 python -m app.scripts.generate_vapid_keys          # the Web Push key pair, once per deploy
+python -m app.scripts.bump_version patch            # cut a release (patch|minor|major, --dry-run)
 .venv\Scripts\python -m pytest tests\ -q          # in-memory SQLite, no Postgres needed
 ```
 
@@ -29,6 +30,55 @@ Dependency gotchas:
 - `generate_mock_data.py` imports `faker`, which is in the local venv but **missing from `requirements.txt`**, so the seed script fails inside the Docker image.
 
 Debugging in Docker: `.vscode/launch.json` → "Docker: Attach to FastAPI" (`localhost:5678`, `${workspaceFolder}` → `/app`). The compose `command` already wraps uvicorn in debugpy, so leave `debugpy.listen(...)` commented in `app/main.py`.
+
+## Versioning
+
+**Read this before you change anything.** The version this app is on is
+`__version__` in `app/version.py`, and it is the *released* number -- what is
+deployed right now, not what you are about to add. Your change belongs to the
+version *after* it.
+
+So every change owes the repository one line, and it is the only thing an
+agent has to remember here:
+
+**Add a line under `## [Unreleased]` in `CHANGELOG.md`.** Written for the
+reader of a release note, not the reviewer of a diff -- what changed for a
+member, under **Added** / **Changed** / **Fixed** / **Removed** / **Security**.
+A pure refactor with no visible consequence needs no line; anything a member,
+an operator or an integrator could notice does.
+
+**Never hand-edit a version number.** Four files carry one, and one script
+writes all four:
+
+| File | What it holds | Written by |
+|---|---|---|
+| `app/version.py` | `__version__`, the source | `bump_version` |
+| `mobile/app.config.json` | APK `versionName` + `versionCode` | `bump_version` |
+| `app/static/js/sw.js` | `CACHE_VERSION` | `bump_version` |
+| `CHANGELOG.md` | the dated heading | `bump_version` |
+
+`python -m app.scripts.bump_version patch|minor|major` bumps the number,
+propagates it, promotes `## [Unreleased]` into a dated section, and stops --
+committing and tagging (`git tag v<x.y.z>`) stay the operator's. It refuses a
+release with an empty `Unreleased`. `tests/test_version.py` fails the moment
+the four disagree, which is the only reason the three derived copies are safe
+to have.
+
+**What the number means** (SemVer read as a product -- nobody imports this
+app): **major** = a contract broken or a migration that cannot be rolled back,
+**minor** = a feature somebody can see, **patch** = a fix, a copy change, a
+style tweak. Bumped once per *release*, never per commit.
+
+Two versions are deliberately **not** this one and must not be tied to it:
+`TOUR_VERSION` in `tour.js` means "show the onboarding again", and an Alembic
+revision is a database's own position. `CACHE_VERSION` *is* tied, because the
+thing it retires is exactly what a release replaces -- which is what stops a
+deploy from serving the previous release's CSS.
+
+The running version is visible in three places, so a deploy that silently
+served the previous build can be told from one that shipped a broken change:
+the `app.started` log line, FastAPI's own metadata (`/docs`), and the note at
+the foot of `/views/settings/`.
 
 ## Testing
 
@@ -692,13 +742,29 @@ PWA can have that is more than a colour and an icon. It ships in
 `layout.html`, is gated **in CSS** (`:root[data-launching] .app-splash`) off a
 mark a pre-paint `<head>` script sets, and `initAppSplash()` in `app.js` takes
 it down. **The timeline lives in CSS and nowhere else**: `--sp-lead` (a beat of
-nothing before the first stroke, so the opening of the drawing cannot happen
-under the native splash's own cross-fade) and `--sp-total` (when the last
-animation lands, plus a beat to read it), both on `.app-splash` beside the
-keyframes they have to agree with. `splashDuration()` *reads* `--sp-total`
-rather than restating it — a JS copy that drifted low would take the curtain
-away in the middle of the drawing, which is the one way this feature fails
-without looking broken. Three more things are load-bearing:
+nothing before the first stroke — **0 today**, because the curtain is the first
+thing on screen, kept as a token only because every delay beside it is
+expressed against it), `--sp-linger` (the beat *after* the last stroke lands,
+so the finished mark is readable rather than snatched away on the frame it
+completed) and `--sp-total` (when the last animation lands), all on
+`.app-splash` beside the keyframes they have to agree with. `splashMs()`
+*reads* them rather than restating them — a JS copy that drifted low would take
+the curtain away in the middle of the drawing, which is the one way this
+feature fails without looking broken. Four more things are load-bearing:
+
+- **The exit is the animations' own, not a clock's.** `initAppSplash()` awaits
+  `el.getAnimations({subtree: true})` and only then waits `--sp-linger`;
+  `--sp-total` is nothing but the **ceiling** under that, for the two cases
+  where no animation will ever finish (reduced motion, where the media block
+  shortens it for exactly this reason, and a tab backgrounded before it
+  painted). A schedule cannot do this job: the drawing starts at the first
+  *paint*, which is after the stylesheet has arrived, so anything counted from
+  the start of the navigation is short by however long the page took to load —
+  and the part it cuts is the end of the drawing. That was a real bug, and its
+  signature is the one to recognise: **a cold launch cut off mid-stroke while a
+  warm one looked perfect**. An already-finished animation hands back a
+  resolved promise, so a slow `app.js` on a fast paint is not a way to miss the
+  exit either.
 
 - **The decision is pre-paint**, for the theme script's reason: un-hiding a
   curtain a frame later is a curtain dropping over a page that had drawn.
@@ -715,19 +781,31 @@ without looking broken. Three more things are load-bearing:
   every request and survives every navigation, so it is the only answer
   available early enough. Without it the curtain simply never appeared in the
   APK — the symptom being a static native splash and nothing after it.
-- **In the shell the curtain is held, not run.** The mark carries two values:
-  `run` (a browser launch, this page is the topmost thing there is) and `hold`
-  (the platform's own splash is still painted over the WebView). Under `hold`
-  every animation is `animation-play-state: paused` and the clock has not
-  started — an animation played under the native splash would be over by the
-  time anybody could see it. `releaseAppSplash()` turns it into `run`, and
-  `initNativeShell()` calls it *in the same breath as* `SplashScreen.hide()`
-  rather than after the promise settles: `launchFadeOutDuration` is a 200ms
-  cross-fade, and the native splash paints the same ground with the same mark
-  at the same place, so those 200ms are one logo dissolving into itself.
-  Waiting would blank the mark for a frame and pop it back. `SPLASH_HOLD_MAX_MS`
-  is the floor under it, for the case where the UA says «shell» but the bridge
-  never arrived.
+- **The shell runs it too, and the native splash was emptied to let it.** The
+  mark carries one value, `run`, in both shells. Android cannot be talked out
+  of showing a window at a cold start, but it can be given nothing to show:
+  the launch theme in `values/styles.xml` names **no** icon — no
+  `windowSplashScreenAnimatedIcon`, and `android:background` is the flat
+  `splash_background` colour rather than `@drawable/splash` — so the
+  platform's window reads as the app opening rather than as a splash of its
+  own, and the first *drawing* a launch shows is this one, from its first
+  stroke. **Naming the icon empty is the whole trick and it cannot be
+  skipped**: Android 12's splash always draws one, and leaving
+  `windowSplashScreenAnimatedIcon` unset does not mean «no icon» — it falls
+  back to the launcher icon from the manifest. So the theme points at
+  `@drawable/ic_splash_blank`, a `<vector>` with nothing in it, with
+  `windowSplashScreenAnimationDuration` at 0. The symptom of getting this
+  wrong is specific and easy to misread as something else: the mark is absent
+  on the first launch after an install and back on every relaunch from
+  recents. `launchFadeOutDuration` is therefore 0: both sides of that fade are
+  the same flat colour, and a cross-fade only delays the thing the member is
+  waiting on. `initNativeShell()` calls `SplashScreen.hide()` as early as it
+  can and there is nothing to release or hold. **The earlier design was the
+  opposite** — a `hold` value, `animation-play-state: paused`, and a
+  `releaseAppSplash()` cross-fading two copies of the same mark — and it cost
+  a native logo *plus* a `--sp-lead` beat before the web one moved.
+  `@drawable/splash` and `@drawable/ic_splash_icon` are kept for the day the
+  mark comes back there; nothing references them today.
 
 The strokes draw themselves in with `stroke-dasharray` over `pathLength="100"`
 — one dash length correct for all four paths, so the stagger cannot drift the
@@ -830,8 +908,8 @@ CSS variable.
 **The splash has a ceiling and a release, and both are needed.** The web app
 calls `SplashScreen.hide()` once it has painted, which is what makes a warm
 start feel immediate; `launchShowDuration` is the ceiling under it, so a page
-whose script never ran cannot leave a member staring at a splash with no way
-out.
+whose script never ran cannot leave a member staring at a blank window with no
+way out. **The splash it hides carries no mark** — see «پردهٔ آغاز» above.
 
 **The artwork is the same drawing as everywhere else.**
 `app.scripts.generate_android_icons` imports `render` from its PWA sibling

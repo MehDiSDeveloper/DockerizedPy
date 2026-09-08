@@ -43,6 +43,7 @@ from app.routers.views import settings as settings_views
 from app.routers.views import space as space_views
 from app.routers.views import today as today_views
 from app.routers.views import user as user_views
+from app.version import __version__
 
 # Before anything else can log. Handlers installed after the first record is
 # written would silently drop it.
@@ -54,14 +55,20 @@ logger = logging.getLogger("app.lifecycle")
 async def lifespan(_: FastAPI):
     """Boot and shutdown, each one line.
 
-    The boot line names the two facts an operator checks first when a deploy
-    behaves unlike the last one: which environment it thinks it is in, and
-    which database it opened. `database` is the backend, never the URL --
-    that string can carry a password.
+    The boot line names the three facts an operator checks first when a
+    deploy behaves unlike the last one: which version is actually running,
+    which environment it thinks it is in, and which database it opened.
+    `database` is the backend, never the URL -- that string can carry a
+    password.
+
+    `version` is here because a deploy that silently served the previous
+    build is indistinguishable from one that shipped a broken change, and
+    this line is the cheapest place to tell the two apart.
     """
     log_event(
         logger,
         "app.started",
+        version=__version__,
         environment=settings.environment,
         database="sqlite" if settings.is_sqlite else "postgres",
     )
@@ -69,7 +76,7 @@ async def lifespan(_: FastAPI):
     log_event(logger, "app.stopped")
 
 
-app = FastAPI(title="Challenge Manager API", lifespan=lifespan)
+app = FastAPI(title="Challenge Manager API", version=__version__, lifespan=lifespan)
 app.add_middleware(RequestLogMiddleware)
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
