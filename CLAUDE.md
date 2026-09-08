@@ -691,7 +691,14 @@ app renders itself is the same screen on both — and it is the only splash a
 PWA can have that is more than a colour and an icon. It ships in
 `layout.html`, is gated **in CSS** (`:root[data-launching] .app-splash`) off a
 mark a pre-paint `<head>` script sets, and `initAppSplash()` in `app.js` takes
-it down after `SPLASH_MIN_MS`. Three things are load-bearing:
+it down. **The timeline lives in CSS and nowhere else**: `--sp-lead` (a beat of
+nothing before the first stroke, so the opening of the drawing cannot happen
+under the native splash's own cross-fade) and `--sp-total` (when the last
+animation lands, plus a beat to read it), both on `.app-splash` beside the
+keyframes they have to agree with. `splashDuration()` *reads* `--sp-total`
+rather than restating it — a JS copy that drifted low would take the curtain
+away in the middle of the drawing, which is the one way this feature fails
+without looking broken. Three more things are load-bearing:
 
 - **The decision is pre-paint**, for the theme script's reason: un-hiding a
   curtain a frame later is a curtain dropping over a page that had drawn.

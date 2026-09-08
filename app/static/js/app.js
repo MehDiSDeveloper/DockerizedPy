@@ -2361,8 +2361,23 @@ function paintNativeChrome() {
    place, and the member sees the drawing come alive instead of a still frame
    that was already over.
    ------------------------------------------------------------------------- */
-const SPLASH_MIN_MS = 1150;
+//: Fallback only. The real figure is `--sp-total` on `.app-splash`, read
+//: below: the timeline lives in the stylesheet beside the keyframes it has to
+//: agree with, and a second copy here that drifted low would take the curtain
+//: away in the middle of the drawing.
+const SPLASH_MIN_MS = 2750;
 const SPLASH_FADE_MS = 460;
+
+/** How long the curtain stays up, in ms, from the moment its animation starts. */
+function splashDuration(el) {
+  const raw = getComputedStyle(el).getPropertyValue("--sp-total").trim();
+  const ms = raw.endsWith("ms")
+    ? parseFloat(raw)
+    : raw.endsWith("s")
+      ? parseFloat(raw) * 1000
+      : NaN;
+  return Number.isFinite(ms) && ms > 0 ? ms : SPLASH_MIN_MS;
+}
 //: Longest the curtain may stay frozen waiting for the shell to release it.
 //: Only reachable when the UA says «shell» but the bridge never arrived, in
 //: which case the platform's own `launchShowDuration` (2500ms) is what takes
@@ -2385,7 +2400,7 @@ function initAppSplash() {
   // performance.now() is time since this document started loading, which is
   // exactly how long the curtain has already been on screen.
   const elapsed = (window.performance && performance.now()) || 0;
-  window.setTimeout(() => hideAppSplash(el), Math.max(SPLASH_MIN_MS - elapsed, 0));
+  window.setTimeout(() => hideAppSplash(el), Math.max(splashDuration(el) - elapsed, 0));
 }
 
 /** Start the curtain's animation, and its clock with it. Idempotent: the
@@ -2400,7 +2415,7 @@ function releaseAppSplash() {
     delete root.dataset.launching;
     return;
   }
-  window.setTimeout(() => hideAppSplash(el), SPLASH_MIN_MS);
+  window.setTimeout(() => hideAppSplash(el), splashDuration(el));
 }
 
 function hideAppSplash(el) {

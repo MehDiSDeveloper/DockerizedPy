@@ -4636,7 +4636,27 @@ button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
    played there would be over by the time anybody could see it. `app.js` turns
    it into "run" at the moment it hides that splash, so the two cross-fade
    with the same mark in the same place. */
-.app-splash{display:none;}
+.app-splash{
+  display:none;
+  /* --------------------------------------------------------------------
+     The whole timeline, in one place, and the only numbers below that may
+     move. Two things are tuned here rather than in the keyframes:
+
+     `--sp-lead` is a beat of nothing before the first stroke. Even with the
+     hold above, the native splash is cross-fading out for its first 200ms
+     and a phone on a slow connection can start the curtain a moment before
+     the platform has finished with its own — this is what keeps the opening
+     of the drawing from happening under something else.
+
+     `--sp-total` is when the last animation lands, plus a beat to read it,
+     and it is what app.js keeps the curtain up for. It is read from here by
+     `initAppSplash()` rather than restated in JS: a JS copy that drifts low
+     takes the curtain away mid-draw, which is exactly the failure this is
+     the fix for.
+     -------------------------------------------------------------------- */
+  --sp-lead:.35s;
+  --sp-total:2750ms;
+}
 :root[data-launching="hold"] .app-splash *{animation-play-state:paused;}
 :root[data-launching] .app-splash{
   position:fixed; inset:0; z-index:9000;
@@ -4653,9 +4673,12 @@ button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
 
 .app-splash .brand-mark{
   width:112px; height:112px; border-radius:34px;
-  animation:splashTile .62s var(--ease-press-out) both;
+  animation:splashTile 1.24s var(--ease-press-out) var(--sp-lead) both;
 }
-.app-splash .brand-word{font-size:30px; animation:splashWord .5s var(--ease-press-out) .42s both;}
+.app-splash .brand-word{
+  font-size:30px;
+  animation:splashWord 1s var(--ease-press-out) calc(var(--sp-lead) + .84s) both;
+}
 
 /* The strokes draw themselves in. `pathLength="100"` on each path is what
    makes one dash length correct for all four of them — without it every
@@ -4664,16 +4687,16 @@ button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
 .app-splash .bm-cool,
 .app-splash .bm-warm{
   stroke-dasharray:100; stroke-dashoffset:100;
-  animation:splashDraw .58s var(--ease-press-out) both;
+  animation:splashDraw 1.16s var(--ease-press-out) var(--sp-lead) both;
 }
-.app-splash .bm-warm{animation-delay:.16s;}
-.app-splash .bm-cross{animation-delay:.30s;}
-.app-splash .bm-stem{animation-delay:.38s;}
+.app-splash .bm-warm{animation-delay:calc(var(--sp-lead) + .32s);}
+.app-splash .bm-cross{animation-delay:calc(var(--sp-lead) + .60s);}
+.app-splash .bm-stem{animation-delay:calc(var(--sp-lead) + .76s);}
 /* The play mark is the last thing to arrive, because it is the half of the
    logo that means «برو» — it should read as the app switching on. */
 .app-splash .bm-play{
   transform-origin:118px 144px;
-  animation:splashPlay .42s var(--ease-press-out) .54s both;
+  animation:splashPlay .84s var(--ease-press-out) calc(var(--sp-lead) + 1.08s) both;
 }
 
 @keyframes splashTile{
