@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -15,9 +16,22 @@ from sqlalchemy.ext.asyncio import (
 from app.database import Base, get_db
 from app.main import app
 
+#: Set to an *empty, disposable* Postgres database to run the suite against
+#: the production backend; every test drops and recreates its schema there.
+TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
+
 
 @pytest_asyncio.fixture
 async def engine(tmp_path: Path) -> AsyncIterator[AsyncEngine]:
+    if TEST_DATABASE_URL:
+        eng = create_async_engine(TEST_DATABASE_URL)
+        async with eng.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+            await conn.run_sync(Base.metadata.create_all)
+        yield eng
+        await eng.dispose()
+        return
+
     # A real file (not sqlite+aiosqlite:///:memory:) so concurrent requests
     # get their own connection instead of sharing one via StaticPool --
     # sharing a single connection across concurrently-awaited sessions

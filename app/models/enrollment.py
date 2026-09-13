@@ -8,9 +8,9 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
-    text,
 )
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql.expression import false
 
 from app.models.audit_base import AuditBase
 
@@ -77,7 +77,7 @@ class Enrollment(AuditBase):
     # NOT NULL column added to a populated table needs one (CLAUDE.md, on
     # sync_sqlite_schema).
     is_anonymous = Column(
-        Boolean, nullable=False, default=False, server_default=text("0")
+        Boolean, nullable=False, default=False, server_default=false()
     )
 
     user = relationship("User", back_populates="enrollments")

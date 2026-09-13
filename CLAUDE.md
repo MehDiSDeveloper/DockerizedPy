@@ -14,13 +14,15 @@ Everything runs through the venv at `.venv/` (`.venv/Scripts/` on Windows).
 uvicorn app.main:app --reload          # local dev
 docker-compose up                      # app + debugpy on :5678
 ruff check .                           # lint (no config file — ruff defaults)
-alembic upgrade head                   # only relevant on Postgres
+alembic upgrade head                   # schema (start.sh runs it on boot)
+alembic revision --autogenerate -m "…" # after a model change; review it, then `alembic check`
+python -m app.scripts.copy_sqlite_to_postgres data/challenges.db  # one-shot move of old SQLite data
 python -m app.scripts.generate_mock_data          # seed 10 users / 30 challenges / 60 enrollments
 python -m app.scripts.set_user_role EMAIL admin   # make the first admin (--list to see roles)
 python -m app.scripts.seed_admin                  # ensure the SEED_ADMIN_* account exists
 python -m app.scripts.generate_vapid_keys          # the Web Push key pair, once per deploy
 python -m app.scripts.bump_version patch            # cut a release (patch|minor|major, --dry-run)
-.venv\Scripts\python -m pytest tests\ -q          # in-memory SQLite, no Postgres needed
+.venv\Scripts\python -m pytest tests\ -q          # throwaway SQLite file; set TEST_DATABASE_URL to run on Postgres
 ```
 
 Dependency gotchas:
@@ -82,9 +84,9 @@ the foot of `/views/settings/`.
 
 ## Testing
 
-`tests/conftest.py` spins up in-memory SQLite (`sqlite+aiosqlite:///:memory:`), creates the schema with `Base.metadata.create_all`, overrides `get_db`, and drives the real app through `httpx.AsyncClient` (`ASGITransport`). `pytest.ini` sets `asyncio_mode = auto`.
+`tests/conftest.py` spins up a per-test SQLite file (fast, no server), creates the schema with `Base.metadata.create_all`, overrides `get_db`, and drives the real app through `httpx.AsyncClient` (`ASGITransport`). `pytest.ini` sets `asyncio_mode = auto`. The app itself runs only on Postgres; `TEST_DATABASE_URL=postgresql+asyncpg://…/<empty disposable db>` runs the same suite there (each test drops and recreates the schema) — do that when a change touches SQL that could behave differently between the two.
 
-This only works because `challenge_type`, `recurrence_pattern` and `Enrollments.status` are plain `VARCHAR` — SQLite cannot represent a PG enum, so an enum-shaped test failure means a native PG enum crept back onto one of those columns.
+SQLite-in-tests only works because enum-shaped columns are plain `VARCHAR` — SQLite cannot represent a PG enum, so an enum-shaped test failure means a native PG enum crept back onto one of those columns. For the same reason a Boolean `server_default` is `false()`/`true()`, never `text("0")` (which Postgres rejects).
 
 **Don't test everything either.** A test earns its place by pinning a rule that could silently regress. Skip UI and wording changes unless the behaviour itself matters.
 
@@ -96,11 +98,9 @@ Test files are named after what they pin; read the relevant one before changing 
 
 `app/config.py` (`pydantic-settings`) reads `database_url`, `environment`, `secret_key` from `.env`. Two env files: `.env` (local, gitignored) and `.env.docker` (used by `docker-compose.yml`); `.env.example` documents the shape. `secret_key` signs session cookies. `environment != "development"` flips the session cookie to `secure=True`.
 
-**Every environment runs on SQLite — local, compose, and the Liara deploy — on purpose.** They used to differ (Postgres locally, SQLite on Liara's disk), so a Postgres-only migration reached production as `no such column: Users.avatar`. `DEFAULT_SQLITE_URL` is `sqlite+aiosqlite:///./data/challenges.db`; `data/` is the Liara mount point and `WORKDIR` is `/app`. `settings.is_sqlite` / `settings.sqlite_path` are the accessors (the latter goes through `make_url`, since `sqlite:///rel` vs `sqlite:////abs` differ by one slash); importing `config` creates the parent directory.
+**Every environment runs on Postgres — local (the compose `db` service), compose, and the Liara deploy.** `DATABASE_URL` is `postgresql+asyncpg://…`; `DEFAULT_DATABASE_URL` points at the compose db from the host. The engine uses `pool_pre_ping` because a managed Postgres drops idle connections. `alembic.ini`'s `sqlalchemy.url` is dead — `alembic/env.py` overwrites it with `settings.database_url`. `data/` (the Liara disk) now holds only uploaded media.
 
-**Postgres stays wired up**: the `alembic/` history, the `asyncpg` pin, and a commented `DATABASE_URL` in each env file. Switching back is uncommenting that line and running `alembic upgrade head`. `alembic.ini`'s `sqlalchemy.url` is dead — `alembic/env.py` overwrites it with `settings.database_url`.
-
-**Schema changes go to the models, and nothing else.** `app/scripts/bootstrap_db.py` (run by `start.sh`) branches on backend: Postgres → `alembic upgrade head`; SQLite → `create_all` then `sync_sqlite_schema()`, which diffs each existing table against `Base.metadata` and issues `ALTER TABLE ADD COLUMN` / `CREATE INDEX`. `create_all` alone skips existing tables — that is how the avatar column shipped without arriving. The sync cannot *change* a column (SQLite has no real `ALTER COLUMN`) or add a NOT NULL column without a default to a non-empty table; the second case prints a loud warning naming the column rather than failing the boot.
+**A schema change is a model change plus a migration.** `app/scripts/bootstrap_db.py` (run by `start.sh`) runs `alembic upgrade head`, then the idempotent `backfill_enrollment_roles`. After editing a model: `alembic revision --autogenerate`, read the file (autogenerate misses the server default a populated table needs for a new NOT NULL column), `alembic upgrade head`, and `alembic check` must say "No new upgrade operations detected". Revision `bfb2303d362b` is the catch-up for everything added while the app ran on SQLite. Old SQLite data moves once with `app/scripts/copy_sqlite_to_postgres.py` (target at head and empty; ids copied, sequences reset).
 
 **The operator account is seeded on every boot.** A deploy's database is a different database and the first admin cannot be made through the app, so `start.sh` runs `app/scripts/seed_admin.py`: creates `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` with `role=admin` if unknown, promotes an existing member, does nothing if already admin, does nothing at all when `SEED_ADMIN_EMAIL` is empty (the default). **It never rewrites an existing account's password** — otherwise the env var is a way to take over any account whose email is put in it. `SEED_ADMIN_RESET_PASSWORD=true` forces it for one boot (the locked-out escape hatch). Both env files are gitignored *and* in `.dockerignore`; the deploy reads these from Liara's environment.
 
@@ -178,7 +178,7 @@ Merging them makes an admin the silent owner of everything. **No app-wide role g
 
 **Writing a role.** `PATCH /users/{id}/role` (`UserRoleUpdate`, admin-only) is the only door, kept off `UserUpdate` so the profile PATCH can never be a side channel. Self-demotion is a 400. The *first* admin is made with `python -m app.scripts.set_user_role <email> admin`, not by a "first signup wins" rule.
 
-**Migration** is models-only: both role columns carry a default so `sync_sqlite_schema` can add them, and `bootstrap_db.backfill_enrollment_roles` marks each creator's own enrolment `owner` (idempotent, every boot).
+**Migration** is models-only: both role columns carry a default so a migration can add them to a populated table, and `bootstrap_db.backfill_enrollment_roles` marks each creator's own enrolment `owner` (idempotent, every boot).
 
 ### The admin panel
 
@@ -380,7 +380,7 @@ It is a page of its own because it is ordered and lazily paged. There is exactly
 
 **Sign-up and sign-in are one flow.** There is no "do you have an account" branch: `/request` texts a code to whatever number it is given, and `/verify` creates the account if the proved number is new. So enumeration learns nothing, and **an account needs no personal information at all** — a new one gets a placeholder «کاربر ۴۵۶۷» from the last four digits of its own number.
 
-**The credential is `Users.mobile`, deliberately not `Users.phone`.** `phone` stays an optional free-text contact detail writable through `PATCH /users/{id}` — which is exactly why it cannot be the credential. `mobile` is UNIQUE, canonical `+989…`, absent from every `User*` write schema, and has **one door**: `POST /auth/otp/verify`, after a code was proved. `mobile_verified_at` sits beside it, re-stamped on every sign-in. Both are nullable permanently (a password account has neither), which is also what lets `sync_sqlite_schema` add them to a populated table. The profile renders the verified number as a read-only «شماره ورود» row and only when there is one; the editable field is «شماره تماس».
+**The credential is `Users.mobile`, deliberately not `Users.phone`.** `phone` stays an optional free-text contact detail writable through `PATCH /users/{id}` — which is exactly why it cannot be the credential. `mobile` is UNIQUE, canonical `+989…`, absent from every `User*` write schema, and has **one door**: `POST /auth/otp/verify`, after a code was proved. `mobile_verified_at` sits beside it, re-stamped on every sign-in. Both are nullable permanently (a password account has neither), which is also what lets a migration add them to a populated table. The profile renders the verified number as a read-only «شماره ورود» row and only when there is one; the editable field is «شماره تماس».
 
 **`app/phone.py` is the one place a typed string becomes an identity.** `09121234567`, `+98 912 123 4567`, `۰۹۱۲۱۲۳۴۵۶۷` and `00989121234567` are one account. It is Iran-only on purpose: this gates a login and the gateway delivers to Iranian carriers. That is a different question from `schemas/user.py`'s `_plausible_phone`, which stays permissive because it guards a contact detail. The invisible bidi marks an RTL paste carries are stripped, named by code point rather than written into the pattern.
 

@@ -41,9 +41,9 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
-    text,
 )
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql.expression import false
 
 from app.avatars import AVATAR_ID_MAX_LENGTH
 from app.models.audit_base import AuditBase
@@ -233,7 +233,7 @@ class GroupInvite(AuditBase):
     # page), and a second table would be a second place to keep those rules
     # true.
     requires_approval = Column(
-        Boolean, nullable=False, default=False, server_default=text("0")
+        Boolean, nullable=False, default=False, server_default=false()
     )
 
     expires_at = Column(DateTime(timezone=True), nullable=True)

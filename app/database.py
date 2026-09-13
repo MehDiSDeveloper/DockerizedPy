@@ -3,15 +3,9 @@ from sqlalchemy.orm import declarative_base
 
 from app.config import settings
 
-connect_args = (
-    {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
-)
-
-
-engine = create_async_engine(
-    settings.database_url,
-    connect_args=connect_args,
-)
+# pool_pre_ping: a managed Postgres drops idle connections, and without the
+# ping the first request after a quiet spell is a 500.
+engine = create_async_engine(settings.database_url, pool_pre_ping=True)
 
 AsyncSessionLocal = async_sessionmaker(
     autocommit=False,

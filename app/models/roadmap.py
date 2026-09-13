@@ -58,6 +58,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql.expression import false, true
 
 from app.media import MEDIA_KEY_MAX_LENGTH
 from app.models.audit_base import AuditBase
@@ -137,7 +138,7 @@ class Roadmap(AuditBase):
     # a taught course needs. The difference in the code is one boolean the
     # page and the enrolment route both read -- nothing else branches on it.
     strict = Column(
-        Boolean, nullable=False, default=False, server_default=text("0")
+        Boolean, nullable=False, default=False, server_default=false()
     )
 
     # **Does work done before a step opened count towards it?** No, and v1
@@ -147,7 +148,7 @@ class Roadmap(AuditBase):
     # column exists so the answer is recorded per roadmap rather than assumed
     # app-wide; it is deliberately absent from every write schema.
     count_prior_progress = Column(
-        Boolean, nullable=False, default=False, server_default=text("0")
+        Boolean, nullable=False, default=False, server_default=false()
     )
 
     owner = relationship("User", foreign_keys=[owner_id])
@@ -208,7 +209,7 @@ class RoadmapStep(AuditBase):
     # An optional step is offered and never blocks: the stage after it opens
     # whether or not it was done.
     required = Column(
-        Boolean, nullable=False, default=True, server_default=text("1")
+        Boolean, nullable=False, default=True, server_default=true()
     )
 
     # The exit condition, shaped by `CompletionUnion` in

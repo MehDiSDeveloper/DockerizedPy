@@ -70,7 +70,7 @@ async def lifespan(_: FastAPI):
         "app.started",
         version=__version__,
         environment=settings.environment,
-        database="sqlite" if settings.is_sqlite else "postgres",
+        database="postgres",
     )
     yield
     log_event(logger, "app.stopped")
