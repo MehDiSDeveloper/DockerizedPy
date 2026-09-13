@@ -230,8 +230,21 @@ def occurrences_due(
     if isinstance(cadence, RecurringQuotaCadence):
         pkey = period_key(today, cadence.period)
         done = period_completed_counts.get(pkey, 0)
-        if done < cadence.count:
-            seq = done + 1
+        # The next *free* sequence, not `completed + 1`: a skipped occurrence
+        # keeps its key forever while leaving `done` where it was, so deriving
+        # the key from the completed count alone re-offers a key that is
+        # already taken -- the write then lands on the idempotent 200 path and
+        # the card comes straight back on the next load. A skip consumes an
+        # attempt (`used`), the ring still counts only completions (`done`).
+        seq = next(
+            (
+                s
+                for s in range(done + 1, cadence.count + 1)
+                if f"{pkey}#{s}" not in existing_keys
+            ),
+            None,
+        )
+        if seq is not None:
             key = f"{pkey}#{seq}"
             period_start, period_end = period_bounds(today, cadence.period)
             opens_at, _ = day_bounds_utc(period_start, tz)

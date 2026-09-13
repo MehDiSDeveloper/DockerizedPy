@@ -129,6 +129,18 @@ async def _load_completed_state(
     return completed_keys, period_completed_counts
 
 
+async def _period_keys(db: AsyncSession, enrollment_id: int, pkey: str) -> set[str]:
+    """Every occurrence key already recorded in one recurring_quota period,
+    whatever its state -- a skipped seat is taken just as a completed one is."""
+    result = await db.execute(
+        select(CheckIn.occurrence_key).where(
+            CheckIn.enrollment_id == enrollment_id,
+            CheckIn.occurrence_key.startswith(f"{pkey}#"),
+        )
+    )
+    return {row[0] for row in result.all()}
+
+
 async def _select_checkin(
     db: AsyncSession, enrollment_id: int, key: str
 ) -> CheckIn | None:
@@ -264,9 +276,19 @@ async def create_checkin(
     )
 
     if checkin is None and isinstance(cadence, RecurringQuotaCadence):
-        _, period_counts = await _load_completed_state(db, enrollment.id)
+        # The seat the client asked for is taken. Retry on the first *free*
+        # one in the period rather than on `completed + 1`, which is the same
+        # seat again whenever the taken row was a skip.
+        taken = await _period_keys(db, enrollment.id, key.split("#", 1)[0])
         pkey = key.split("#", 1)[0]
-        retry_key = f"{pkey}#{period_counts.get(pkey, 0) + 1}"
+        retry_key = next(
+            (
+                f"{pkey}#{s}"
+                for s in range(1, cadence.count + 1)
+                if f"{pkey}#{s}" not in taken
+            ),
+            key,
+        )
         if retry_key != key and is_key_writable(
             cadence,
             start_date=enrollment.start_date,

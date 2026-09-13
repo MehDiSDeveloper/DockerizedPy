@@ -247,6 +247,31 @@ def test_month_period_follows_jalali_not_gregorian():
 # ---------- recurring_quota ----------
 
 
+def test_recurring_quota_skipped_seat_is_not_re_offered():
+    """A skipped occurrence keeps its key while leaving the completed count
+    where it was. Deriving the next key from `completed + 1` alone re-offered
+    the taken key, so the write landed on the idempotent 200 path and the card
+    came straight back on the next load of «امروز»."""
+    cadence = RecurringQuotaCadence(period="week", count=3)
+    pkey = period_key(SAT, "week")
+
+    due = occurrences_due(
+        cadence, start_date=SAT, tz=TZ, now_utc=now_at(SUN),
+        existing_keys={f"{pkey}#1"}, period_completed_counts={},
+    )
+    assert due[0].key == f"{pkey}#2"
+    # the ring still counts completions only
+    assert due[0].quota_done == 0
+
+    # every seat skipped -- nothing left to offer, and no key repeated
+    exhausted = occurrences_due(
+        cadence, start_date=SAT, tz=TZ, now_utc=now_at(SUN),
+        existing_keys={f"{pkey}#1", f"{pkey}#2", f"{pkey}#3"},
+        period_completed_counts={},
+    )
+    assert exhausted == []
+
+
 def test_recurring_quota_week_sequencing_and_refusal():
     cadence = RecurringQuotaCadence(period="week", count=3)
     start = SAT
