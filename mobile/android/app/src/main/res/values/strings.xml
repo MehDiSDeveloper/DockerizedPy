@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">اکت‌پکت</string>
-    <string name="title_activity_main">اکت‌پکت</string>
+    <string name="app_name">actpact</string>
+    <string name="title_activity_main">actpact</string>
     <string name="package_name">ir.actpact.app</string>
     <string name="custom_url_scheme">ir.actpact.app</string>
 </resources>

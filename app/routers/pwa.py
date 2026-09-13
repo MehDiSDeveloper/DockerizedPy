@@ -46,8 +46,8 @@ router = APIRouter(tags=["pwa"])
 #: page runs -- the splash screen -- so it takes the app's default ground.
 MANIFEST: dict = {
     "id": "/",
-    "name": "اکت‌پکت",
-    "short_name": "اکت‌پکت",
+    "name": "actpact",
+    "short_name": "actpact",
     "description": "چالش بساز، عضو شو، و هر روز پیشرفتت را ثبت کن.",
     "lang": "fa",
     "dir": "rtl",
