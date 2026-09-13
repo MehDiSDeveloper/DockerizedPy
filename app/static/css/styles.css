@@ -272,8 +272,11 @@
   --cta-h:72px; /* .sticky-cta's own rendered height (padding + button) */
   /* width of the mobile shell; anything that spans or aligns to it (nav,
      sticky CTA, toast, sheet, FAB) reads this instead of repeating the
-     literal width. */
-  --shell-max:480px;
+     literal width. It follows the viewport up to a readable ceiling: a fixed
+     480 turned a laptop, a landscape tablet and a landscape phone into a
+     narrow strip. Below 880 the app is the full window; above it, a centred
+     column. Everything sized against the shell reads this one token. */
+  --shell-max:min(100vw, 880px);
 
   color-scheme:light;
 }
@@ -4021,6 +4024,9 @@ button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
      on the cover. Its texture and scrim ride inside this same layer. */
   z-index:-1;
   width:100%; height:auto; aspect-ratio:4/3; border-radius:0;
+  /* 4:3 of a wide column is taller than a landscape screen; the picture is
+     object-fit:cover, so capping the height only crops the band */
+  max-height:min(62vh, 460px);
 }
 /* No picture: nothing is drawn at all except a flat 20% wash in the
    category's own hue and the glyph on top of it. No gradient, no tile
@@ -4189,7 +4195,7 @@ button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
   scroll-snap-align:start; scroll-snap-stop:always;
 }
 .challenge-list.is-immersive .explore-thumb{
-  position:absolute; inset:0; width:auto; height:auto; aspect-ratio:auto;
+  position:absolute; inset:0; width:auto; height:auto; aspect-ratio:auto; max-height:none;
 }
 .challenge-list.is-immersive .explore-thumb > [data-icon]:not(.badge-cadence) svg{
   width:96px; height:96px;
@@ -4537,14 +4543,10 @@ button.lb-entry{width:100%; font:inherit; text-align:start; cursor:pointer;}
    list below or satisfy yourself that it is already column-bound: a missed
    overlay is invisible on a phone and silently wrong here.
    ========================================================================== */
-/* The breakpoint is 600px and the column keeps --shell-max at its existing
-   480, both for the same reason: crossing this line must not resize the app.
-   The widest phone in portrait is ~440 CSS px and .shell is already capped at
-   480 below here, so a viewport that reaches 600 is not a phone, and the app
-   it draws at 599 is the same width as the one it draws at 601 -- only the
-   ground around it, the full height and the self-scrolling change. A narrower
-   column (430 was the first try) is a visible 50px jump at the seam and buys
-   nothing: 480 is the width every screen in this app was drawn against. */
+/* Crossing 600px must not resize the app: --shell-max is the full window
+   below 880 on both sides of this line, so only the self-scrolling changes
+   here. Gutters (and the dimmed ground in them) appear only once the window
+   is wider than the 880 ceiling. */
 @media (min-width:600px){
   :root{
     --shell-gutter:max(0px, (100vw - var(--shell-max)) / 2);
