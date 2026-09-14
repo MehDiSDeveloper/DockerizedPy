@@ -24,4 +24,4 @@ to check. Between releases, work is written into ``CHANGELOG.md`` under
 ``## [Unreleased]``, which is what the bump then promotes.
 """
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"

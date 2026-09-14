@@ -39,7 +39,7 @@
    cache and nobody has to remember. Editing it is editing `app/version.py`
    and running that script. (TOUR_VERSION in tour.js stays separate -- it
    means "show the tour again", which is not a question a release answers.) */
-const CACHE_VERSION = "v1.0.2";
+const CACHE_VERSION = "v1.0.3";
 const CACHE_NAME = `chalesh-${CACHE_VERSION}`;
 
 const OFFLINE_URL = "/static/offline.html";

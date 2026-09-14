@@ -272,8 +272,12 @@
     document.getElementById("otpError"),
     document.getElementById("passwordError"),
   ];
+  // Asked of the slot's panel, not the slot: an empty slot is itself
+  // display:none, so its own offsetParent is null in both panels and every
+  // password refusal landed in the hidden OTP one.
   function visibleErrorSlot() {
-    return errorSlots.find((el) => el.offsetParent !== null) || errorSlots[0];
+    return errorSlots.find((el) => el.closest("#otpPanel, #passwordPanel").style.display !== "none")
+      || errorSlots[0];
   }
   function showError(message) {
     const el = visibleErrorSlot();

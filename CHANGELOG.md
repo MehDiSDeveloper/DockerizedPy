@@ -18,6 +18,13 @@ which function moved. Group them under **Added** / **Changed** / **Fixed** /
 
 ## [Unreleased]
 
+### Fixed
+
+- ورود با ایمیل و رمز عبور: رمز یا ایمیل اشتباه دیگر بی‌صدا نمی‌ماند؛ پیام خطا
+  حالا زیر همان فرم دیده می‌شود.
+
+## [1.0.3] — 2026-09-14
+
 ### Changed
 
 - پایگاه‌داده از SQLite به Postgres منتقل شد. برای اپراتور: `DATABASE_URL` باید به یک
