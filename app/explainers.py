@@ -81,6 +81,61 @@ EXPLAINERS: dict[str, Explainer] = {
             "ازدست‌رفته — مهلتش تمام شد و چیزی ثبت نشد.",
         ),
     ),
+    # --- تعهد: سه محور --------------------------------------------------
+    # These are behaviour promises, not labels, so they live here rather than
+    # beside the axis they name (the per-surface pattern, D7, is for the
+    # short words a control says). The same three terms appear on the act's
+    # page, its manage screen, the review queue and the profile, and two
+    # copies of a promise drift.
+    "act-axes": Explainer(
+        title="تعهد چطور تنظیم می‌شود",
+        body="هر تعهد سه تنظیم دارد و بقیهٔ حالت‌ها از ترکیب همین سه می‌آید.",
+        points=(
+            "نقش‌ها — متعهد کسی است که انجام می‌دهد، ناظر کسی که تأیید می‌کند، سازنده کسی که تعهد را ساخته.",
+            "اثبات — هر گزارش با چه مدرکی ثبت می‌شود: فقط گفتهٔ خودت، یا عکسی در همان لحظه.",
+            "نتیجه — هر گزارش در پایان موفق است، تأیید نشده، یا در انتظار ناظر.",
+        ),
+    ),
+    # Prose, not points: `points` is for a term whose meaning *is* a set of
+    # named states (the three statuses, the four states a نوبت can be in).
+    # These two are rules about how something behaves, and a list of rules
+    # dressed as a key reads as a key with nothing to unlock.
+    "proof-photo": Explainer(
+        title="عکس در لحظه",
+        body=(
+            "عکس باید همان موقع گرفته شود و تا چند دقیقه بعد ثبت شود؛ از گالری "
+            "نمی‌شود انتخابش کرد. زمانش را سرور ثبت می‌کند نه گوشی، اطلاعات داخل "
+            "خود عکس پاک می‌شود، و هر عکس فقط برای یک گزارش به کار می‌رود."
+        ),
+    ),
+    "referee-review": Explainer(
+        title="تأیید ناظر",
+        body=(
+            "در تعهدهایی که ناظر دارند، گزارشت تا وقتی ناظر تأییدش نکرده «در "
+            "انتظار» می‌ماند و در شمارش‌ها حساب نمی‌شود. ناظر نمی‌تواند گزارش "
+            "خودش را تأیید کند، رد کردن حتماً باید دلیل داشته باشد، و اگر "
+            "گزارشت را ویرایش کنی دوباره به صف تأیید برمی‌گردد."
+        ),
+    ),
+    "commitment-score": Explainer(
+        title="نمرهٔ تعهد",
+        body=(
+            "از میان گزارش‌هایی که تکلیفشان روشن شده، چند درصدشان موفق بوده. "
+            "روزهایی که هیچ چیز ثبت نکرده‌ای در این نمره شمرده نمی‌شوند."
+        ),
+        points=(
+            "خوداظهاری — فقط گفتهٔ خودت.",
+            "با عکس — مدرک فرستاده‌ای، ولی کسی بررسی‌اش نکرده.",
+            "با تأیید ناظر — کس دیگری دیده و تأیید کرده.",
+        ),
+    ),
+    "act-log": Explainer(
+        title="دفتر رویدادها",
+        body=(
+            "هر اتفاقی در این تعهد -- ثبت، تأیید، رد، آمدن و رفتن -- همین‌جا به "
+            "ترتیب نوشته می‌شود. چیزی از آن پاک یا ویرایش نمی‌شود."
+        ),
+    ),
     "backfill": Explainer(
         title="مهلت ثبت با تأخیر",
         body=(

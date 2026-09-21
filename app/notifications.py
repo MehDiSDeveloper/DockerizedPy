@@ -232,6 +232,41 @@ NOTIFICATION_META: dict[str, dict[str, str]] = {
         "icon": "seal",
         "hint": "وقتی چالشِ یکی از قدم‌های مسیر تو بایگانی می‌شود.",
     },
+    # ---- Acts: the verification loop ------------------------------------
+    # Every one of these is a member waiting on somebody else. That is the
+    # one situation in this app where silence is indistinguishable from
+    # something having gone wrong, which is why all five exist and why none
+    # of them is folded into another.
+    NotificationKind.REFEREE_INVITED.value: {
+        "title": "دعوت به ناظری",
+        "text": "{actor} از تو خواست ناظر «{challenge}» باشی.",
+        "icon": "shield",
+        "hint": "وقتی کسی از تو می‌خواهد ناظر تعهدش باشی.",
+    },
+    NotificationKind.REFEREE_RESPONDED.value: {
+        "title": "پاسخ ناظر",
+        "text": "{actor} به دعوت ناظری «{challenge}» پاسخ داد.",
+        "icon": "shieldCheck",
+        "hint": "وقتی کسی که به ناظری دعوتش کردی پاسخ می‌دهد.",
+    },
+    NotificationKind.CHECKIN_AWAITING_REVIEW.value: {
+        "title": "گزارش تازه برای تأیید",
+        "text": "{actor} در «{challenge}» گزارشی ثبت کرد که منتظر توست.",
+        "icon": "clock",
+        "hint": "وقتی گزارشی برای تأیید تو ثبت می‌شود.",
+    },
+    NotificationKind.CHECKIN_APPROVED.value: {
+        "title": "گزارشت تأیید شد",
+        "text": "{actor} گزارش تو در «{challenge}» را تأیید کرد.",
+        "icon": "shieldCheck",
+        "hint": "وقتی ناظری گزارش تو را تأیید می‌کند.",
+    },
+    NotificationKind.CHECKIN_REJECTED.value: {
+        "title": "گزارشت تأیید نشد",
+        "text": "{actor} گزارش تو در «{challenge}» را نپذیرفت.",
+        "icon": "shieldX",
+        "hint": "وقتی ناظری گزارش تو را رد می‌کند.",
+    },
 }
 
 # What an unknown kind renders as. A row written by a newer version of the

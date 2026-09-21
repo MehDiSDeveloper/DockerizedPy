@@ -85,6 +85,33 @@ class NotificationKind(str, enum.Enum):
     ROADMAP_STEP_UNLOCKED = "roadmap_step_unlocked"
     #: You reached the end of a roadmap.
     ROADMAP_COMPLETED = "roadmap_completed"
+    # ---- Acts: referees and verdicts ----------------------------------
+    # The verification loop is the one place in this app where a member is
+    # *waiting on somebody else* before their own record settles, so every
+    # step of it is an event that happens on a screen they are not looking
+    # at -- which is the bar this feed is held to.
+    #: Somebody asked you to vouch for their act.
+    REFEREE_INVITED = "referee_invited"
+    #: Somebody you asked to vouch has answered.
+    #:
+    #: One kind, not two: the owner is told the invitation was *answered*,
+    #: and the answer is on the act's own screen. Splitting it would give an
+    #: owner a switch for "tell me about yeses" and one for "tell me about
+    #: noes", which is a pair nobody wants.
+    REFEREE_RESPONDED = "referee_responded"
+    #: A report is waiting for you to rule on it.
+    CHECKIN_AWAITING_REVIEW = "checkin_awaiting_review"
+    #: A referee accepted your report.
+    CHECKIN_APPROVED = "checkin_approved"
+    #: A referee turned your report down.
+    #:
+    #: Its own kind rather than a flag on the one above, for the reason
+    #: ``COMMENT_REPLIED`` is its own kind: they are two events, they land
+    #: differently, and a member who wants to hear only about the refusals --
+    #: the ones they have to do something about -- needs two switches to say
+    #: so.
+    CHECKIN_REJECTED = "checkin_rejected"
+
     #: A challenge one of your roadmap's steps points at was archived, so the
     #: step was passed over rather than left blocking everybody behind it.
     #:

@@ -115,6 +115,14 @@ class Perm:
     # Per-challenge, granted by `Enrollment.role`.
     CHALLENGE_EDIT = "challenge.edit"
     CHALLENGE_DELETE = "challenge.delete"
+    #: Invite and remove the people who vouch for this act, and read its
+    #: dashboard. The owner's, and deliberately **not** an admin grant --
+    #: staffing an act is authorship, the same line `CHALLENGE_EDIT` draws.
+    #: It is its own name rather than a reuse of `CHALLENGE_EDIT` because
+    #: the two are genuinely separable: handing a co-owner the roster
+    #: without handing them the title is the obvious next role, and it
+    #: should be a row in a map.
+    CHALLENGE_MANAGE_REFEREES = "challenge.manage_referees"
 
     # Per-group, granted by `GroupMembership.role`. Split finely rather than
     # given one "manage" name, because the split is exactly what separates an
@@ -168,7 +176,13 @@ GLOBAL_GRANTS: dict[str, frozenset[str]] = {
 
 CHALLENGE_GRANTS: dict[str, frozenset[str]] = {
     ChallengeRole.PARTICIPANT.value: frozenset(),
-    ChallengeRole.OWNER.value: frozenset({Perm.CHALLENGE_EDIT, Perm.CHALLENGE_DELETE}),
+    ChallengeRole.OWNER.value: frozenset(
+        {
+            Perm.CHALLENGE_EDIT,
+            Perm.CHALLENGE_DELETE,
+            Perm.CHALLENGE_MANAGE_REFEREES,
+        }
+    ),
 }
 
 # The group axis. Cumulative, because the roles genuinely nest here -- an
