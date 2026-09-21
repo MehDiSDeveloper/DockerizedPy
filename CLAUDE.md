@@ -4,7 +4,7 @@ Guidance for Claude Code (claude.ai/code) working in this repository.
 
 ## Project overview
 
-«چالش» / Challenge Manager — a FastAPI app where users create fitness/habit **challenges** (cadence-based: one-time, scheduled, recurring-days, recurring-quota) and **enroll** in each other's, then log progress as **check-ins** against a **Today** feed. Two front doors over one model set: a JSON CRUD API and server-rendered Jinja2 pages (Farsi, RTL). Auth is hand-rolled cookie sessions. Groups let an organisation gather its people and hand out challenges.
+«چالش» / Challenge Manager — a FastAPI app where users create fitness/habit **challenges** (cadence-based: one-time, scheduled, recurring-days, recurring-quota) and **enroll** in each other's, then log progress as **check-ins** against a **Today** feed. A challenge is one shape of a more general **commitment** — three settable axes (who vouches, what counts as evidence, what became of a report), of which today's challenge is the all-defaults case. Two front doors over one model set: a JSON CRUD API and server-rendered Jinja2 pages (Farsi, RTL). Auth is hand-rolled cookie sessions. Groups let an organisation gather its people and hand out challenges.
 
 ## Commands
 
@@ -92,7 +92,7 @@ SQLite-in-tests only works because enum-shaped columns are plain `VARCHAR` — S
 
 **Don't run the suite for every small edit.** Run tests when a change touches a rule documented here (occurrences, auth/visibility, cadence keys, roles) or when something plausibly broke — not after a copy tweak, a style change, or a one-line template edit. Prefer the one relevant test file over the whole suite.
 
-Test files are named after what they pin; read the relevant one before changing a rule below. Nearly every invariant documented here has a test: occurrences, jalali, timezone boundaries, check-in idempotency, challenge lifecycle/status, page & object authorization, roles, admin panel/challenges/participants/profile, home dashboard, list ordering, notifications, anonymity, leaderboard, OTP auth, explainers, tour anchors, the group subsystem (groups, invites, challenges, visibility, privacy, notifications, requests, leaving), and the roadmap subsystem (step gating, all six completion rules, the two refusals, the archive skip, the structural lock, both scope filters, invite capacity under concurrency).
+Test files are named after what they pin; read the relevant one before changing a rule below. Nearly every invariant documented here has a test: occurrences, jalali, timezone boundaries, check-in idempotency, challenge lifecycle/status, page & object authorization, roles, admin panel/challenges/participants/profile, home dashboard, list ordering, notifications, anonymity, leaderboard, OTP auth, explainers, tour anchors, the group subsystem (groups, invites, challenges, visibility, privacy, notifications, requests, leaving), the roadmap subsystem (step gating, all six completion rules, the two refusals, the archive skip, the structural lock, both scope filters, invite capacity under concurrency), and the act layer (referee approve/reject, an act with no referee, self-ruling, the proof claim's four rules, group distribution and its dashboard, the commitment score, the log).
 
 ## Configuration
 
@@ -577,6 +577,94 @@ Adding a step is a search, so it is a small panel borrowing `createSheet`'s own 
 
 A second role on a course (a co-author) is a row in `ROADMAP_GRANTS`. `count_prior_progress = True` is one branch in `evaluate_rule`'s window. Two steps in one stage — «این دو را با هم انجام بده» — is already the schema and needs only a builder that writes the same `stage_index` twice. A roadmap made of roadmaps is the one thing this design does *not* invite, and that is on purpose: nesting courses is `Group.parent_id`'s problem, and it was solved there.
 
+### «تعهد» — an Act is a Challenge with its three axes set
+
+A **challenge** was always one shape of a more general thing: a promise somebody makes, recorded against a clock. What it could not express was *who vouches for it*, *what counts as evidence*, and *what became of a report*. Those are three independent axes, and every other arrangement people ask for is a combination of them rather than a feature of its own.
+
+**The table is not renamed, and that is the design.** `Challenges` stays `Challenges`; an Act *is* a `Challenge` with `proof_kind`/`proof`, `review_mode` and (optionally) referee rows. Renaming the model across a hundred files buys nothing a member can see, and every column added here carries the old behaviour as its default — so a challenge created before this reads as «self-reported, settled on the spot, watched by nobody», which is exactly what it was. `tests/test_verification.py::test_an_act_with_no_referee_settles_on_the_spot` is the test that says so; if it ever fails, the migration's "no data change" claim is false.
+
+| axis | where it lives | default (= today's behaviour) |
+|---|---|---|
+| **roles** | `Enrollments` (doer) + `Challenge.owner_id` (owner) + **`ChallengeReferees`** | no referee |
+| **proof** | `Challenges.proof_kind` + `Challenges.proof` (JSON union) | `self` |
+| **outcome** | `Challenges.review_mode` + **`CheckIns.verdict`** | `auto` |
+
+`app/models/act.py` (three tables), `app/proof.py`, `app/verification.py`, `app/referees.py`, `app/actlog.py`, `app/commitment.py`, `app/schemas/proof.py` + `app/schemas/act.py`, `app/routers/referee.py` + `app/routers/verification.py` (+ `POST /media/proof`), `views/verification.py` + `templates/verification/`, and the dashboard half of `views/challenge.py`.
+
+**Pact and Assignment get no tables and no columns**, because they are arrangements of the three axes and nothing else. A **pact** is two people who each hold an `Enrollment` *and* an `active` referee row; `ChallengeCreate.pact_with` is the shortcut that writes both halves in one request, and `referees.is_pact` *derives* the reading back — so there is no stored flag that could say «pact» while the rows said otherwise. An **assignment** is the existing `group_id` + `group_audience` machinery plus one new screen. A `pact`/`assignment` enum would have been a second name for what the rows already state, and the two would disagree the first time somebody stepped back.
+
+#### `CheckIns.state` is not widened, and that is the whole safety of this
+
+`state` keeps meaning *what the doer reported* — `completed` or `skipped` — and `verdict` means *what became of that report*. Two columns, because a third value on `state` would have been silently counted as a success by the dozen places that compare it to `"completed"`.
+
+| `state` | `verdict` | outcome |
+|---|---|---|
+| completed | `auto` / `approved` | **موفق** |
+| completed | `pending` | **در انتظار تأیید** |
+| completed | `rejected` | **تأیید نشده** |
+| skipped | — | **انجام نشد** |
+
+**One predicate, written twice**, exactly as `challenge_status`/`status_filter` are: `counted_clause()` (SQL) and `counts()` (Python) in `app/verification.py` are `state == 'completed' AND verdict IN ('auto','approved')`, and they are composed into streaks, `ChallengeStats`, the leaderboard, the twelve-week grid, the quota ring and every roadmap completion rule. "What counts as done" changes in one place or not at all.
+
+**A pending report does not count, and the streak is not broken by that.** `compute_streaks` recomputes from scratch on every write, so an approval *restores* the streak the pending report was holding open — which is the whole reason streaks were never incremented. `ChallengeStats` is monotonic, so a pending report never moves it and the **approval** is what does; a rejection is a no-op rather than a decrement.
+
+**Two Farsi words collide, and `display_state` is where they are resolved.** `derive_state` answers about the *occurrence window*, where «در انتظار» means *still open*; `checkin_outcome` answers about the *report*, where it means *a referee has not looked*. One function in `views/challenge.py` folds them in favour of the verdict (`awaiting`, `rejected`), which is what stops a green tick appearing on something that has not counted. The ring, the strip and the calendar share one colour vocabulary and gained two entries each.
+
+#### Proof: a union in a JSON column, and the one honest promise
+
+`Challenges.proof_kind` + `Challenges.proof` are the same pair `cadence_kind` + `cadence` are, written the same way: the string is the SQL-queryable discriminator, the JSON carries whatever the kind needs, and both are written from **one object** so they cannot name two different kinds. `proof` is **nullable** where `cadence` is not — NULL means "the default shape of `proof_kind`", which is what makes the migration a no-op. Adding a kind (GPS, file, webhook) is three edits and no migration: a member in `ProofKind`, a member in `app/schemas/proof.py`, a branch in `proof_satisfied`.
+
+**What a server can honestly promise about a photograph**, and what `app/proof.py` therefore does *not* claim: not that it came from a camera rather than a gallery — nothing reaching a server can tell those apart, and a design that claims otherwise is worse than one that does not, because people rely on it. `capture="environment"` on the input is a client-side courtesy, stated as one. What **is** enforced, at `claim_proof_asset`:
+
+- **the time is the server's.** `ProofAsset.captured_at` is stamped when the bytes arrive; EXIF is stripped by `store_image` before anything reads the file.
+- **the picture is recent** — within `PROOF_MAX_AGE` (10 min) of arriving, so a photograph cannot be stockpiled. The window is sent back to the client as `expires_in` rather than restated in JS, so the countdown a member reads and the rule the server enforces are one number.
+- **it is yours, and used once** — `user_id` and `claimed_at`. "Not yours" is worded as "not found", the way a check-in that is not yours is a 404: asset ids are sequential.
+- **the bytes are fingerprinted** — `sha256` of what was *stored*, so which picture was submitted outlives the file.
+
+**`ProofAssets` is a table where `app/media.py` deliberately has none**, and the reason is exactly those three questions: a decorative picture asks none of them, and evidence asks all three. `POST /media/proof` is a second door for the same reason — `POST /media/` answers a **key** that a later PATCH writes onto a column, this answers an **id**, because what has to be checked is a *row*. A skip carries no evidence and is asked for none: demanding a photograph of an absence is the kind of rule that teaches people to lie.
+
+#### Referees: asked is not agreed, and nothing is deleted
+
+`ChallengeReferee` is a join table rather than a third value on `Enrollment.role`, because an enrollment carries a *doer's* record — a timezone, a start date, two streaks, an anonymity answer — and a referee has none of that and must never appear in a participant count, a leaderboard, «امروز» or `count_non_owner_enrollments`.
+
+- **Named by credential, never by a search.** `POST /challenges/{id}/referees` takes a mobile or an exact email through the same `normalize_mobile` the group's member-add uses. A search box here would hand every act's owner a way to walk the membership; an unknown credential is an honest **404**.
+- **`invited` holds no power at all.** Only `active` may rule. Being made accountable for somebody else's promise without being asked is precisely what the notification feed exists to prevent.
+- **Declining and being removed are states.** The row is the only record that somebody was asked, and a referee taken off after ruling on evidence is what an argument later turns on. Re-inviting flips the *same* row; the unique constraint makes that one row rather than a pile. A verdict already written **survives** the removal — it is stored, the same trade `Enrollment.is_anonymous` makes.
+- **`Perm.CHALLENGE_MANAGE_REFEREES` is the owner's and not an admin grant** — the line `CHALLENGE_EDIT` already draws: staffing an act is authorship, not moderation.
+- **`referee_scope_filter` is a fifth `OR` leg on `challenge_visibility_filter`**, for `roadmap_scope_filter`'s reason: a group *narrows* what somebody may see, being asked to vouch *widens* it, for one person by one act. Without it an invitation is a notification about a 404. An `invited` row is enough — deciding whether to accept means reading what you would be vouching for. It is off `listing_visibility_filter`.
+
+**Nobody rules on their own report.** Enforced once, at `load_reviewable`, not by a constraint — the same person legitimately holds both rows, which is what a pact *is*. Own rows are excluded from the queue in SQL rather than filtered afterwards, or a scroller's `offset` would skip a report. The gate fails in the 404-then-403 order: not a referee → **404** (check-in ids are sequential); your own report → **403** (you can already see it, and being told plainly is the only way a pact reads); already settled → **409** (a second ruling is two referees disagreeing after the fact, not a correction).
+
+**There is no `PATCH` on a verdict.** What unblocks a genuine mistake is the doer *amending* their report, which re-opens the question by itself — otherwise a doer would have any claim approved by submitting an acceptable one first and editing it afterwards. A rejection **must** carry a reason (`VerdictWrite`'s model validator — a *model* validator, because a field one does not run when the key is absent); an approval needs none, because nothing follows from it.
+
+#### The log: append-only is enforced by what does not exist
+
+`ActEvent` is the one model in the app that is **not** an `AuditBase` subclass, and the omission is the point: with no `updated_at` and no `last_modifier_user_id`, an edit is not expressible in the schema. There is one writer (`actlog.record`, which adds and never commits — `notify`'s rule) and no route that reaches a row. That is weaker than an append-only store and stronger than a comment, and the module says which: a Postgres role with UPDATE can still change a row, and the answer to *that* is a grant, not application code.
+
+`checkin_id` is a plain `Integer` and deliberately **not** a foreign key — the line has to outlive the report it is about, which an FK and the cascade every other child of `Challenges` carries would destroy. It stores the event and never the sentence (`ACT_EVENT_META`), and `fetch_log` reads **oldest first**, because the order events happened in is the thing it exists to preserve.
+
+#### «نمرهٔ تعهد» — derived, never stored
+
+Two grouped counts off `CheckIns`. The denominator is **settled** reports — completed-and-decided, or skipped — so a slow referee never drags somebody's number down and a skip counts against them. What is honestly *not* in it is an occurrence nobody ever recorded: deriving every expected occurrence per enrollment per page render is the cadence engine's whole cost, and «روند فعالیت» on the home dashboard already shows the silence, as gaps.
+
+The breakdown is `proof_level(proof_kind, review_mode)` → `self` | `photo` | `referee`, because a 100% is only worth knowing *under what standard*. **Referee is the top level whatever the proof kind is**: a human who said yes is a stronger claim than a file nobody opened — so a new proof kind adds a level only if it changes *who is convinced*. Only the levels a member has actually used are drawn, and somebody with no history gets no score rather than a 0٪ (the call `avatar_url(None)` makes).
+
+#### The screens
+
+`/views/verifications/` (+ `/fragment`) is the referee's **cross-act** queue — a page because the question spans acts, and a queue nobody can see in one place is one that silently stops being worked. Pending invitations are rendered whole above it and only the queue pages (two paged lists on one URL is what `/views/groups/{id}` refuses). The way in is a `.lb-entry` on «فضای من», rendered **only when something is waiting**: a referee's queue is not a *place*, it is a thing that is sometimes true — so it is not a sixth nav tab.
+
+`/views/challenges/{id}/dashboard` (+ `/fragment`) is the owner's read of a cohort, **404** to anybody without `CHALLENGE_MANAGE_REFEREES`. SSR-only with no JSON twin, the admin participant roster's call. It is deliberately **not** a ranking: ordered «behind first», because a cohort somebody is responsible for is chased rather than scored. `fetch_act_dashboard` is three queries whatever the page size — the enrollments, their check-ins, and then the pure occurrence engine in Python — and "is this person behind" is the engine's own answer, never a date comparison. It **widens nothing**: rows go through `participant_display`, so an anonymous participant keeps their figures and loses their name here too, and an owner who needs names sets `identity_mode` to `named` at creation, which is a term the participants can read.
+
+On challenge-detail: the two axes are facts in the «جزئیات» grid (they are *terms*, and somebody deciding whether to join has to read them before tapping), the referee list is a `<div>` roster that links to nobody, and the log is a `<details>` — evidence, present and checkable, not in the way. The check-in sheet grows `createSheet`'s `type: "proof"` field, which is deliberately **not** `type: "image"` with another frame: no gallery, no cropper (a proof is not framed by its author), and it holds an **asset id** rather than a media key.
+
+`/views/challenges/{id}/manage` grows one section for both axes plus the referee roster; the create wizard grows two pill grids beside «هویت اعضا» rather than a fourth step, because «چه کسی می‌بیند» / «هویت اعضا» / «مدرک هر وعده» / «تأیید گزارش‌ها» are four answers to one question. Both axes stay **editable after creation**, unlike `cadence`/`goal_*`/`identity_mode`: they change what happens *next*, never what a report that already settled was measured against.
+
+**Colour gains no channel.** Status keeps `--st-*`, category `--cat-*`, the heart `--mohr`, rank `--gold`. What this adds reads off those: the accent for «this one is live» (an active referee, the score's bar) and `--gold` for «not finished yet» (a waiting report, a member behind). Every state is spelled out in words too, the rule the status pill follows.
+
+#### Where it grows
+
+A **co-author** on an act is a row in `CHALLENGE_GRANTS` — which is why `CHALLENGE_MANAGE_REFEREES` is its own name rather than a reuse of `CHALLENGE_EDIT`. A **device-attested** proof, GPS or a webhook is a member in `ProofUnion` plus a branch in `proof_satisfied`. A **second reviewer** («two of three must agree») is a count on the challenge and one predicate in `load_reviewable`. What this design deliberately does *not* invite is an appeals process or an arbitration ladder: the amendment path already re-opens a wrong call, and everything beyond it is a product decision rather than a missing table.
+
 ### Reactions — the subject is a value, not a table
 
 A like is a row in **`Reactions`** (`app/models/reaction.py`): `user_id` + `subject_type` + `subject_id` + `kind`, unique on all four. Not a `challenge_likes` table — the next thing worth liking (a check-in, a group) is a new `ReactionSubject` member and nothing else. `kind` is the second axis for the same reason: a reaction table whose only kind is baked into its name gets copied the first time somebody wants a second one. Both are plain `String`, like every other enum-shaped column, so SQLite can hold them.
@@ -601,7 +689,7 @@ A comment is a row in **`Comments`** (`app/models/comment.py`): `user_id` + `sub
 
 **Reading a page is three queries**: the roots (newest-first, `newest_first(Comment)`, `limit + 1` to answer «is there more»), then all their replies in one `parent_id IN (...)` query, oldest-first — a conversation reads forwards, the same exception the group request queue takes. There is **no counter column**: the badge is `count_for`, read live off `ix_comments_subject`, like every other count in this app. Everything past `REPLY_PREVIEW` is *rendered and hidden*, so «پاسخ‌های بیشتر» is a class toggle rather than a paged list inside a paged list.
 
-**Deleting a root takes its thread**, through one explicit `DELETE ... WHERE parent_id = ...` in `delete_comment` — not an ORM cascade and not `ON DELETE CASCADE`, because every environment here is SQLite, which enforces foreign keys only with `PRAGMA foreign_keys` on: a database-level cascade would work on Postgres and silently orphan every reply everywhere else. Somebody else's comment is a **404** on delete, for the reason a check-in is.
+**Deleting a root takes its thread**, through one explicit `DELETE ... WHERE parent_id = ...` in `delete_comment` — not an ORM cascade and not `ON DELETE CASCADE`, because the test suite runs on SQLite, which enforces foreign keys only with `PRAGMA foreign_keys` on: a database-level cascade would work on Postgres (every real environment) and silently orphan every reply in the tests, hiding the bug the tests exist to catch. Somebody else's comment is a **404** on delete, for the reason a check-in is.
 
 **Content is text, a sticker, or both — never neither.** Both rules live in `schemas/comment.py`, the one write boundary. `Comments.sticker` holds an id from `app/stickers.py` (ids in, characters out through `sticker_char`, registered onto a views env like every other filter; an unknown id renders as `FALLBACK_STICKER` rather than raising) — the shape the composer wrote while an emoji was a *thing you attached*. The column, its validator and its rendering all stay, because rows written that way still have to read; nothing new writes one.
 
