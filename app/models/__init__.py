@@ -1,4 +1,11 @@
 # app/models/__init__.py
+from app.models.act import (
+    ActEvent,
+    ActEventKind,
+    ChallengeReferee,
+    ProofAsset,
+    RefereeState,
+)
 from app.models.audit_base import AuditBase
 from app.models.challenge import Challenge
 from app.models.checkin import CheckIn
@@ -30,8 +37,11 @@ from app.models.stats import ChallengeStats
 from app.models.user import User
 
 __all__ = [
+    "ActEvent",
+    "ActEventKind",
     "AuditBase",
     "Challenge",
+    "ChallengeReferee",
     "ChallengeStats",
     "CheckIn",
     "Comment",
@@ -47,10 +57,12 @@ __all__ = [
     "Notification",
     "NotificationKind",
     "OtpCode",
+    "ProofAsset",
     "PushSubscription",
     "Reaction",
     "ReactionKind",
     "ReactionSubject",
+    "RefereeState",
     "Roadmap",
     "RoadmapEnrollment",
     "RoadmapEnrollmentStatus",

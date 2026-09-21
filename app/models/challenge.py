@@ -114,6 +114,48 @@ class CadenceKind(str, enum.Enum):
     RECURRING_QUOTA = "recurring_quota"
 
 
+class ProofKind(str, enum.Enum):
+    """What a check-in on this act must *carry* -- the evidence axis.
+
+    The discriminator of ``Challenge.proof``, exactly as
+    :class:`CadenceKind` is the discriminator of ``Challenge.cadence``, and
+    for exactly that reason: the shapes carry different fields (a photo has
+    a liveness rule, a future GPS proof would have a radius and a point), so
+    they are a discriminated union in one JSON column rather than a widening
+    row of mostly-NULL columns.
+
+    Adding a kind is a member here, a member in ``app/schemas/proof.py``, and
+    a branch in ``app.proof.proof_satisfied``. Nothing else in the app
+    branches on it, which is the whole point of the union.
+
+    ``SELF`` is the default and is every challenge that existed before this:
+    you say you did it, and that is the evidence.
+    """
+
+    #: Self-report. The word of the person who made the promise.
+    SELF = "self"
+    #: A photograph taken now. See `app/proof.py` on what "now" can mean.
+    PHOTO = "photo"
+
+
+class ReviewMode(str, enum.Enum):
+    """Who closes the loop on a report -- the outcome axis.
+
+    Deliberately *not* folded into :class:`ProofKind` as a third value. A
+    photograph reviewed by a referee is a real and obvious combination, and
+    one enum with «خوداظهاری / عکس / تأیید ناظر» in it cannot express it.
+    Two small columns multiply; one column with three values does not.
+
+    ``AUTO`` is the default and is every challenge that existed before this:
+    a report is final the moment it is made.
+    """
+
+    #: The report stands on its own. `verdict` is written `auto`.
+    AUTO = "auto"
+    #: An active referee has to approve it. `verdict` starts `pending`.
+    REFEREE = "referee"
+
+
 class Challenge(AuditBase):
     __tablename__ = "Challenges"
 
@@ -143,6 +185,37 @@ class Challenge(AuditBase):
 
     cadence_kind = Column(String(32), nullable=False, default=CadenceKind.ONCE.value)
     cadence = Column(JSONVariant, nullable=False, default=dict)
+
+    # --- the act's two other axes -------------------------------------
+    #
+    # `proof_kind` + `proof` are the same pair `cadence_kind` + `cadence` is,
+    # written the same way on purpose: the string is the SQL-queryable
+    # discriminator (a card paints a «عکس» badge without parsing JSON per
+    # row, and a filter can reach it) and the JSON carries whatever that kind
+    # needs. See `ProofKind` and `app/schemas/proof.py`.
+    #
+    # `proof` is **nullable** where `cadence` is not, and that is what makes
+    # the migration trivial: NULL means "whatever `proof_kind` says, with its
+    # defaults", which is exactly right for every row written before this
+    # column existed. `app.proof.parse_proof` is the one place that is read.
+    proof_kind = Column(
+        String(16),
+        nullable=False,
+        default=ProofKind.SELF.value,
+        server_default=ProofKind.SELF.value,
+    )
+    proof = Column(JSONVariant, nullable=True)
+    # Who closes the loop -- see `ReviewMode`. Not locked by
+    # `count_non_owner_enrollments`: unlike `cadence` and `identity_mode`,
+    # turning review on or off changes what happens *next*, never what a
+    # report that already stands means. Reports settled under the old mode
+    # keep their verdict, because the verdict is stored.
+    review_mode = Column(
+        String(16),
+        nullable=False,
+        default=ReviewMode.AUTO.value,
+        server_default=ReviewMode.AUTO.value,
+    )
     visibility = Column(String(16), nullable=False, default=Visibility.PUBLIC.value)
     # Who the participants are to each other -- see `IdentityMode`. Default
     # `named`, so every row written before this column existed, and every
@@ -220,4 +293,16 @@ class Challenge(AuditBase):
     # notification is only meaningful while its subject is, so it goes with it.
     notifications = relationship(
         "Notification", back_populates="challenge", cascade="all, delete-orphan"
+    )
+    # The act's referees, and its log. Cascaded for the reason the three
+    # above are -- both carry a NOT NULL `challenge_id`, so without this
+    # every delete of a challenge that ever had either is a 500. Deleting a
+    # challenge is only possible while nobody else has joined
+    # (`count_non_owner_enrollments`), so no cascade here ever destroys a
+    # record of what somebody else did.
+    referees = relationship(
+        "ChallengeReferee", back_populates="challenge", cascade="all, delete-orphan"
+    )
+    events = relationship(
+        "ActEvent", back_populates="challenge", cascade="all, delete-orphan"
     )
