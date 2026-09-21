@@ -28,9 +28,11 @@ from app.routers import (
     push,
     pwa,
     reaction,
+    referee,
     roadmap,
     today,
     user,
+    verification,
 )
 from app.routers.views import admin as admin_views
 from app.routers.views import auth as auth_views
@@ -43,6 +45,7 @@ from app.routers.views import settings as settings_views
 from app.routers.views import space as space_views
 from app.routers.views import today as today_views
 from app.routers.views import user as user_views
+from app.routers.views import verification as verification_views
 from app.version import __version__
 
 # Before anything else can log. Handlers installed after the first record is
@@ -190,6 +193,12 @@ app.include_router(roadmap.router)
 # the roadmap's id, which is the whole reason a code exists.
 app.include_router(roadmap.invite_router)
 app.include_router(today.router)
+# The act layer: who vouches for an act, and the loop they close.
+# `referee.router` shares the /challenges prefix with the challenge router
+# on purpose -- these routes *are* about one challenge, and a second prefix
+# would say they were about something else.
+app.include_router(referee.router)
+app.include_router(verification.router)
 app.include_router(media.router)
 # The manifest and the service worker, both at addresses the /static mount
 # cannot serve: one needs a media type Python does not know, the other needs
@@ -214,6 +223,9 @@ app.include_router(settings_views.router)
 app.include_router(space_views.router)
 app.include_router(today_views.router)
 app.include_router(user_views.router)
+# «تأییدها» -- the referee's cross-act queue. Not a bottom-nav tab: the way
+# in is a row on «فضای من», rendered only when something is waiting.
+app.include_router(verification_views.router)
 app.mount("/static", RevalidatedStaticFiles(directory=BASE_DIR / "static"), name="static")
 app.mount("/media", ImmutableStaticFiles(directory=MEDIA_ROOT), name="media")
 # Uncommenting the line below also requires re-adding `import debugpy` above.

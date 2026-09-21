@@ -57,6 +57,7 @@ from sqlalchemy import func, or_, select, union
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.actlog import record
 from app.identity import resolve_assigned_anonymity
 
 # An invite link means the same thing here and on a roadmap -- an unguessable
@@ -75,6 +76,7 @@ from app.invites import (  # noqa: F401  -- re-exported, see above
     new_invite_code,
     register_invite_filters,
 )
+from app.models.act import ActEventKind
 from app.models.challenge import (
     Challenge,
     GroupAudience,
@@ -443,6 +445,19 @@ async def assign_participants(
         )
     else:
         stats.participant_count = (stats.participant_count or 0) + len(created)
+
+    # The act's own log, one line per person actually put in. Here rather
+    # than at the two callers, for the reason the notification is here: this
+    # is the single place a participant is added to a group challenge, and a
+    # line written at the call sites is a line one of them forgets.
+    for user_id in fresh:
+        record(
+            db,
+            challenge_id=challenge.id,
+            kind=ActEventKind.DOER_ASSIGNED,
+            actor_user_id=actor_user_id,
+            subject_user_id=user_id,
+        )
 
     if notify:
         await notify_many(

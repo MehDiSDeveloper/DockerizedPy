@@ -107,6 +107,13 @@ SHAPES: dict[str, ImageShape] = {
     # and «تصویر مربعی چالش» over a roadmap's picker is the app telling them
     # they are somewhere they are not.
     "roadmap_square": ImageShape("roadmap_square", 1080, 1080),
+    # Evidence, not decoration. Free-form aspect (the cropper is not shown
+    # for one -- a photograph of a thing that happened is not something a
+    # member should be asked to frame), so the ceiling is a square box both
+    # orientations fit inside. Larger than an avatar and smaller than a
+    # banner: a referee has to be able to *see* what is in it, and a queue of
+    # forty of them has to load.
+    "proof": ImageShape("proof", 1280, 1280, quality=82),
 }
 
 
@@ -133,12 +140,15 @@ class ImageRejected(Exception):
     """The bytes are not an image this app will store. Message is user-facing."""
 
 
-def store_image(raw: bytes, shape_key: str) -> str:
-    """Re-encode ``raw`` into MEDIA_ROOT and answer its key.
+def encode_image(raw: bytes, shape_key: str) -> bytes:
+    """The re-encoded bytes this app would store for ``raw``.
 
-    Everything about the original is discarded except its pixels: metadata,
-    format, colour profile and any orientation flag (applied first, so a
-    photo taken sideways is stored the way it was seen).
+    Split out of :func:`store_image` for one caller: a proof upload has to
+    fingerprint exactly what was *written* (``app/proof.py``), and reading
+    the file back to hash it would be answering the question with a second
+    source of truth. Everything about the original is discarded except its
+    pixels: metadata, format, colour profile and any orientation flag
+    (applied first, so a photo taken sideways is stored the way it was seen).
     """
     shape = SHAPES[shape_key]
     try:
@@ -160,13 +170,22 @@ def store_image(raw: bytes, shape_key: str) -> str:
     except Exception as exc:  # Pillow raises a dozen unrelated types
         raise ImageRejected("فایل انتخاب‌شده یک تصویر معتبر نیست.") from exc
 
-    payload = buf.getvalue()
+    return buf.getvalue()
+
+
+def write_image(payload: bytes, shape_key: str) -> str:
+    """Put already-encoded bytes on the disk and answer their key."""
     key = f"{secrets.token_hex(12)}.webp"
     path = _path_for(key)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(payload)
-    log_event(logger, "media.stored", shape=shape.key, key=key, bytes=len(payload))
+    log_event(logger, "media.stored", shape=shape_key, key=key, bytes=len(payload))
     return key
+
+
+def store_image(raw: bytes, shape_key: str) -> str:
+    """Re-encode ``raw`` into MEDIA_ROOT and answer its key."""
+    return write_image(encode_image(raw, shape_key), shape_key)
 
 
 def discard(value: str | None) -> None:

@@ -1,16 +1,19 @@
 import logging
 from datetime import UTC, date, datetime
+from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.actlog import record
 from app.auth import get_current_user_id
 from app.database import get_db
 from app.groups import is_group_member, leaving_is_allowed
-from app.identity import asks_the_joiner, resolve_anonymity
+from app.identity import asks_the_joiner, participant_display, resolve_anonymity
 from app.logging_config import log_event
+from app.models.act import ActEventKind
 from app.models.audit_base import newest_first
 from app.models.challenge import Challenge
 from app.models.checkin import CheckIn
@@ -19,7 +22,12 @@ from app.models.notification import NotificationKind
 from app.models.stats import ChallengeStats
 from app.models.user import User
 from app.notifications import membership_is_announced, notify
-from app.occurrences import derive_state, expected_keys_desc, local_today
+from app.occurrences import (
+    derive_state,
+    expected_keys_desc,
+    local_today,
+    occurrences_due,
+)
 from app.routers.challenge import challenge_visibility_filter, resolve_timezone
 from app.routers.checkin import occurrence_local_date, parse_cadence
 from app.routers.user import DEFAULT_MEMBER_PAGE_SIZE, apply_member_filters
@@ -31,6 +39,7 @@ from app.schemas.enrollment import (
     EnrollmentRead,
     EnrollmentUpdate,
 )
+from app.verification import checkin_outcome, counted_clause
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +96,139 @@ async def fetch_participant_page(
 
 
 # ---------------------------------------------------------------------------
+# The assignment dashboard
+# ---------------------------------------------------------------------------
+#
+# «چه کسی انجام داده، چه کسی عقب است» -- the one screen an owner who handed an
+# act out to a group actually needs. It is a third question about the same
+# rows `fetch_participant_page` and `fetch_leaderboard_page` answer, and it is
+# deliberately a third query rather than a flag on either:
+#
+#   * the participant roster is an **operator's** read, searchable, linked to
+#     profiles, gated on `USER_LIST` -- and it says nothing about progress;
+#   * the leaderboard is a **ranking**, open to everyone in the act, ordered
+#     by one metric and showing that metric alone;
+#   * this is the **owner's** read: not ranked, not searched, and the only
+#     one of the three that answers "is this person behind *today*".
+#
+# **It widens nothing.** Rows go through `participant_display`, exactly as the
+# leaderboard's do, so an anonymous participant keeps their figures and loses
+# their name here too. An owner who needs names sets `identity_mode` to
+# `named` when they create the act -- which is a term the participants can
+# see -- rather than getting them through a screen the participants cannot.
+
+DEFAULT_DASHBOARD_PAGE_SIZE = 25
+MAX_DASHBOARD_PAGE_SIZE = 100
+
+
+async def fetch_act_dashboard(
+    db: AsyncSession,
+    *,
+    challenge: Challenge,
+    viewer_id: int | None,
+    now_utc: datetime,
+    offset: int = 0,
+    limit: int = DEFAULT_DASHBOARD_PAGE_SIZE,
+) -> tuple[list[dict], bool]:
+    """One page of "how is each doer doing", plus whether more remain.
+
+    Three queries whatever the page size: the enrollments, every check-in
+    those enrollments hold, and nothing else. The per-person figures and the
+    "is today's occurrence still open" answer are then computed in Python off
+    `app/occurrences.py`, which is pure -- so a group of forty costs one
+    indexed read of their rows and no query per person.
+
+    Ordered **behind first**: an enrollment that has never reported comes
+    before one that reported today, because the whole reason to open this
+    screen is to find the people who need a nudge. `newest_first` is the
+    tie-break, so the ordering is still stable across a page boundary.
+    """
+    stmt = (
+        select(Enrollment)
+        .where(Enrollment.challenge_id == challenge.id)
+        .options(selectinload(Enrollment.user))
+        .order_by(*newest_first(Enrollment))
+        .offset(offset)
+        .limit(limit + 1)
+    )
+    enrollments = list((await db.execute(stmt)).scalars().all())
+    has_more = len(enrollments) > limit
+    enrollments = enrollments[:limit]
+    if not enrollments:
+        return [], False
+
+    ids = [e.id for e in enrollments]
+    rows = (
+        await db.execute(
+            select(
+                CheckIn.enrollment_id,
+                CheckIn.occurrence_key,
+                CheckIn.state,
+                CheckIn.verdict,
+            ).where(CheckIn.enrollment_id.in_(ids))
+        )
+    ).all()
+
+    cadence = parse_cadence(challenge)
+    tally: dict[int, dict] = {
+        eid: {"kept": 0, "pending": 0, "failed": 0, "skipped": 0, "keys": set(), "periods": {}}
+        for eid in ids
+    }
+    for enrollment_id, key, state, verdict in rows:
+        bucket = tally[enrollment_id]
+        bucket["keys"].add(key)
+        outcome = checkin_outcome(
+            SimpleNamespace(state=state, verdict=verdict)
+        )
+        bucket[
+            {"success": "kept", "pending": "pending", "failed": "failed"}.get(
+                outcome, "skipped"
+            )
+        ] += 1
+        if outcome == "success" and "#" in key:
+            pkey = key.split("#", 1)[0]
+            bucket["periods"][pkey] = bucket["periods"].get(pkey, 0) + 1
+
+    out: list[dict] = []
+    for enrollment in enrollments:
+        bucket = tally[enrollment.id]
+        # "Behind" is the occurrence engine's own answer, not a date
+        # comparison: only it knows whether today is an occurrence day for
+        # *this* enrollment's cadence, start date and timezone.
+        due = occurrences_due(
+            cadence,
+            start_date=enrollment.start_date,
+            tz=enrollment.timezone,
+            now_utc=now_utc,
+            existing_keys=bucket["keys"],
+            period_completed_counts=bucket["periods"],
+        )
+        out.append(
+            {
+                **participant_display(enrollment, viewer_id),
+                "enrollment_id": enrollment.id,
+                "user_id": enrollment.user_id,
+                "role": enrollment.role,
+                "kept": bucket["kept"],
+                "pending": bucket["pending"],
+                "failed": bucket["failed"],
+                "skipped": bucket["skipped"],
+                "streak": enrollment.current_streak or 0,
+                "last_local_date": enrollment.last_checkin_local_date,
+                # Something is due right now and has not been recorded.
+                "is_behind": bool(due),
+                "timezone": enrollment.timezone,
+            }
+        )
+
+    # Behind first, then whoever has kept the least -- the order somebody
+    # opening this screen reads in. Stable, because the page it was cut from
+    # was ordered by `newest_first`.
+    out.sort(key=lambda r: (not r["is_behind"], r["kept"]))
+    return out, has_more
+
+
+# ---------------------------------------------------------------------------
 # The leaderboard
 # ---------------------------------------------------------------------------
 #
@@ -128,7 +270,7 @@ def _completions_expr():
         select(func.count(CheckIn.id))
         .where(
             CheckIn.enrollment_id == Enrollment.id,
-            CheckIn.state == COMPLETED_STATE,
+            counted_clause(),
         )
         .correlate(Enrollment)
         .scalar_subquery()
@@ -250,7 +392,7 @@ async def leaderboard_standing(
             await db.execute(
                 select(func.count(CheckIn.id)).where(
                     CheckIn.enrollment_id == enrollment.id,
-                    CheckIn.state == COMPLETED_STATE,
+                    counted_clause(),
                 )
             )
         ).scalar_one()
@@ -404,6 +546,13 @@ async def enroll(
             group_id=group_id,
             anonymous_actor=is_anonymous,
         )
+
+    record(
+        db,
+        challenge_id=challenge_id,
+        kind=ActEventKind.DOER_JOINED,
+        actor_user_id=current_user_id,
+    )
 
     await db.commit()
     await db.refresh(enrollment)
@@ -572,6 +721,13 @@ async def unenroll(
             group_id=challenge.group_id if challenge else None,
             anonymous_actor=was_anonymous,
         )
+
+    record(
+        db,
+        challenge_id=challenge_id,
+        kind=ActEventKind.DOER_LEFT,
+        actor_user_id=current_user_id,
+    )
 
     await db.commit()
     # Paired with `enrollment.joined` on purpose: churn is only visible when

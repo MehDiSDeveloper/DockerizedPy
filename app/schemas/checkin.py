@@ -12,9 +12,31 @@ class CheckInCreate(BaseModel):
     amount: Decimal | None = None
     note: str | None = Field(default=None, max_length=500)
     photo_url: str | None = Field(default=None, max_length=500)
+    #: The evidence, where the act asks for a file. An id from
+    #: ``POST /media/proof`` -- not a key and not a URL, because what the
+    #: router has to check is the *row* (yours, unused, recent), and an id is
+    #: what addresses one. Whether it is required is the act's business, not
+    #: this schema's: ``app.proof.proof_satisfied`` decides, so a new proof
+    #: kind does not change the shape of a request.
+    proof_asset_id: int | None = None
 
 
 class CheckInUpdate(BaseModel):
+    """An amendment to a report already made.
+
+    Deliberately carries no ``proof_asset_id``. Swapping the evidence under a
+    report is not an edit, it is a different report -- and the way to make
+    one is to withdraw this and record again, which both stay open for the
+    same ``BACKFILL_DAYS`` window. It also keeps the single-use rule on a
+    proof asset simple: an asset is claimed once, by the report it was
+    submitted with.
+
+    ``verdict`` is absent for a harder reason: it is not the doer's to write.
+    ``update_my_enrollment``'s blind ``setattr`` is the precedent -- a field
+    on a body that a ``setattr`` loop will apply is a field the policy cannot
+    guard, so the ruling has its own door (``POST /verifications/...``).
+    """
+
     state: Literal["completed", "skipped"] | None = None
     amount: Decimal | None = None
     note: str | None = Field(default=None, max_length=500)
@@ -35,6 +57,14 @@ class CheckInRead(BaseModel):
     unit: str | None = None
     note: str | None = None
     photo_url: str | None = None
+    #: What became of the report -- see ``app/verification.py``. Answered
+    #: structurally, never as a sentence, exactly as ``NotificationRead``
+    #: answers ``kind`` rather than text.
+    verdict: str = "auto"
+    proof_asset_id: int | None = None
+    verdict_by_user_id: int | None = None
+    verdict_at: datetime | None = None
+    verdict_note: str | None = None
     created_at: datetime
     updated_at: datetime | None = None
 

@@ -72,6 +72,7 @@ from app.schemas.completion import (
     ManualRule,
     StreakRule,
 )
+from app.verification import counted_clause
 
 #: What a check-in must be to count towards a step. `skipped` is a real state
 #: a member records, and it is deliberately not progress.
@@ -526,7 +527,11 @@ async def member_facts(
         await db.execute(
             select(CheckIn.enrollment_id, CheckIn.created_at, CheckIn.amount).where(
                 CheckIn.enrollment_id.in_(list(by_enrollment)),
-                CheckIn.state == COMPLETED_STATE,
+                # Not `state == completed` alone: a report still waiting on a
+                # referee has not been kept yet, and one that was turned down
+                # never was. `counted_clause` is the single place that rule
+                # lives (`app/verification.py`).
+                counted_clause(),
             )
         )
     ).all()

@@ -26,6 +26,7 @@ from app.roadmaps import register_roadmap_filters
 from app.routers.challenge import DEFAULT_TIMEZONE, STATUS_FINISHED, status_filter
 from app.routers.today import get_today_items
 from app.routers.views.roadmap import home_roadmap_card
+from app.verification import counted_clause
 
 router = APIRouter(prefix="/views/home", tags=["home-views"])
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
@@ -187,7 +188,7 @@ async def build_dashboard(
         .join(Enrollment, CheckIn.enrollment_id == Enrollment.id)
         .where(
             Enrollment.user_id == user_id,
-            CheckIn.state == "completed",
+            counted_clause(),
             CheckIn.occurrence_local_date >= grid_start,
         )
         .group_by(CheckIn.occurrence_local_date)
@@ -199,7 +200,7 @@ async def build_dashboard(
             select(func.count(CheckIn.id))
             .select_from(CheckIn)
             .join(Enrollment, CheckIn.enrollment_id == Enrollment.id)
-            .where(Enrollment.user_id == user_id, CheckIn.state == "completed")
+            .where(Enrollment.user_id == user_id, counted_clause())
         )
     ).scalar_one()
 
@@ -210,7 +211,7 @@ async def build_dashboard(
         .join(Challenge, CheckIn.challenge_id == Challenge.id)
         .where(
             Enrollment.user_id == user_id,
-            CheckIn.state == "completed",
+            counted_clause(),
             CheckIn.occurrence_local_date > today - timedelta(days=FOCUS_WINDOW_DAYS),
         )
         .group_by(Challenge.category)

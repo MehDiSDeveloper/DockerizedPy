@@ -11,14 +11,20 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.actlog import record
 from app.auth import get_current_user_id
 from app.database import get_db
 from app.logging_config import log_event
+from app.models.act import ActEventKind
 from app.models.challenge import Challenge
 from app.models.checkin import CheckIn
 from app.models.enrollment import Enrollment
+from app.models.notification import NotificationKind
 from app.models.stats import ChallengeStats
+from app.notifications import notify_many
 from app.occurrences import compute_streaks, is_key_writable, local_today
+from app.proof import ProofRejected, claim_proof_asset, proof_satisfied
+from app.referees import active_referee_ids
 from app.roadmaps import advance_after_checkin
 from app.schemas.cadence import (
     CadenceUnion,
@@ -28,6 +34,13 @@ from app.schemas.cadence import (
     ScheduleCadence,
 )
 from app.schemas.checkin import CheckInCreate, CheckInRead, CheckInUpdate
+from app.verification import (
+    DONE_STATE,
+    VERDICT_PENDING,
+    counted_clause,
+    counts,
+    verdict_for_report,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +129,7 @@ async def _load_completed_state(
 ) -> tuple[set[str], dict[str, int]]:
     result = await db.execute(
         select(CheckIn.occurrence_key).where(
-            CheckIn.enrollment_id == enrollment_id, CheckIn.state == "completed"
+            CheckIn.enrollment_id == enrollment_id, counted_clause()
         )
     )
     keys = [row[0] for row in result.all()]
@@ -173,6 +186,7 @@ async def _insert_checkin(
     payload: CheckInCreate,
     now_utc: datetime,
     current_user_id: int,
+    proof_asset_id: int | None = None,
 ) -> CheckIn | None:
     checkin = CheckIn(
         enrollment_id=enrollment.id,
@@ -188,6 +202,11 @@ async def _insert_checkin(
         unit=challenge.goal_unit,
         note=payload.note,
         photo_url=payload.photo_url,
+        # What becomes of this report -- `pending` only where the act asks
+        # for a referee, `auto` everywhere else, which is every act that
+        # existed before this. One function, `app/verification.py`.
+        verdict=verdict_for_report(challenge, payload.state),
+        proof_asset_id=proof_asset_id,
         last_modifier_user_id=current_user_id,
     )
     db.add(checkin)
@@ -226,7 +245,7 @@ async def _apply_streaks_and_stats(
 
     last_date_result = await db.execute(
         select(func.max(CheckIn.occurrence_local_date)).where(
-            CheckIn.enrollment_id == enrollment.id, CheckIn.state == "completed"
+            CheckIn.enrollment_id == enrollment.id, counted_clause()
         )
     )
     enrollment.last_checkin_local_date = last_date_result.scalar_one_or_none()
@@ -263,6 +282,28 @@ async def create_checkin(
             status_code=422, detail="amount is required for this challenge"
         )
 
+    # The evidence, before anything is written. A *skip* carries none and is
+    # asked for none: there is nothing to prove in saying you did not do it,
+    # and demanding a photograph of an absence is the kind of rule that
+    # teaches people to lie.
+    proof_asset_id: int | None = None
+    if payload.state == DONE_STATE:
+        if payload.proof_asset_id is not None:
+            try:
+                asset = await claim_proof_asset(
+                    db,
+                    asset_id=payload.proof_asset_id,
+                    user_id=current_user_id,
+                    now_utc=now_utc,
+                )
+            except ProofRejected as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            proof_asset_id = asset.id
+        if not proof_satisfied(challenge, has_asset=proof_asset_id is not None):
+            raise HTTPException(
+                status_code=422, detail="این تعهد برای هر وعده عکس لازم دارد."
+            )
+
     key = payload.occurrence_key
     checkin = await _insert_checkin(
         db,
@@ -273,6 +314,7 @@ async def create_checkin(
         payload=payload,
         now_utc=now_utc,
         current_user_id=current_user_id,
+        proof_asset_id=proof_asset_id,
     )
 
     if checkin is None and isinstance(cadence, RecurringQuotaCadence):
@@ -305,6 +347,7 @@ async def create_checkin(
                 payload=payload,
                 now_utc=now_utc,
                 current_user_id=current_user_id,
+                proof_asset_id=proof_asset_id,
             )
             if checkin is not None:
                 key = retry_key
@@ -321,12 +364,40 @@ async def create_checkin(
     )
 
     stats = await _get_or_create_stats(db, challenge.id)
-    if checkin.state == "completed":
+    # `counts`, not `state == completed`: a report waiting on a referee has
+    # not been kept yet. The counters are monotonic, so the approval is what
+    # moves them (`routers/verification.py`) -- and a rejection never does.
+    if counts(checkin):
         stats.total_completions = (stats.total_completions or 0) + 1
         if checkin.amount is not None:
             stats.total_amount = (stats.total_amount or 0) + checkin.amount
     stats.last_checkin_at = now_utc
     stats.updated_at = now_utc
+
+    # The log, and the referees. Both land in this transaction, so a report
+    # that rolls back leaves neither a line saying it happened nor a queue
+    # entry for a row that is not there.
+    record(
+        db,
+        challenge_id=challenge.id,
+        kind=ActEventKind.CHECKIN_REPORTED,
+        actor_user_id=current_user_id,
+        checkin_id=checkin.id,
+        occurrence_key=key,
+        state=checkin.state,
+        verdict=checkin.verdict,
+        has_proof=proof_asset_id is not None,
+    )
+    if checkin.verdict == VERDICT_PENDING:
+        await notify_many(
+            db,
+            user_ids=await active_referee_ids(
+                db, challenge.id, excluding=current_user_id
+            ),
+            kind=NotificationKind.CHECKIN_AWAITING_REVIEW,
+            actor_user_id=current_user_id,
+            challenge_id=challenge.id,
+        )
 
     # A check-in is the event that can open the next step of a roadmap -- see
     # `advance_after_checkin`. One indexed query for a member with no
@@ -386,6 +457,7 @@ async def update_checkin(
 
     old_state = checkin.state
     old_amount = checkin.amount
+    old_counted = counts(checkin)
 
     for field, value in update.model_dump(exclude_unset=True).items():
         setattr(checkin, field, value)
@@ -399,6 +471,29 @@ async def update_checkin(
             status_code=422, detail="amount is required for this challenge"
         )
 
+    # **An amended report goes back to the referee.** A verdict is about the
+    # report that was ruled on; editing the report afterwards and keeping the
+    # approval would let a doer have any claim approved by submitting an
+    # acceptable one first. So any edit on a reviewed act re-opens the
+    # question -- and the queue is what tells the referee, so nothing is
+    # silently accepted.
+    reopened = False
+    if checkin.state == DONE_STATE:
+        fresh_verdict = verdict_for_report(challenge, checkin.state)
+        if fresh_verdict == VERDICT_PENDING and checkin.verdict != VERDICT_PENDING:
+            reopened = True
+        if fresh_verdict != checkin.verdict:
+            checkin.verdict = fresh_verdict
+            checkin.verdict_by_user_id = None
+            checkin.verdict_at = None
+            checkin.verdict_note = None
+    else:
+        # A skip is settled by definition -- see `verdict_for_report`.
+        checkin.verdict = verdict_for_report(challenge, checkin.state)
+        checkin.verdict_by_user_id = None
+        checkin.verdict_at = None
+        checkin.verdict_note = None
+
     checkin.updated_at = now_utc
     checkin.last_modifier_user_id = current_user_id
     await db.flush()
@@ -407,11 +502,13 @@ async def update_checkin(
         db, enrollment=enrollment, challenge=challenge, cadence=cadence, now_utc=now_utc
     )
 
-    delta_completions = (1 if checkin.state == "completed" else 0) - (
-        1 if old_state == "completed" else 0
-    )
-    new_amount = (checkin.amount if checkin.state == "completed" else None) or Decimal(0)
-    prev_amount = (old_amount if old_state == "completed" else None) or Decimal(0)
+    # The counters follow `counts()`, not `state`: an amendment that put a
+    # report back in front of a referee takes its completion off the board
+    # until the referee says yes again.
+    new_counted = counts(checkin)
+    delta_completions = (1 if new_counted else 0) - (1 if old_counted else 0)
+    new_amount = (checkin.amount if new_counted else None) or Decimal(0)
+    prev_amount = (old_amount if old_counted else None) or Decimal(0)
     delta_amount = new_amount - prev_amount
     stats = await _get_or_create_stats(db, challenge.id)
     stats.total_completions = (stats.total_completions or 0) + delta_completions
@@ -429,8 +526,37 @@ async def update_checkin(
         timezone=enrollment.timezone,
     )
 
+    record(
+        db,
+        challenge_id=challenge.id,
+        kind=ActEventKind.CHECKIN_AMENDED,
+        actor_user_id=current_user_id,
+        checkin_id=checkin.id,
+        occurrence_key=checkin.occurrence_key,
+        from_state=old_state,
+        state=checkin.state,
+        verdict=checkin.verdict,
+    )
+    if reopened:
+        await notify_many(
+            db,
+            user_ids=await active_referee_ids(
+                db, challenge.id, excluding=current_user_id
+            ),
+            kind=NotificationKind.CHECKIN_AWAITING_REVIEW,
+            actor_user_id=current_user_id,
+            challenge_id=challenge.id,
+        )
+
     await db.commit()
-    log_event(logger, "checkin.deleted", checkin_id=checkin_id, challenge_id=challenge.id)
+    log_event(
+        logger,
+        "checkin.updated",
+        checkin_id=checkin_id,
+        challenge_id=challenge.id,
+        state=checkin.state,
+        verdict=checkin.verdict,
+    )
     await db.refresh(checkin)
     return checkin
 
@@ -466,8 +592,23 @@ async def delete_checkin(
     ):
         raise HTTPException(status_code=403, detail="Backfill window has closed")
 
-    delta_completions = -1 if checkin.state == "completed" else 0
-    delta_amount = -(checkin.amount or 0) if checkin.state == "completed" else 0
+    was_counted = counts(checkin)
+    delta_completions = -1 if was_counted else 0
+    delta_amount = -(checkin.amount or 0) if was_counted else 0
+
+    # Logged *before* the row goes: `ActEvent.checkin_id` is deliberately not
+    # a foreign key, so the line outlives the report it is about -- which is
+    # the whole point of withdrawing being a thing the log records.
+    record(
+        db,
+        challenge_id=challenge.id,
+        kind=ActEventKind.CHECKIN_WITHDRAWN,
+        actor_user_id=current_user_id,
+        checkin_id=checkin.id,
+        occurrence_key=checkin.occurrence_key,
+        state=checkin.state,
+        verdict=checkin.verdict,
+    )
 
     await db.delete(checkin)
     await db.flush()

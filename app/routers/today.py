@@ -14,6 +14,7 @@ from app.models.enrollment import Enrollment, EnrollmentStatus
 from app.occurrences import occurrences_due
 from app.routers.checkin import parse_cadence
 from app.schemas.checkin import TodayItem
+from app.verification import COUNTED_VERDICTS, DONE_STATE, VERDICT_AUTO
 
 router = APIRouter(prefix="/today", tags=["today"])
 
@@ -31,14 +32,23 @@ async def _load_existing_state(
         return by_enrollment
 
     result = await db.execute(
-        select(CheckIn.enrollment_id, CheckIn.occurrence_key, CheckIn.state).where(
-            CheckIn.enrollment_id.in_(enrollment_ids)
-        )
+        select(
+            CheckIn.enrollment_id,
+            CheckIn.occurrence_key,
+            CheckIn.state,
+            CheckIn.verdict,
+        ).where(CheckIn.enrollment_id.in_(enrollment_ids))
     )
-    for enrollment_id, key, state in result.all():
+    for enrollment_id, key, state, verdict in result.all():
         keys, period_counts = by_enrollment[enrollment_id]
+        # Every recorded key occupies its seat whatever became of it -- a
+        # report waiting on a referee must not be offered again, and neither
+        # must one that was turned down inside the same period.
         keys.add(key)
-        if state == "completed" and "#" in key:
+        # ...but only a *kept* one counts toward the quota's ring. One
+        # predicate, `app/verification.py`, read here with a bare row rather
+        # than in SQL because the query above already has the columns.
+        if "#" in key and state == DONE_STATE and (verdict or VERDICT_AUTO) in COUNTED_VERDICTS:
             pkey = key.split("#", 1)[0]
             period_counts[pkey] = period_counts.get(pkey, 0) + 1
     return by_enrollment

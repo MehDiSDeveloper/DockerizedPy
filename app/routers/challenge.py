@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import Select, and_, func, not_, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.actlog import record
 from app.auth import get_current_user, get_optional_user_id
 from app.database import get_db
 from app.groups import (
@@ -16,12 +17,14 @@ from app.groups import (
 )
 from app.logging_config import log_event
 from app.media import discard, discard_replaced
+from app.models.act import ActEventKind
 from app.models.audit_base import newest_first
 from app.models.challenge import (
     Challenge,
     ChallengeCategory,
     GroupAudience,
     LifecycleStatus,
+    ReviewMode,
     Visibility,
 )
 from app.models.checkin import CheckIn
@@ -30,9 +33,17 @@ from app.models.group import Group
 from app.models.notification import NotificationKind
 from app.models.stats import ChallengeStats
 from app.models.user import User
-from app.notifications import notify_many
+from app.notifications import notify, notify_many
 from app.occurrences import local_today
 from app.permissions import Perm, can
+from app.referees import (
+    RefereeRefused,
+    invite_referee,
+    referee_row,
+    referee_scope_filter,
+    resolve_member,
+    respond,
+)
 from app.roadmaps import roadmap_scope_filter, skip_steps_for_challenge
 from app.schemas.challenge import ChallengeCreate, ChallengeRead, ChallengeUpdate
 from app.schemas.checkin import ChallengeStatsRead
@@ -87,8 +98,18 @@ def resolve_timezone(tz: str | None) -> str:
 # things to discover, which is exactly what `unlisted` already means here.
 def challenge_visibility_filter(user_id: int | None):
     """A challenge is visible if it's public, unlisted, the requester owns it,
-    is enrolled in it, or is walking a roadmap that has it as a step -- and,
-    if it belongs to a group, only to that group (`group_scope_filter`)."""
+    is enrolled in it, is walking a roadmap that has it as a step, or was
+    asked to referee it -- and, if it belongs to a group, only to that group
+    (`group_scope_filter`).
+
+    The referee leg is the fifth and the newest, and it is a leg of the
+    *disjunction* for `roadmap_scope_filter`'s reason: a group narrows what
+    somebody may see, while being asked to vouch for an act widens it, for
+    one person, by one act. Without it an invitation is a notification about
+    a 404. It is deliberately off `listing_visibility_filter`, where the same
+    argument applies as for a roadmap's private step: reachable at its own
+    URL is not the same as belonging in the app-wide list of things to
+    discover."""
     if user_id is None:
         return and_(
             group_scope_filter(None),
@@ -106,6 +127,7 @@ def challenge_visibility_filter(user_id: int | None):
             Challenge.owner_id == user_id,
             Challenge.id.in_(enrolled_challenge_ids),
             roadmap_scope_filter(user_id),
+            referee_scope_filter(user_id),
         ),
     )
 
@@ -523,10 +545,33 @@ async def create_challenge_record(
     # caller may not create in must not exist even briefly.
     group = await resolve_group_for_create(db, payload.group_id, current_user)
 
-    data = payload.model_dump(exclude={"cadence", "timezone", "member_ids"})
+    # The other half of a pact, resolved *before* anything is written: an act
+    # naming somebody who has no account must not exist even briefly.
+    partner = None
+    if payload.pact_with:
+        try:
+            partner = await resolve_member(db, payload.pact_with)
+        except RefereeRefused as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+        if partner.id == current_user_id:
+            raise HTTPException(
+                status_code=422, detail="یک پیمان به دو نفر نیاز دارد."
+            )
+
+    data = payload.model_dump(
+        exclude={"cadence", "timezone", "member_ids", "proof", "pact_with"}
+    )
     db_challenge = Challenge(**data)
     db_challenge.cadence_kind = payload.cadence.kind
     db_challenge.cadence = payload.cadence.model_dump(mode="json")
+    # The discriminator and the shape are written together, from the same
+    # object, so `proof_kind` can never name a kind the JSON beside it is not.
+    db_challenge.proof_kind = payload.proof.kind
+    db_challenge.proof = payload.proof.model_dump(mode="json")
+    if partner is not None:
+        # A pact whose reports settle themselves is two people keeping
+        # separate diaries -- see `ChallengeCreate.pact_with`.
+        db_challenge.review_mode = ReviewMode.REFEREE.value
     db_challenge.owner_id = current_user_id
     db_challenge.last_modifier_user_id = current_user_id
     db.add(db_challenge)
@@ -561,6 +606,48 @@ async def create_challenge_record(
         member_ids=payload.member_ids,
         actor_user_id=current_user_id,
         timezone=tz,
+    )
+
+    # A pact is two enrollments and two referee rows, written here so the
+    # arrangement either exists whole or not at all. Nothing downstream knows
+    # it is a pact: `app.referees.is_pact` reads the rows back.
+    if partner is not None:
+        await assign_participants(
+            db,
+            challenge=db_challenge,
+            user_ids=[partner.id],
+            actor_user_id=current_user_id,
+            timezone=tz,
+        )
+        for member in (current_user, partner):
+            await invite_referee(
+                db,
+                challenge=db_challenge,
+                user=member,
+                actor_user_id=current_user_id,
+            )
+        # The person who opened it has already agreed -- they are the one who
+        # asked for the pact. The other half is asked, and hears about it.
+        await db.flush()
+        mine = await referee_row(
+            db, challenge_id=db_challenge.id, user_id=current_user_id
+        )
+        respond(mine, accept=True, actor_user_id=current_user_id)
+        await notify(
+            db,
+            user_id=partner.id,
+            kind=NotificationKind.REFEREE_INVITED,
+            actor_user_id=current_user_id,
+            challenge_id=db_challenge.id,
+        )
+
+    record(
+        db,
+        challenge_id=db_challenge.id,
+        kind=ActEventKind.ACT_CREATED,
+        actor_user_id=current_user_id,
+        proof_kind=db_challenge.proof_kind,
+        review_mode=db_challenge.review_mode,
     )
 
     # Logged here rather than in each caller: this function is the single
@@ -807,14 +894,31 @@ async def update_challenge(
 
     cadence_provided = "cadence" in updates
     updates.pop("cadence", None)
+    # `proof` is the same shape as `cadence` and is written the same way: the
+    # union's own `kind` onto the discriminator column, so the two halves are
+    # set from one object and cannot disagree.
+    proof_provided = "proof" in updates
+    updates.pop("proof", None)
     for field, value in updates.items():
         setattr(db_challenge, field, value)
     if cadence_provided:
         db_challenge.cadence_kind = challenge.cadence.kind
         db_challenge.cadence = challenge.cadence.model_dump(mode="json")
+    if proof_provided:
+        db_challenge.proof_kind = challenge.proof.kind
+        db_challenge.proof = challenge.proof.model_dump(mode="json")
 
     db_challenge.updated_at = datetime.now(UTC)
     db_challenge.last_modifier_user_id = current_user_id
+
+    if db_challenge.lifecycle_status != previous_lifecycle:
+        record(
+            db,
+            challenge_id=db_challenge.id,
+            kind=ActEventKind.ACT_LIFECYCLE_CHANGED,
+            actor_user_id=current_user_id,
+            **{"from": previous_lifecycle, "to": db_challenge.lifecycle_status},
+        )
 
     await notify_lifecycle_change(
         db,
