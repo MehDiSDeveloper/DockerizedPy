@@ -1,0 +1,61 @@
+{#- One report per row -- the infinite-scroll fragment for the review queue.
+
+    Included for the first server-rendered page by `verification/index.html`
+    and re-served bare by `GET /views/verifications/fragment` for every page
+    after it, exactly like `notification/_notification_rows.html`. It must
+    therefore stay free of anything but the rows: `createInfiniteScroller()`
+    counts this file's top-level children to advance its offset, so one stray
+    wrapper silently skips somebody's report.
+
+    **The row carries everything a ruling needs and nothing else.** Who,
+    which act, when, the note they wrote and the picture if there is one --
+    because a referee who has to open another screen to decide is a referee
+    who decides later. The name comes from `participant_display` (resolved in
+    `build_queue_rows`), so an anonymous participant is «عضو ناشناس» here
+    too: anonymity is a term of the act, and refereeing is not an exemption
+    from it.
+
+    The two buttons are the whole control. `.accent` on the affirmative half
+    and neutral on the other -- the rule `group/manage.html` follows, so the
+    screen is scannable for actions without reading a word. -#}
+
+{% for r in rows %}
+<article class="setting-row glass vq-row" data-checkin-id="{{ r.id }}">
+  <div class="sr-head">
+    <img class="vq-avatar" src="{{ r.avatar | avatar_url }}" alt="" loading="lazy">
+    <div class="sr-text">
+      <span class="sr-label">{{ r.name }}</span>
+      {#- The act is a link: deciding sometimes means reading the rules. -#}
+      <a class="sr-hint vq-act" href="/views/challenges/{{ r.challenge_id }}">{{ r.challenge_title }}</a>
+    </div>
+    {#- An instant judged in the *enrollment's* own zone, not the viewer's --
+        a referee in another city must not read a time that disagrees with
+        the one the report was scored against. -#}
+    <span class="vq-time" data-jalali="{{ r.occurred_at_utc.isoformat() }}"
+      data-jalali-format="datetime" data-jalali-tz="{{ r.timezone }}">{{ r.occurred_at_utc | jalali('datetime') }}</span>
+  </div>
+
+  {% if r.note %}<p class="vq-note">{{ r.note }}</p>{% endif %}
+
+  {% if r.proof_url %}
+  {#- The evidence, at the size a decision is actually made at. Lazy,
+      because a queue of forty is forty photographs. -#}
+  <a class="vq-proof" href="{{ r.proof_url }}" target="_blank" rel="noopener">
+    <img src="{{ r.proof_url }}" alt="مدرک این گزارش" loading="lazy">
+  </a>
+  {% endif %}
+
+  {% if r.amount is not none %}
+  <p class="vq-amount"><span data-icon="target"></span> {{ r.amount | num }} {{ r.unit or '' }}</p>
+  {% endif %}
+
+  <div class="vq-actions">
+    <button type="button" class="btn accent vq-approve">
+      <span data-icon="shieldCheck"></span> تأیید
+    </button>
+    <button type="button" class="btn ghost vq-reject">
+      <span data-icon="shieldX"></span> رد
+    </button>
+  </div>
+</article>
+{% endfor %}

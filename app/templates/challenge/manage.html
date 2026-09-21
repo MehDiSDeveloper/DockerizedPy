@@ -138,6 +138,70 @@
     </div>
   </section>
 
+  {#- The act's two other axes, and the people the second one needs.
+
+      One section rather than two, because the questions are read together:
+      «with what evidence» and «who says so» are one sentence about how a
+      report settles. Both stay editable after creation -- unlike زمان‌بندی
+      and هویت اعضا -- because changing them changes what happens *next*,
+      never what a report that already settled meant. -#}
+  <section class="setting-group">
+    <div class="sg-head"><h2>اثبات و تأیید{{ explain("act-axes") }}</h2></div>
+
+    <div class="setting-row glass compact" role="button" tabindex="0" data-edit="proof">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">مدرک هر وعده</span>
+          <span class="sr-hint">{{ proof_hints[challenge.proof_kind] }}</span>
+        </div>
+        <span class="sr-value">{{ challenge.proof_kind | proof_label }}</span>
+        <span class="sr-edit" data-icon="edit"></span>
+      </div>
+    </div>
+
+    <div class="setting-row glass compact" role="button" tabindex="0" data-edit="review_mode">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">تأیید گزارش‌ها</span>
+          <span class="sr-hint">{{ review_hints[challenge.review_mode] }}</span>
+        </div>
+        <span class="sr-value">{{ review_label }}</span>
+        <span class="sr-edit" data-icon="edit"></span>
+      </div>
+    </div>
+
+    {#- The roster. A row per person with the state on it and an `.icon-btn`
+        at the end, which is the manage screen's own mark for «this happens
+        here» -- no page opens. The «+» takes the accent and the ✕ stays
+        neutral, the affirmative/undoing pair `group/manage.html` uses. -#}
+    <div class="setting-row glass compact sr-block">
+      <div class="sr-head">
+        <div class="sr-text">
+          <span class="sr-label">ناظران</span>
+          <span class="sr-hint">کسی که گزارش‌ها را تأیید می‌کند. با شماره یا ایمیل دعوت می‌شود.</span>
+        </div>
+        <button type="button" class="icon-btn xs accent" id="refAdd"
+          aria-label="دعوت ناظر" title="دعوت ناظر"><span data-icon="userPlus"></span></button>
+      </div>
+
+      {% if referees %}
+      <ul class="ref-list">
+        {% for r in referees %}
+        <li class="ref-row" data-referee-user="{{ r.user_id }}">
+          <img class="ref-avatar" src="{{ (r.user.avatar if r.user else none) | avatar_url }}" alt="">
+          <span class="ref-name">{{ r.user.name if r.user else '—' }}</span>
+          <span class="ref-state{{ ' is-active' if r.state == 'active' }}">{{ referee_state_labels[r.state] }}</span>
+          <button type="button" class="icon-btn xs ref-remove"
+            aria-label="برداشتن ناظر" title="برداشتن ناظر"><span data-icon="x"></span></button>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="sr-note">هنوز ناظری دعوت نشده. تا وقتی ناظری نباشد، گزارش‌ها خودبه‌خود تأیید می‌شوند.</p>
+      {% endif %}
+    </div>
+  </section>
+
   {#- The exits, apart from everything above: archiving is the normal one and
       deleting is refused outright once anybody else has joined -- the same
       409 the route answers. -#}
@@ -249,6 +313,26 @@
           options: {{ identity_options | tojson }} }],
         onConfirm: (v) => patchChallenge({ identity_mode: v.identity_mode }),
       }),
+      proof: () => ({
+        title: "مدرک هر وعده",
+        explainHtml: {{ explain("proof-photo") | tojson }},
+        fields: [{ name: "kind", label: "مدرک", type: "chips",
+          value: {{ challenge.proof_kind | tojson }},
+          options: {{ proof_options | tojson }} }],
+        // The union's shape, not a bare string: `proof` is a discriminated
+        // union in a JSON column exactly as `cadence` is, and the router
+        // writes its `kind` onto `proof_kind` from the same object.
+        onConfirm: (v) => patchChallenge({ proof: { kind: v.kind } }),
+      }),
+      review_mode: () => ({
+        title: "تأیید گزارش‌ها",
+        explainHtml: {{ explain("referee-review") | tojson }},
+        fields: [{ name: "review_mode", label: "تأیید", type: "chips",
+          value: {{ challenge.review_mode | tojson }},
+          hint: "با «ناظر»، گزارش‌ها تا تأیید نشوند در شمارش‌ها نمی‌آیند.",
+          options: {{ review_options | tojson }} }],
+        onConfirm: (v) => patchChallenge({ review_mode: v.review_mode }),
+      }),
       lifecycle_status: () => ({
         title: "وضعیت چالش",
         explainHtml: {{ explain("locked-fields") | tojson }},
@@ -263,6 +347,70 @@
       row.addEventListener("click", () => {
         const build = EDITORS[row.dataset.edit];
         if (build) createSheet({ confirmLabel: "ذخیره", ...build() });
+      });
+    });
+
+    // --- referees -----------------------------------------------------
+    const refAdd = document.getElementById("refAdd");
+    if (refAdd) {
+      refAdd.addEventListener("click", () => {
+        createSheet({
+          title: "دعوت ناظر",
+          fields: [
+            { type: "note", text: "ناظر باید حساب داشته باشد. با شمارهٔ موبایل یا ایمیلش دعوتش کن." },
+            { name: "identifier", label: "شماره یا ایمیل", required: true, maxlength: 120 },
+          ],
+          confirmLabel: "دعوت",
+          onConfirm: async (v) => {
+            const identifier = (v.identifier || "").trim();
+            if (!identifier) { showToast("شماره یا ایمیل را بنویس."); return false; }
+            const { ok, status, data } = await apiFetch(
+              `/challenges/${CHALLENGE_ID}/referees`,
+              { method: "POST", body: { identifier } }
+            );
+            if (!ok) {
+              // 404 here is honest and is the whole answer: an unknown
+              // credential costs one guess and tells nothing else.
+              showToast(status === 404
+                ? "کاربری با این مشخصات پیدا نشد."
+                : (data && data.detail) || "دعوت فرستاده نشد.");
+              return false;
+            }
+            window.location.reload();
+            return true;
+          },
+        });
+      });
+    }
+
+    // Delegated, because the list is re-rendered by a reload rather than
+    // patched -- and because a row can be added without this script running
+    // again.
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest(".ref-remove");
+      if (!btn) return;
+      const row = btn.closest("[data-referee-user]");
+      const name = row.querySelector(".ref-name").textContent.trim();
+      createSheet({
+        title: "برداشتن ناظر",
+        fields: [
+          { type: "note", text: `«${name}» دیگر گزارش‌های این تعهد را تأیید نمی‌کند.` },
+          { type: "note", text: "چیزی که قبلاً تأیید کرده تأییدشده می‌ماند." },
+        ],
+        confirmLabel: "لغو",
+        onConfirm: async () => true,
+        danger: {
+          label: "بردار",
+          onClick: async () => {
+            const { ok } = await apiFetch(
+              `/challenges/${CHALLENGE_ID}/referees/${row.dataset.refereeUser}`,
+              { method: "DELETE" }
+            );
+            if (!ok) { showToast("انجام نشد. دوباره تلاش کن."); return false; }
+            window.location.reload();
+            return true;
+          },
+        },
       });
     });
 

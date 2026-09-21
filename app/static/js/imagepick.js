@@ -68,11 +68,17 @@ function loadCropper() {
  * file again, which reads as a dead button. `capture` is deliberately not
  * set — that would force the camera and hide the camera roll, which is where
  * the picture people actually want almost always is. */
-function chooseFile() {
+function chooseFile(capture) {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
+    // `capture` asks the platform for the camera rather than the gallery.
+    // It is a **request**, not a guarantee: a desktop browser ignores it,
+    // and on a phone it is a hint the OS may decline. That is exactly why
+    // the server's own rules (`app/proof.py`) do not rest on it -- this
+    // keeps an honest member from picking the wrong thing, and nothing more.
+    if (capture) input.capture = "environment";
     input.style.display = "none";
     let settled = false;
     const finish = (value) => {
@@ -233,4 +239,83 @@ async function pickImage(frameKey) {
   return res.json();
 }
 
+/* «عکس در لحظه» — the evidence half of the same plumbing.
+ *
+ * Deliberately not `pickImage` with a different frame, because the two are
+ * opposite controls:
+ *
+ *   * **no gallery.** The input asks the platform for the camera. A hint, not
+ *     a gate -- see `chooseFile` -- and the server never relies on it.
+ *   * **no cropper.** A proof is a photograph of a thing that happened, and
+ *     asking somebody to frame it is both a step in the way and an invitation
+ *     to crop something out. Nothing renders it `object-fit:cover`, so the
+ *     reason the cropper exists does not apply.
+ *   * **it answers a row, not a key.** `POST /media/proof` records the
+ *     server's clock, the uploader and the digest, and returns the id that
+ *     addresses them -- which is what `POST /checkins/` checks. See
+ *     `app/proof.py` on what that can and cannot promise.
+ *
+ * Resolves to `{proof_asset_id, url, sha256, captured_at, expires_in}` or
+ * **null** for every refusal, so a caller is one `if` and never a try/catch
+ * -- the same promise `pickImage` makes.
+ */
+async function captureProof() {
+  const file = await chooseFile(true);
+  if (!file) return null;
+
+  // Re-encoded through a canvas before it goes out, exactly as a picked
+  // picture is: what crosses a mobile connection is ~100KB rather than a 6MB
+  // photograph. The server re-encodes again and hashes *its* bytes, so this
+  // is a courtesy to the connection and never a substitute for that.
+  const blob = await shrink(file);
+  if (!blob) return null;
+
+  const body = new FormData();
+  body.append("file", blob, "proof.webp");
+  let res;
+  try {
+    res = await fetch("/media/proof", { method: "POST", body });
+  } catch {
+    window.showToast("فرستادن عکس انجام نشد. دوباره تلاش کن.");
+    return null;
+  }
+  if (res.status === 401) {
+    window.location.href = `/views/auth/?next=${encodeURIComponent(window.location.pathname)}`;
+    return null;
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    window.showToast(typeof err.detail === "string" ? err.detail : "فرستادن عکس انجام نشد.");
+    return null;
+  }
+  return res.json();
+}
+
+// Scale down without cropping: the whole photograph is the evidence, so the
+// only thing that changes is how many pixels of it travel.
+const PROOF_MAX_EDGE = 1280;
+
+function shrink(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, PROOF_MAX_EDGE / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvasToBlob(canvas).then(resolve);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      window.showToast("این فایل عکس نیست.");
+      resolve(null);
+    };
+    img.src = url;
+  });
+}
+
 window.pickImage = pickImage;
+window.captureProof = captureProof;

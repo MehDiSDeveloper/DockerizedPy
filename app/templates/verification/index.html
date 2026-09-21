@@ -1,0 +1,184 @@
+{% extends "layout.html" %}
+
+{#- «تأییدها» -- everything waiting on this member as a referee.
+
+    Two lists, and only the second one pages. The invitations are a handful
+    by nature (you are asked by name, one act at a time) so they are rendered
+    whole and above the queue: answering them is what *fills* the queue, and
+    a screen that hid them would show an empty list with no way to explain
+    why. Two paged lists on one URL is the thing `/views/groups/{id}` refuses
+    for the same reason.
+
+    Built out of the settings screen's primitives (.settings-page,
+    .setting-group, .setting-row) like the notification feed and the admin
+    panel: it is the same shape of question -- a column of rows, each with a
+    label, a line of detail and a mark -- and a third layout for it would be
+    a third thing to keep in step. -#}
+
+{% block topbar_leading %}
+<a href="/views/space/" class="back-btn" data-back data-back-optional
+  aria-label="بازگشت"><span data-icon="chevronRight"></span></a>
+{% endblock %}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر پیمایش" data-crumb-trail data-crumb-label="تأییدها">
+  <span class="crumb current" aria-current="page">تأییدها</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1 class="hero-title">تأییدها{{ explain("referee-review") }}</h1>
+  <p class="hero-sub">گزارش‌هایی که منتظر نظر تو هستند.</p>
+</section>
+
+<div class="settings-page">
+
+  {#- The invitations. Each one is a yes/no and nothing else -- accepting is
+      what puts an act's reports in the queue below, and declining says so
+      once instead of leaving somebody waiting. -#}
+  {% if invites %}
+  <section class="setting-group">
+    <div class="sg-head"><h2>دعوت به ناظری</h2></div>
+    {% for inv in invites %}
+    <div class="setting-row glass vq-invite" data-invite-challenge="{{ inv.challenge_id }}">
+      <div class="sr-head">
+        <span class="notif-icon"><span data-icon="shield"></span></span>
+        <div class="sr-text">
+          <span class="sr-label">{{ inv.challenge.title if inv.challenge else '' }}</span>
+          <span class="sr-hint">از تو خواسته شده ناظر این تعهد باشی.</span>
+        </div>
+      </div>
+      <div class="vq-actions">
+        <button type="button" class="btn accent vq-accept"><span data-icon="check"></span> می‌پذیرم</button>
+        <button type="button" class="btn ghost vq-decline"><span data-icon="x"></span> نمی‌پذیرم</button>
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <section class="setting-group">
+    <div class="sg-head"><h2>در انتظار تو</h2></div>
+
+    <div class="vq-list" id="vqList" data-page-size="{{ page_size }}"
+      data-initial-count="{{ rows|length }}"
+      data-has-more="{{ 'true' if has_more else 'false' }}">
+      {% include "verification/_queue_rows.html" %}
+    </div>
+
+    {#- The good empty state: nobody is waiting, which is the state a referee
+        wants to be in -- not an error and not an absence of a feature. -#}
+    <div class="empty" id="vqEmpty" {{ 'hidden' if rows }}>
+      <span data-icon="shieldCheck"></span>
+      <p>چیزی منتظر تو نیست.</p>
+      <p class="empty-hint">هر وقت کسی در تعهدی که ناظرش هستی گزارشی ثبت کند، همین‌جا می‌آید.</p>
+    </div>
+
+    <div class="scroll-sentinel" id="vqSentinel" aria-hidden="true"></div>
+    <div class="list-loading" id="vqLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const listEl = document.getElementById("vqList");
+    const emptyEl = document.getElementById("vqEmpty");
+
+    const scroller = createInfiniteScroller({
+      container: listEl,
+      sentinel: document.getElementById("vqSentinel"),
+      loadingEl: document.getElementById("vqLoading"),
+      emptyEl: emptyEl,
+      pageSize: Number(listEl.dataset.pageSize) || 20,
+      initialOffset: Number(listEl.dataset.initialCount) || 0,
+      initialHasMore: listEl.dataset.hasMore === "true",
+      buildUrl: (offset, limit) =>
+        `/views/verifications/fragment?offset=${offset}&limit=${limit}`,
+      onEmpty: () => { emptyEl.hidden = false; },
+    });
+
+    async function rule(row, verdict, note) {
+      const id = row.dataset.checkinId;
+      const { ok, status, data } = await apiFetch(`/verifications/${id}`, {
+        method: "POST",
+        body: { verdict, note: note || null },
+      });
+      if (!ok) {
+        // 409 = somebody else on this act ruled between the render and the
+        // tap, which is a real and ordinary outcome when an act has two
+        // referees. `reset()` rather than a hand-patched row: what is still
+        // waiting is a server-side answer.
+        showToast(
+          status === 409
+            ? "این گزارش را کس دیگری تعیین تکلیف کرد."
+            : (data && data.detail) || "ثبت نشد. دوباره تلاش کن."
+        );
+        if (status === 409) scroller.reset();
+        return;
+      }
+      scroller.reset();
+    }
+
+    // One delegated listener, because rows arrive on page two -- the rule
+    // the admin roster follows, and for its reason: a page-level array
+    // cannot describe rows that do not exist yet.
+    document.addEventListener("click", (e) => {
+      const approve = e.target.closest(".vq-approve");
+      if (approve) {
+        rule(approve.closest("[data-checkin-id]"), "approved");
+        return;
+      }
+
+      const reject = e.target.closest(".vq-reject");
+      if (reject) {
+        const row = reject.closest("[data-checkin-id]");
+        // A refusal has to carry a reason -- the server refuses one without
+        // (`schemas/act.py`), and a control that can produce a 422 by being
+        // tapped is a control that lies. So the sheet asks first.
+        createSheet({
+          title: "رد گزارش",
+          explainHtml: {{ explain("referee-review") | tojson }},
+          fields: [
+            { type: "note", text: "دلیلی که می‌نویسی برای کسی که گزارش را ثبت کرده فرستاده می‌شود." },
+            { name: "note", label: "دلیل", type: "textarea", rows: 3, required: true, maxlength: 300 },
+          ],
+          confirmLabel: "رد کن",
+          onConfirm: async (v) => {
+            const note = (v.note || "").trim();
+            if (!note) { showToast("دلیل را بنویس."); return false; }
+            await rule(row, "rejected", note);
+            return true;
+          },
+        });
+        return;
+      }
+
+      const accept = e.target.closest(".vq-accept");
+      const decline = e.target.closest(".vq-decline");
+      if (!accept && !decline) return;
+      const card = (accept || decline).closest("[data-invite-challenge]");
+      answerInvite(card, Boolean(accept));
+    });
+
+    async function answerInvite(card, accept) {
+      const id = card.dataset.inviteChallenge;
+      const { ok, data } = await apiFetch(`/challenges/${id}/referees/me`, {
+        method: "PATCH",
+        body: { accept },
+      });
+      if (!ok) {
+        showToast((data && data.detail) || "ثبت نشد. دوباره تلاش کن.");
+        return;
+      }
+      // Accepting changes what is in the queue below, and declining changes
+      // what is above it -- so the page reloads rather than splicing two
+      // lists by hand.
+      window.location.reload();
+    }
+  });
+</script>
+{% endblock %}

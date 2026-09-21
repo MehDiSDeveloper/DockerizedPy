@@ -130,6 +130,28 @@
       <p class="field-note" id="identityNote"></p>
     </div>
 
+    {#- The act's two other axes, asked here rather than in a fourth step.
+        «چه کسی می‌بیند» / «هویت اعضا» / «مدرک هر وعده» / «تأیید گزارش‌ها»
+        are four answers to one question -- what the terms of this thing are
+        -- and a creator deciding one is already thinking about the next. A
+        step of their own would make them feel like a separate feature,
+        which is exactly what this model is built not to be.
+
+        Unlike هویت اعضا, both stay editable afterwards on «مدیریت چالش»:
+        they change what happens *next*, never what a report that already
+        settled meant. So the notes do not promise a lock. -#}
+    <div class="field" style="margin-top:18px;">
+      <label>مدرک هر وعده{{ explain("proof-photo") }}</label>
+      <div class="category-grid" id="proofGrid"></div>
+      <p class="field-note" id="proofNote"></p>
+    </div>
+
+    <div class="field" style="margin-top:18px;">
+      <label>تأیید گزارش‌ها{{ explain("referee-review") }}</label>
+      <div class="category-grid" id="reviewGrid"></div>
+      <p class="field-note" id="reviewNote"></p>
+    </div>
+
     {#- Two questions, asked only for a group challenge, and placed next to
         «قابلیت مشاهده»/«هویت اعضا» because all four are about *who* rather
         than about what the challenge asks of them.
@@ -425,6 +447,51 @@ function renderIdentityGrid() {
 }
 renderIdentityGrid();
 
+// -------------------- proof & review --------------------
+// Their own copies of the Farsi, exactly like `identityOptions` above and
+// for its reason: these pills are built client-side, so the server-side maps
+// (`app/proof.py::PROOF_LABELS`, `views/challenge.py::REVIEW_LABELS`) cannot
+// reach them. Adding a proof kind means editing both.
+const proofOptions = [
+  { value: "self", label: "خوداظهاری", icon: "check",
+    note: "ثبت هر وعده فقط با گفتهٔ خودت." },
+  { value: "photo", label: "عکس در لحظه", icon: "camera",
+    note: "هر وعده باید با عکسی که همان لحظه گرفته می‌شود ثبت شود؛ از گالری نمی‌شود انتخاب کرد." },
+];
+let selectedProof = "self";
+
+const reviewOptions = [
+  { value: "auto", label: "خودکار", icon: "check",
+    note: "هر گزارشی که ثبت شود همان لحظه قطعی است." },
+  { value: "referee", label: "با تأیید ناظر", icon: "shieldCheck",
+    note: "گزارش‌ها تا وقتی ناظری تأییدشان نکند در انتظار می‌مانند. ناظر را بعد از ساختن، از «مدیریت چالش» دعوت می‌کنی." },
+];
+let selectedReview = "auto";
+
+// One renderer for both, because the two grids differ in nothing but their
+// options and where the answer lands -- two copies of this would be two
+// places to fix the next time a pill grid changes.
+function pillGrid(gridId, noteId, options, get, set) {
+  const grid = document.getElementById(gridId);
+  const note = document.getElementById(noteId);
+  function paint() {
+    grid.innerHTML = options.map(o => `
+      <div class="category-pill ${o.value === get() ? "active" : ""}" data-value="${o.value}">
+        ${icons[o.icon]}
+        ${o.label}
+      </div>`).join("");
+    note.textContent = options.find(o => o.value === get()).note;
+    grid.querySelectorAll(".category-pill").forEach(pill => {
+      pill.addEventListener("click", () => { set(pill.dataset.value); paint(); });
+    });
+  }
+  paint();
+}
+pillGrid("proofGrid", "proofNote", proofOptions,
+  () => selectedProof, (v) => { selectedProof = v; });
+pillGrid("reviewGrid", "reviewNote", reviewOptions,
+  () => selectedReview, (v) => { selectedReview = v; });
+
 // -------------------- cadence kind --------------------
 const cadenceKinds = [
   { value: "once", label: "یک‌باره", icon: "cadenceOnce" },
@@ -696,8 +763,13 @@ function goTo(n) {
         : `${faDigits(count)} نفر انتخاب شده — شرکت ${participation.label}.`;
     }
     const identity = identityOptions.find(o => o.value === selectedIdentity);
+    // The three terms read as one sentence, because that is how somebody
+    // about to publish checks them: who these people are to each other,
+    // what each report has to carry, and what settles it.
+    const proof = proofOptions.find(o => o.value === selectedProof);
+    const review = reviewOptions.find(o => o.value === selectedReview);
     document.getElementById("reviewIdentityNote").textContent =
-      `${identity.label}: ${identity.note}`;
+      `${identity.label} · مدرک: ${proof.label} · تأیید: ${review.label}`;
     document.getElementById("reviewIdentityIcon").innerHTML = icons[identity.icon];
   }
 }
@@ -838,6 +910,11 @@ document.getElementById("publishBtn").addEventListener("click", async () => {
     category: selectedCat,
     visibility: selectedVisibility,
     identity_mode: selectedIdentity,
+    // The union's shape, not a bare string: `proof` is a discriminated union
+    // in a JSON column exactly as `cadence` is, and the router writes its
+    // `kind` onto `proof_kind` from the same object.
+    proof: { kind: selectedProof },
+    review_mode: selectedReview,
     cadence: buildCadence(),
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     // Media keys from `POST /media/`, uploaded the moment they were cropped;

@@ -34,6 +34,26 @@
   <h1 class="hero-title">فضای من</h1>
 </section>
 
+{#- The way into «تأییدها», and the only one besides the notification each
+    report raises. A row rather than a nav tab, and rendered only when
+    something is waiting: a referee's queue is not a *place* a member goes,
+    it is a thing that is sometimes true of them -- and a permanent tab that
+    is empty for almost everybody is a tab that teaches people to ignore it.
+    Above the segments because it is an obligation to somebody else, and
+    those come before the things you keep for yourself. -#}
+{% if review_count %}
+<section>
+  <a class="lb-entry glass" href="/views/verifications/">
+    <span class="lb-entry-icon"><span data-icon="shieldCheck"></span></span>
+    <div class="lb-entry-text">
+      <b>تأییدها</b>
+      <span><b>{{ review_count | fa_num }}</b> گزارش منتظر نظر توست.</span>
+    </div>
+    <span class="sr-chev" data-icon="chevronLeft"></span>
+  </a>
+</section>
+{% endif %}
+
 <section>
   <div class="seg-row">
     <div class="seg" id="spSeg" role="tablist" aria-label="فضای من">

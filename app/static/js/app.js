@@ -97,6 +97,18 @@ const icons = {
   userPlus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.5" cy="8" r="3.6"/><path d="M2.5 20c1.1-3.6 3.7-5.5 7-5.5s5.9 1.9 7 5.5"/><path d="M18.5 6.5v6M21.5 9.5h-6"/></svg>`,
   shield: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5.5c0 4.4-2.9 8.2-7 9.5-4.1-1.3-7-5.1-7-9.5V6z"/><path d="M9.2 12.2l2 2 3.6-3.8"/></svg>`,
   info: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 8h.01"/></svg>`,
+  // --- the act layer -------------------------------------------------
+  // `shield` is the invitation; these two are the ruling. The pair is drawn
+  // on one silhouette so an approval and a refusal read as two answers to
+  // the same question rather than as two unrelated marks.
+  shieldCheck: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5.5c0 4.4-2.9 8.2-7 9.5-4.1-1.3-7-5.1-7-9.5V6z"/><path d="M8.8 12.1l2.2 2.2 4.2-4.4"/></svg>`,
+  shieldX: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5.5c0 4.4-2.9 8.2-7 9.5-4.1-1.3-7-5.1-7-9.5V6z"/><path d="M9.6 9.6l4.8 4.8M14.4 9.6l-4.8 4.8"/></svg>`,
+  // «انجام نشد» -- an occurrence that was reported as missed. A bare rule,
+  // not a crossed circle: nothing went wrong, the thing simply did not happen.
+  minus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 12h12"/></svg>`,
+  sparkles: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"/><path d="M18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8z"/></svg>`,
+  // «نمرهٔ تعهد» -- a dial, because the score is a share of a whole.
+  gauge: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18a8 8 0 1116 0"/><path d="M12 18l4.2-4.8"/></svg>`,
   reply: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 5 20 10 15 15"/><path d="M20 10H8a4 4 0 00-4 4v5"/></svg>`,
   smiley: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 007 0"/><path d="M9 9.5h.01M15 9.5h.01"/></svg>`,
   // --- emoji keyboard tabs -------------------------------------------
@@ -832,7 +844,7 @@ function createSheet({
     // chips and avatars are their own grid of controls, so they drop the
     // boxed input shell every other field type wears (see .field-chips /
     // .field-avatars in styles.css).
-    wrap.className = ["chips", "avatars", "image"].includes(f.type)
+    wrap.className = ["chips", "avatars", "image", "proof"].includes(f.type)
       ? `field field-${f.type}`
       : "field";
     const label = document.createElement("label");
@@ -1020,6 +1032,96 @@ function createSheet({
         paintImage();
       });
       chipSyncers.push(paintImage);
+      fieldInput.appendChild(box);
+    } else if (f.type === "proof") {
+      // Evidence, as one row of a form. Deliberately *not* `type: "image"`
+      // with a different frame, because the two are opposite controls:
+      // choosing a banner is a picture you pick and crop, and this is a
+      // photograph you take now and cannot pick at all. So there is no
+      // gallery, no cropper, and no "change" once taken -- retaking is
+      // `window.captureProof` again, which mints a fresh asset.
+      //
+      // The hidden input holds a **proof asset id**, not a media key: what
+      // the server checks is the row (yours, unused, recent), and an id is
+      // what addresses one. `collectValues` stays a plain read.
+      input = document.createElement("input");
+      input.type = "hidden";
+      const box = document.createElement("div");
+      box.className = "ipf pf";
+      const preview = document.createElement("div");
+      preview.className = "ipf-preview pf-preview";
+      const acts = document.createElement("div");
+      acts.className = "ipf-acts";
+      const shoot = document.createElement("button");
+      shoot.type = "button";
+      shoot.className = "btn accent btn-sm";
+      const life = document.createElement("span");
+      life.className = "pf-life";
+      acts.appendChild(shoot);
+      acts.appendChild(life);
+      box.appendChild(preview);
+      box.appendChild(acts);
+
+      let url = "";
+      let expiresAt = 0;
+      let ticker = null;
+
+      // The countdown is the *server's* window, sent back with the upload
+      // (`expires_in`) rather than restated here -- so what a member sees
+      // and what `claim_proof_asset` enforces are one number. When it runs
+      // out the field clears itself instead of letting a submit fail: a
+      // control that can only produce a 422 by being used is a control that
+      // lies.
+      function tick() {
+        if (!input.value) return;
+        const left = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
+        if (left <= 0) {
+          clearProof();
+          showToast("مهلت این عکس تمام شد؛ دوباره بگیر.");
+          return;
+        }
+        const m = Math.floor(left / 60);
+        const sec = String(left % 60).padStart(2, "0");
+        life.textContent = faDigits(`${m}:${sec}`);
+      }
+
+      function clearProof() {
+        input.value = "";
+        url = "";
+        if (ticker) { clearInterval(ticker); ticker = null; }
+        paintProof();
+      }
+
+      function paintProof() {
+        const has = Boolean(input.value);
+        preview.innerHTML = has
+          ? `<img src="${url}" alt="">`
+          : '<span data-icon="camera"></span>';
+        renderIcons(preview);
+        shoot.innerHTML = has ? "عکس دیگر" : '<span data-icon="camera"></span> عکس بگیر';
+        renderIcons(shoot);
+        life.hidden = !has;
+        if (!has) life.textContent = "";
+      }
+
+      shoot.addEventListener("click", async () => {
+        shoot.disabled = true;
+        try {
+          const shot = await window.captureProof();
+          if (!shot) return;
+          url = shot.url;
+          input.value = String(shot.proof_asset_id);
+          expiresAt = Date.now() + (shot.expires_in || 600) * 1000;
+          paintProof();
+          if (ticker) clearInterval(ticker);
+          ticker = setInterval(tick, 1000);
+          tick();
+        } finally {
+          shoot.disabled = false;
+        }
+      });
+
+      chipSyncers.push(paintProof);
       fieldInput.appendChild(box);
     } else if (f.type === "textarea") {
       input = document.createElement("textarea");

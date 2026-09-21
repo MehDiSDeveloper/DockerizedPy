@@ -44,6 +44,7 @@ from app.routers.group import (
 )
 from app.routers.roadmap import DEFAULT_ROADMAP_PAGE_SIZE
 from app.routers.views.roadmap import list_context, resolve_scope
+from app.verification import count_review_queue
 
 router = APIRouter(tags=["space-views"])
 
@@ -115,6 +116,13 @@ async def _render(
             "roadmap_page_size": DEFAULT_ROADMAP_PAGE_SIZE,
             "active_scope": active_scope,
             "query": q or "",
+            # «تأییدها» -- how many reports are waiting on this member as a
+            # referee. One indexed count, and the row is drawn only when it
+            # is non-zero: a member who referees nothing pays that count and
+            # no pixels, the trade «قدم فعلی تو» makes on the home dashboard.
+            # It is here rather than in the bottom nav because it is not a
+            # *place* -- it is a thing that is sometimes true.
+            "review_count": await count_review_queue(db, referee_user_id=viewer.id),
         },
     )
 

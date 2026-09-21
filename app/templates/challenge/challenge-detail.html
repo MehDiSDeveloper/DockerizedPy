@@ -223,7 +223,13 @@
   </section>
   {% endif %}
 
-  {% set state_labels = {'completed': 'تکمیل‌شده', 'skipped': 'رد شده', 'missed': 'ازدست‌رفته', 'pending': 'در انتظار'} %}
+  {#- Six words, not four. «در انتظار» is the occurrence's own window still
+      being open; «در انتظار تأیید» is a report a referee has not looked at
+      yet -- two different facts that had one Farsi word, which is how a
+      green tick ends up on something that has not counted. `display_state`
+      in `views/challenge.py` is the one place the two vocabularies meet. -#}
+  {% set state_labels = {'completed': 'تکمیل‌شده', 'skipped': 'رد شده', 'missed': 'ازدست‌رفته',
+    'pending': 'در انتظار', 'awaiting': 'در انتظار تأیید', 'rejected': 'تأیید نشده'} %}
   {% if my_stats %}
   <section class="detail-section">
     <div class="section-head">
@@ -248,7 +254,7 @@
               carries forward the previous segments' combined length so they
               sit edge to edge, in the order the legend lists them. -#}
           {% set ns = namespace(offset=0) %}
-          {% for state in ['completed', 'skipped', 'missed', 'pending'] %}
+          {% for state in ['completed', 'awaiting', 'skipped', 'rejected', 'missed', 'pending'] %}
           {% set count = history_summary.get(state, 0) %}
           {% if count %}
           {% set seg_len = (count / history_summary.total * 125.66) | round(2) %}
@@ -265,6 +271,14 @@
       </div>
       <ul class="ring-legend">
         <li><span class="lg-dot ok"></span>تکمیل‌شده<b>{{ history_summary.completed }}</b></li>
+        {#- Only when there is one: a row reading «در انتظار تأیید ۰» on an
+            act with no referee is a figure about nothing. -#}
+        {% if history_summary.awaiting %}
+        <li><span class="lg-dot review"></span>در انتظار تأیید<b>{{ history_summary.awaiting }}</b></li>
+        {% endif %}
+        {% if history_summary.rejected %}
+        <li><span class="lg-dot refused"></span>تأیید نشده<b>{{ history_summary.rejected }}</b></li>
+        {% endif %}
         {% if history_summary.skipped %}
         <li><span class="lg-dot skip"></span>رد شده<b>{{ history_summary.skipped }}</b></li>
         {% endif %}
@@ -623,6 +637,18 @@
         <span data-icon="seal"></span>
         <div><b>{{ lifecycle_label }}</b><span>وضعیت</span></div>
       </div>
+      {#- The act's two other axes. Stated on the page for the reason هویت
+          اعضا is: they are *terms*, and somebody weighing whether to join
+          has to read them before tapping, not discover them in the sheet
+          that refuses their first report. -#}
+      <div class="meta-item">
+        <span data-icon="{{ proof_kind | proof_icon }}"></span>
+        <div><b>{{ proof_label }}</b><span>مدرک هر وعده</span></div>
+      </div>
+      <div class="meta-item">
+        <span data-icon="{{ 'shieldCheck' if review_mode == 'referee' else 'check' }}"></span>
+        <div><b>{{ review_label }}</b><span>تأیید گزارش‌ها</span></div>
+      </div>
       {% if challenge.goal_amount %}
       <div class="meta-item">
         <span data-icon="target"></span>
@@ -631,6 +657,69 @@
       {% endif %}
     </div>
   </section>
+
+  {#- Who vouches for this act. Rendered for a non-participant too: being
+      watched is a term of the act, and a doer who cannot see who rules on
+      their reports is being judged by nobody in particular. A row is a
+      `<div>` and not a link -- `profile_visibility_filter` is not widened
+      here, exactly as it is not on the leaderboard. -#}
+  {% if referees %}
+  <section class="detail-section">
+    <h2>ناظران{{ explain("referee-review") }}
+      {%- if is_pact %} <span class="pill pill-tag">پیمان دونفره</span>{% endif %}</h2>
+    <ul class="ref-list">
+      {% for r in referees %}
+      <li class="ref-row">
+        <img class="ref-avatar" src="{{ (r.user.avatar if r.user else none) | avatar_url }}" alt="">
+        <span class="ref-name">{{ r.user.name if r.user else '—' }}</span>
+        <span class="ref-state{{ ' is-active' if r.state == 'active' }}">{{ referee_state_labels[r.state] }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {#- The owner's way into «پیگیری». Here rather than in the topbar because
+      the gear already owns that slot and the two are different questions --
+      one changes the act, the other reads how it is going. Rendered only
+      for somebody who holds the permission the page itself gates on, so a
+      link can never lead to a 404. -#}
+  {% if can_manage %}
+  <section class="detail-section">
+    <a class="lb-entry glass" href="/views/challenges/{{ challenge.id }}/dashboard">
+      <span class="lb-entry-icon"><span data-icon="users"></span></span>
+      <div class="lb-entry-text">
+        <b>پیگیری اعضا</b>
+        <span>ببین چه کسی انجام داده و چه کسی عقب مانده.</span>
+      </div>
+      <span class="sr-chev" data-icon="chevronLeft"></span>
+    </a>
+  </section>
+  {% endif %}
+
+  {#- دفتر رویدادها. Oldest first and unpaged: a log is read from the
+      beginning, and the shape of the first few dozen lines is the answer
+      somebody opening it wants. It is a `<details>` because it is evidence
+      rather than description -- present and checkable, not in the way of
+      the three things above it. -#}
+  {% if act_log %}
+  <section class="detail-section">
+    <details class="act-log">
+      <summary><span data-icon="info"></span> دفتر رویدادها{{ explain("act-log") }}</summary>
+      <ol class="al-list">
+        {% for e in act_log %}
+        <li class="al-row">
+          <span class="al-icon"><span data-icon="{{ e | act_event_icon }}"></span></span>
+          <span class="al-text">{{ e | act_event_text }}</span>
+          <span class="al-time" data-jalali="{{ e.created_at.isoformat() }}"
+            data-jalali-format="datetime"
+            data-jalali-tz="{{ default_timezone }}">{{ e.created_at | jalali('datetime', default_timezone) }}</span>
+        </li>
+        {% endfor %}
+      </ol>
+    </details>
+  </section>
+  {% endif %}
 
   {#- The way into the conversation, at the foot of «درباره» -- after
       everything the panel has to say, because it is the one *action* on a
@@ -676,8 +765,10 @@
 
 <script src="{{ url_for('static', path='/js/app.js') }}"></script>
 <script src="{{ url_for('static', path='/js/comments.js') }}"></script>
-{% if is_owner %}{#- the manage sheet's two picture fields; Cropper.js itself
-    is fetched only on the first pick -#}
+{% if is_owner or needs_photo %}{#- two different controls out of one file:
+    the owner's picture pickers (Cropper.js fetched only on the first pick)
+    and, on an act that asks for evidence, `captureProof` -- which loads no
+    cropper at all. -#}
 <script src="{{ url_for('static', path='/js/imagepick.js') }}"></script>{% endif %}
 {#- Loaded for window.jalaliCalendar alone -- this page has no date input to
     enhance, but the history calendar needs the same Jalali month arithmetic
@@ -687,6 +778,12 @@
   const challengeId = {{ challenge.id }};
   const historyCalendarData = {{ (history_calendar or none) | tojson }};
   const goalUnit = {{ (challenge.goal_unit or "") | tojson }};
+  // Whether a report here has to carry a photograph, and whether it then
+  // waits on somebody. Both are the *act's terms*, read from the server on
+  // every load -- the sheet draws only what the route would accept, so a
+  // control can never produce a 422 by being used.
+  const needsPhoto = {{ 'true' if needs_photo else 'false' }};
+  const needsReview = {{ 'true' if review_mode == 'referee' else 'false' }};
   let enrolled = {{ 'true' if is_enrolled else 'false' }};
   // The one occurrence the CTA can record right now, or null. Derived by the
   // server on every load from the same backfill-window rule the API enforces
@@ -949,17 +1046,44 @@
         required: true,
       });
     }
+    // The evidence, first: on an act that asks for a photograph it is the
+    // point of the sheet, and burying it under the optional fields reads as
+    // an afterthought. It is the *confirm* path's requirement only -- «انجام
+    // ندادم» carries none, because there is nothing to prove in saying you
+    // did not do it, and demanding a picture of an absence is the kind of
+    // rule that teaches people to lie.
+    if (needsPhoto) {
+      fields.push({
+        name: "proof_asset_id",
+        label: "مدرک",
+        type: "proof",
+        hint: "عکس باید همین حالا گرفته شود.",
+      });
+    }
     fields.push({ name: "note", label: "یادداشت (اختیاری)", type: "text", maxlength: 500 });
-    fields.push({ name: "photo_url", label: "لینک عکس (اختیاری)", type: "url", maxlength: 500 });
+    if (needsReview) {
+      fields.push({
+        type: "note",
+        text: "این گزارش تا وقتی ناظر تأییدش نکند «در انتظار» می‌ماند و در شمارش‌ها نمی‌آید.",
+      });
+    }
 
     async function submit(state, values) {
+      if (needsPhoto && state === "completed" && !values.proof_asset_id) {
+        showToast("برای ثبت این وعده باید عکس بگیری.");
+        return false;
+      }
       const payload = {
         challenge_id: challengeId,
         occurrence_key: occurrenceKey,
         state,
         note: values.note || null,
-        photo_url: values.photo_url || null,
       };
+      // Only on a completed report: an asset attached to a skip would be
+      // spent for nothing -- it is single-use.
+      if (state === "completed" && values.proof_asset_id) {
+        payload.proof_asset_id = Number(values.proof_asset_id);
+      }
       if (goalUnit) payload.amount = values.amount || null;
 
       const { ok, data } = await apiFetch("/checkins/", { method: "POST", body: payload });

@@ -96,6 +96,53 @@
     </div>
   </section>
 
+  {#- «نمرهٔ تعهد» -- of the reports whose fate is settled, what share was
+      kept. Rendered only once there is history: a 0٪ for somebody who has
+      not started reads as a failure rather than as a beginning, which is the
+      same call `avatar_url(None)` makes about an unset picture.
+
+      The breakdown is the point rather than decoration. A single percentage
+      says nothing about *under what standard* it was earned, and the three
+      levels are exactly the thing somebody reading this wants to tell apart.
+      Only the levels this member has actually used are drawn.
+
+      Colour carries nothing new: the bar is the accent, which has meant
+      «this is the live one» since the first screen. Status keeps `--st-*`
+      and category keeps `--cat-*`. -#}
+  {% if score.has_history %}
+  <section class="detail-section cs-card glass">
+    <div class="cs-head">
+      <span class="cs-icon"><span data-icon="gauge"></span></span>
+      <div class="cs-text">
+        <b>نمرهٔ تعهد{{ explain("commitment-score") }}</b>
+        <span>{{ score.kept | fa_num }} از {{ score.settled | fa_num }} گزارش تعیین‌تکلیف‌شده</span>
+      </div>
+      <span class="cs-pct">{{ score.rate | fa_num }}٪</span>
+    </div>
+    <div class="cc-progress"><i style="width:{{ score.rate }}%;"></i></div>
+
+    {% if score.pending %}
+    {#- Named, and deliberately outside the score: a slow referee must not
+        drag somebody's number down, so a waiting report is in neither half
+        of the fraction -- and saying so is the only way that reads as a
+        choice rather than an omission. -#}
+    <p class="cs-pending"><span data-icon="clock"></span>
+      {{ score.pending | fa_num }} گزارش هنوز منتظر تأیید است و در این نمره شمرده نشده.</p>
+    {% endif %}
+
+    <ul class="cs-levels">
+      {% for lvl in score.by_level %}
+      <li class="cs-level">
+        <span class="cs-l-icon"><span data-icon="{{ lvl.icon }}"></span></span>
+        <span class="cs-l-name">{{ lvl.label }}</span>
+        <span class="cs-l-bar"><i style="width:{{ lvl.rate }}%;"></i></span>
+        <span class="cs-l-pct">{{ lvl.rate | fa_num }}٪</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
   {% if can_edit %}
   {#- «اطلاعات حساب» -- the member's contact and where-they-are details.
       Gated by construction rather than by a check here: this page is already

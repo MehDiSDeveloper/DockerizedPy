@@ -1,0 +1,92 @@
+{% extends "layout.html" %}
+
+{#- «پیگیری» -- the owner's read of one act's whole cohort.
+
+    The screen an *assignment* needs. An act handed to a group produces one
+    independent run per member, and the person who handed it out has no other
+    way to see all of them at once: the leaderboard ranks (and is for the
+    people in the room), the participant roster is an operator's read and
+    carries no progress, and «خانه» is about the viewer's own activity.
+
+    It is deliberately **not** a ranking. The ordering is «who is behind»,
+    not «who is winning» -- a cohort somebody is responsible for is chased,
+    not scored, and the same rows drawn as a podium would turn a nudge into
+    a league table. Colour says exactly one thing here, and it is «عقب
+    است»: no `--st-*`, no `--cat-*`, nothing borrowed. -#}
+
+{% block topbar_leading %}
+<a href="/views/challenges/{{ challenge.id }}" class="back-btn" data-back aria-label="بازگشت"><span
+    data-icon="chevronRight"></span></a>
+{% endblock %}
+
+{% block breadcrumb %}
+<nav class="crumbs" aria-label="مسیر پیمایش" data-crumb-trail data-crumb-label="پیگیری">
+  <span class="crumb current" aria-current="page">پیگیری</span>
+</nav>
+{% endblock %}
+
+{% block topbar_action %}{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <p class="hero-eyebrow">{{ challenge.title }}</p>
+  <h1 class="hero-title">پیگیری اعضا</h1>
+  {#- Two counts and no more. They are the two things an owner does
+      something about: people who are behind, and reports sitting in a
+      referee's queue. Everything else is on the rows. -#}
+  <div class="hero-stats">
+    <div class="hstat">
+      <span class="hstat-num">{{ behind_count | fa_num }}</span>
+      <span class="hstat-label">عقب</span>
+    </div>
+    <div class="hstat">
+      <span class="hstat-num">{{ pending_count | fa_num }}</span>
+      <span class="hstat-label">در انتظار تأیید</span>
+    </div>
+  </div>
+</section>
+
+<div class="settings-page">
+  <section class="setting-group">
+    <div class="sg-head"><h2>اعضا{{ explain("act-axes") }}</h2></div>
+
+    <div class="dash-list" id="dashList" data-page-size="{{ page_size }}"
+      data-initial-count="{{ rows|length }}"
+      data-has-more="{{ 'true' if has_more else 'false' }}">
+      {% include "challenge/_dashboard_rows.html" %}
+    </div>
+
+    <div class="empty" id="dashEmpty" {{ 'hidden' if rows }}>
+      <span data-icon="users"></span>
+      <p>هنوز کسی در این تعهد نیست.</p>
+      <p class="empty-hint">وقتی کسی اضافه شود، وضعیتش همین‌جا دیده می‌شود.</p>
+    </div>
+
+    <div class="scroll-sentinel" id="dashSentinel" aria-hidden="true"></div>
+    <div class="list-loading" id="dashLoading" hidden><span class="spinner"></span> در حال آماده‌سازی...</div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const listEl = document.getElementById("dashList");
+    const emptyEl = document.getElementById("dashEmpty");
+
+    createInfiniteScroller({
+      container: listEl,
+      sentinel: document.getElementById("dashSentinel"),
+      loadingEl: document.getElementById("dashLoading"),
+      emptyEl: emptyEl,
+      pageSize: Number(listEl.dataset.pageSize) || 25,
+      initialOffset: Number(listEl.dataset.initialCount) || 0,
+      initialHasMore: listEl.dataset.hasMore === "true",
+      buildUrl: (offset, limit) =>
+        `/views/challenges/{{ challenge.id }}/dashboard/fragment?offset=${offset}&limit=${limit}`,
+      onEmpty: () => { emptyEl.hidden = false; },
+    });
+  });
+</script>
+{% endblock %}

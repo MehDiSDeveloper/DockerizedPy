@@ -11,6 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.actlog import fetch_log, register_actlog_filters
 from app.auth import (
     get_current_user,
     get_current_user_id,
@@ -61,7 +62,21 @@ from app.occurrences import (
     week_start,
 )
 from app.permissions import Perm, can, challenge_role
+from app.proof import (
+    PROOF_HINTS,
+    PROOF_ICONS,
+    PROOF_LABELS,
+    proof_label,
+    register_proof_filters,
+    requires_photo,
+)
 from app.reactions import counts_for, liked_subject_ids, reaction_state
+from app.referees import (
+    active_referee_count,
+    fetch_referees,
+    is_pact,
+    register_referee_filters,
+)
 from app.routers.challenge import (
     DEFAULT_PAGE_SIZE,
     DEFAULT_TIMEZONE,
@@ -76,12 +91,15 @@ from app.routers.challenge import (
 )
 from app.routers.checkin import occurrence_local_date, parse_cadence
 from app.routers.enrollment import (
+    DEFAULT_DASHBOARD_PAGE_SIZE,
     DEFAULT_LEADERBOARD_PAGE_SIZE,
     LEADERBOARD_COMPLETIONS,
     LEADERBOARD_SORTS,
     LEADERBOARD_STREAK,
+    MAX_DASHBOARD_PAGE_SIZE,
     MAX_LEADERBOARD_PAGE_SIZE,
     assign_ranks,
+    fetch_act_dashboard,
     fetch_leaderboard_page,
     leaderboard_rank,
     leaderboard_standing,
@@ -101,6 +119,13 @@ from app.schemas.cadence import (
 )
 from app.schemas.challenge import ChallengeCreate
 from app.stickers import register_sticker_filters
+from app.verification import (
+    OUTCOME_FAILED,
+    OUTCOME_PENDING,
+    checkin_outcome,
+    counted_clause,
+    register_verification_filters,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +154,32 @@ DENSITY_WINDOW_DAYS = 30
 # codebase (see to_ir_weekday). Spelled the same way as create-challenge.html's
 # weekdayNames so a day reads identically on both screens.
 WEEKDAY_NAMES = ("شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه")
+
+# The review axis's own labels. Beside the other per-surface maps (D7) rather
+# than in `app/verification.py`, which words the *outcome* of a report -- two
+# different questions, and the module that decides what counts as kept has no
+# business naming a control.
+# How many lines of an act's log the detail page draws. A log is read from
+# the beginning, and a challenge that has run for a year has thousands of
+# lines -- so this is a *window on the start*, not a page one of a paged
+# list: there is no «بیشتر» and no fragment route, because the question
+# «what happened here» is answered by the shape of the first few dozen
+# entries and the rest is forensics nobody is doing on a phone.
+ACT_LOG_LIMIT = 50
+
+REVIEW_LABELS = {
+    "auto": "خودکار",
+    "referee": "با تأیید ناظر",
+}
+REVIEW_HINTS = {
+    "auto": "هر گزارشی که ثبت شود همان لحظه قطعی است.",
+    "referee": "گزارش‌ها تا وقتی ناظری تأییدشان نکند در انتظار می‌مانند.",
+}
+REVIEW_ICONS = {
+    "auto": "check",
+    "referee": "shieldCheck",
+}
+
 
 # CLAUDE.md (D7): these enums carry English codes and there is no shared Farsi
 # display map, so each surface spells its own labels -- same as
@@ -234,6 +285,13 @@ register_identity_filters(templates.env)
 # that render a card can forget to pass them.
 register_group_filters(templates.env)
 register_sticker_filters(templates.env)
+# The act layer: the proof policy's own labels, the four referee states, and
+# the renderer that turns `state` + `verdict` into one word. The same
+# registration contract -- a router that draws them owes the call.
+register_proof_filters(templates.env)
+register_referee_filters(templates.env)
+register_verification_filters(templates.env)
+register_actlog_filters(templates.env)
 
 
 @router.get("/create")
@@ -648,6 +706,33 @@ def build_calendar_marks(
     return marks
 
 
+# The six words a nobat can be on this page, and the one place the two
+# vocabularies are joined.
+#
+# `derive_state` answers about the **occurrence window**: تکمیل‌شده / رد شده /
+# ازدست‌رفته / در انتظار, where «در انتظار» means *the window is still open*.
+# `checkin_outcome` answers about the **report**, where «در انتظار» means
+# *a referee has not looked yet*. Two different questions that had the same
+# Farsi word, which is exactly how a green tick ends up on something that has
+# not counted.
+#
+# So the two are resolved here, once, in favour of the verdict: a recorded
+# report whose verdict is unsettled is `awaiting`, and one that was refused
+# is `rejected`. Everything else is the window's own answer, unchanged -- an
+# act with no referee never reaches either branch, which is why every screen
+# in the app that predates this reads exactly as it did.
+def display_state(window_state: str, row) -> str:
+    """Fold a report's verdict into the occurrence's own state."""
+    if row is None:
+        return window_state
+    outcome = checkin_outcome(row)
+    if outcome == OUTCOME_PENDING:
+        return "awaiting"
+    if outcome == OUTCOME_FAILED:
+        return "rejected"
+    return window_state
+
+
 async def build_history_timeline(
     db: AsyncSession,
     enrollment: Enrollment,
@@ -681,17 +766,27 @@ async def build_history_timeline(
     # calendar describe the whole enrollment, and "missed" is derived -- never
     # stored -- so it cannot be counted off the CheckIns rows alone.
     states = {
-        key: derive_state(
-            cadence,
-            start_date=enrollment.start_date,
-            tz=enrollment.timezone,
-            key=key,
-            now_utc=now_utc,
-            row_state=by_key[key].state if key in by_key else None,
+        key: display_state(
+            derive_state(
+                cadence,
+                start_date=enrollment.start_date,
+                tz=enrollment.timezone,
+                key=key,
+                now_utc=now_utc,
+                row_state=by_key[key].state if key in by_key else None,
+            ),
+            by_key.get(key),
         )
         for key in keys
     }
-    tally = {"completed": 0, "skipped": 0, "missed": 0, "pending": 0}
+    tally = {
+        "completed": 0,
+        "skipped": 0,
+        "missed": 0,
+        "pending": 0,
+        "awaiting": 0,
+        "rejected": 0,
+    }
     for state in states.values():
         if state in tally:
             tally[state] += 1
@@ -756,6 +851,11 @@ async def build_history_timeline(
         "skipped": tally["skipped"],
         "missed": tally["missed"],
         "pending": tally["pending"],
+        # The two verdict states. Zero on every act with no referee, which
+        # is why the legend renders each only when it has a count -- a row
+        # reading «تأیید نشده ۰» is a figure about nothing.
+        "awaiting": tally["awaiting"],
+        "rejected": tally["rejected"],
         "total": len(keys),
         "unit": "وعده",
         "pct": round(completed / len(keys) * 100) if keys else 0,
@@ -869,7 +969,7 @@ async def build_quota_period_rows(
     checkins_result = await db.execute(
         select(CheckIn.occurrence_key).where(
             CheckIn.enrollment_id == enrollment.id,
-            CheckIn.state == "completed",
+            counted_clause(),
         )
     )
     done_by_period: dict[str, int] = {}
@@ -923,6 +1023,13 @@ async def build_quota_period_rows(
         "skipped": 0,
         "missed": len(rows) - met - open_short,
         "pending": open_short,
+        # A quota period is met or it is not -- a verdict lands on one
+        # *report*, and a period is a count of them, so these two have no
+        # meaning at this grain and are zero rather than absent. The ring's
+        # loop reads six keys; a missing one would be a KeyError on a page
+        # the member is looking at.
+        "awaiting": 0,
+        "rejected": 0,
         "total": len(rows),
         "unit": "هفته" if is_week else "ماه",
         "pct": round(met / len(rows) * 100) if rows else 0,
@@ -1234,6 +1341,29 @@ async def challenge_detail(
             "history_summary": history_summary,
             "today_key": today_key,
             "goal_unit": db_challenge.goal_unit,
+            # --- the act layer ------------------------------------------
+            # What a report on this act has to carry, who settles it, and who
+            # the people doing the settling are. All three are rendered for a
+            # non-participant too: they are *terms*, and somebody deciding
+            # whether to join has to be able to read them first -- the same
+            # argument `build_cadence_plan` makes about the calendar.
+            "proof_kind": db_challenge.proof_kind,
+            "proof_label": proof_label(db_challenge.proof_kind),
+            "proof_hint": PROOF_HINTS.get(db_challenge.proof_kind, ""),
+            "needs_photo": requires_photo(db_challenge),
+            "review_mode": db_challenge.review_mode,
+            "review_label": REVIEW_LABELS.get(
+                db_challenge.review_mode, db_challenge.review_mode
+            ),
+            "referees": await fetch_referees(db, challenge_id),
+            "referee_count": await active_referee_count(db, challenge_id),
+            # Derived, never stored -- there is no `pact` column, because a
+            # flag would be a second name for what the rows already say and
+            # the two could disagree the moment somebody stepped back.
+            "is_pact": await is_pact(db, db_challenge),
+            # The act's log. Oldest first and unpaged: the first page is the
+            # beginning of the story, which is where a log is read from.
+            "act_log": (await fetch_log(db, challenge_id=challenge_id, limit=ACT_LOG_LIMIT))[0],
             "current_user_id": current_user_id,
             "active_nav": "challenges",
         },
@@ -1349,6 +1479,23 @@ async def challenge_manage_page(
             "can_edit_identity": others == 0,
             "can_delete": others == 0,
             "is_archived": challenge.lifecycle_status == "archived",
+            # The act's two other axes, plus the people the second one needs.
+            # The referee list includes the declined and removed rows here
+            # and nowhere else: this is the screen where somebody decides who
+            # to ask next, and "they already said no" is the answer they need.
+            "referees": await fetch_referees(db, challenge_id, include_history=True),
+            "proof_options": [
+                {"value": value, "label": label, "icon": PROOF_ICONS[value]}
+                for value, label in PROOF_LABELS.items()
+            ],
+            "review_options": [
+                {"value": value, "label": label, "icon": REVIEW_ICONS[value]}
+                for value, label in REVIEW_LABELS.items()
+            ],
+            "review_label": REVIEW_LABELS.get(
+                challenge.review_mode, challenge.review_mode
+            ),
+            "review_hints": REVIEW_HINTS,
         },
     )
 
@@ -1451,6 +1598,132 @@ def _leaderboard_context(sort: str) -> dict:
         "score_label": "ثبت" if sort == LEADERBOARD_COMPLETIONS else "روز پیاپی",
         "other_label": "روز پیاپی" if sort == LEADERBOARD_COMPLETIONS else "ثبت",
     }
+
+
+async def _dashboard_challenge(
+    db: AsyncSession, challenge_id: int, viewer: User
+) -> Challenge:
+    """Load an act for its owner's dashboard, or 404.
+
+    Two gates in the order that keeps the 404-vs-403 split honest:
+    reachability through `challenge_visibility_filter` composed into the
+    query, then `CHALLENGE_MANAGE_REFEREES` -- and a member without it gets
+    **404**, not 403, exactly as the manage screen does. A dashboard is the
+    owner's screen and a participant has no business learning it exists.
+
+    It is gated on *managing* rather than on `CHALLENGE_EDIT` because those
+    are the same grant today and will not be tomorrow: reading how a cohort
+    is doing is the first thing an owner delegates, and wiring it to the
+    permission about *people* rather than about *wording* is what makes that
+    a row in a grant map later.
+    """
+    challenge = (
+        await db.execute(
+            select(Challenge).where(
+                Challenge.id == challenge_id,
+                challenge_visibility_filter(viewer.id),
+            )
+        )
+    ).scalar_one_or_none()
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+
+    my_enrollment = (
+        await db.execute(
+            select(Enrollment).where(
+                Enrollment.challenge_id == challenge_id,
+                Enrollment.user_id == viewer.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not can(
+        viewer,
+        Perm.CHALLENGE_MANAGE_REFEREES,
+        challenge=challenge,
+        enrollment=my_enrollment,
+    ):
+        raise HTTPException(status_code=404, detail="Challenge not found")
+    return challenge
+
+
+@router.get("/{challenge_id}/dashboard")
+async def challenge_dashboard(
+    challenge_id: int,
+    request: Request,
+    viewer: User = Depends(get_page_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """«چه کسی انجام داده، چه کسی عقب است» -- the owner's read of a cohort.
+
+    The screen an *assignment* needs: an act handed to a group produces one
+    independent run per member, and the person who handed it out has no other
+    way to see all of them at once. It is SSR-only and has no JSON twin, the
+    same call the admin participant roster makes -- this is a screen, not an
+    integration point, and a JSON endpoint here would be a second door onto
+    rows `profile_visibility_filter` deliberately narrows.
+
+    The query is `fetch_act_dashboard` in the API router, presentation is
+    here -- the split every list in this app makes.
+    """
+    challenge = await _dashboard_challenge(db, challenge_id, viewer)
+    rows, has_more = await fetch_act_dashboard(
+        db,
+        challenge=challenge,
+        viewer_id=viewer.id,
+        now_utc=datetime.now(UTC),
+        offset=0,
+        limit=DEFAULT_DASHBOARD_PAGE_SIZE,
+    )
+    return templates.TemplateResponse(
+        "challenge/dashboard.html",
+        {
+            "title": f"پیگیری: {challenge.title}",
+            "request": request,
+            "challenge": challenge,
+            "rows": rows,
+            "has_more": has_more,
+            "page_size": DEFAULT_DASHBOARD_PAGE_SIZE,
+            "behind_count": sum(1 for r in rows if r["is_behind"]),
+            "pending_count": sum(r["pending"] for r in rows),
+            "current_user_id": viewer.id,
+            "active_nav": "challenges",
+        },
+    )
+
+
+@router.get("/{challenge_id}/dashboard/fragment")
+async def challenge_dashboard_fragment(
+    challenge_id: int,
+    request: Request,
+    # The JSON dependency, deliberately: see the docstring.
+    viewer: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(
+        default=DEFAULT_DASHBOARD_PAGE_SIZE, ge=1, le=MAX_DASHBOARD_PAGE_SIZE
+    ),
+):
+    """The next page of the cohort.
+
+    Takes the *JSON* dependency, not the page one: a `fetch()` needs a real
+    401 to redirect on, and would silently append a login page's markup to a
+    303 (CLAUDE.md, the 303/401 split).
+    """
+    challenge = await _dashboard_challenge(db, challenge_id, viewer)
+    rows, has_more = await fetch_act_dashboard(
+        db,
+        challenge=challenge,
+        viewer_id=viewer.id,
+        now_utc=datetime.now(UTC),
+        offset=offset,
+        limit=limit,
+    )
+    response = templates.TemplateResponse(
+        "challenge/_dashboard_rows.html",
+        {"request": request, "rows": rows},
+    )
+    response.headers["X-Has-More"] = "true" if has_more else "false"
+    return response
 
 
 @router.get("/{challenge_id}/leaderboard")

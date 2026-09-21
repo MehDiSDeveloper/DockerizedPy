@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_page_user
 from app.avatars import AVATAR_IDS, avatar_url, register_avatar_filters
+from app.commitment import commitment_score
 from app.config import BASE_DIR
 from app.database import get_db
 from app.date_filters import register_date_filters
@@ -109,6 +110,12 @@ async def user_detail(
             "user": db_user,
             "stat_active": stat_active,
             "stat_done": stat_done,
+            # «نمرهٔ تعهد» -- derived live off `CheckIns`, never stored (see
+            # `app/commitment.py`). Rendered on any profile this viewer can
+            # already open, which is their own plus, for an operator, anybody
+            # they are supporting: it is a fact about the account's record,
+            # the same kind of thing the two counts above it are.
+            "score": await commitment_score(db, user_id),
             "is_own_profile": is_own_profile,
             "can_administer": can_administer,
             "can_edit": is_own_profile or can_administer,

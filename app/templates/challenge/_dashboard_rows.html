@@ -1,0 +1,61 @@
+{#- One doer per row -- the infinite-scroll fragment for the act dashboard.
+
+    Re-served bare by `GET /views/challenges/{id}/dashboard/fragment`, so it
+    must stay free of anything but the rows: `createInfiniteScroller()`
+    counts this file's top-level children to advance its offset.
+
+    **The row answers one question and answers it first.** «عقب است» is the
+    reason somebody opened this screen, so it is a pill at the head of the
+    row and the ordering key -- not a column three figures in that has to be
+    found. It is the occurrence engine's own answer (`fetch_act_dashboard`),
+    not a date comparison: only the engine knows whether today is an
+    occurrence day for *this* enrollment's cadence, start date and timezone.
+
+    The name comes from `participant_display`, so an anonymous participant is
+    «عضو ناشناس» here as everywhere else. An owner who needs names says so
+    when they create the act, by setting هویت اعضا to «با نام» -- which is a
+    term the participants can read -- rather than getting them through a
+    screen the participants cannot see. -#}
+
+{% for r in rows %}
+<div class="setting-row glass dash-row{{ ' is-behind' if r.is_behind }}">
+  <div class="sr-head">
+    <img class="vq-avatar" src="{{ r.avatar | avatar_url }}" alt="" loading="lazy">
+    <div class="sr-text">
+      <span class="sr-label">{{ r.name }}{% if r.is_you %} <span class="dash-you">تو</span>{% endif %}</span>
+      <span class="sr-hint">
+        {% if r.last_local_date %}
+        آخرین ثبت:
+        {#- A floating local date: no zone to resolve, so no `data-jalali`
+            and the server's text is final (CLAUDE.md, Dates). -#}
+        {{ r.last_local_date | jalali('day-month') }}
+        {% else %}
+        هنوز چیزی ثبت نکرده
+        {% endif %}
+      </span>
+    </div>
+    {% if r.is_behind %}
+    <span class="dash-pill behind">عقب است</span>
+    {% endif %}
+  </div>
+
+  {#- The four figures, in the order they matter to somebody chasing a
+      cohort: what was kept, what is stuck waiting, what was refused, and
+      how long the run is. A zero is drawn dim rather than hidden, so the
+      columns line up down the list and a row can be scanned by position. -#}
+  <div class="dash-figs">
+    <span class="dash-fig{{ ' is-zero' if not r.kept }}" title="ثبت‌های موفق">
+      <span data-icon="check"></span>{{ r.kept | fa_num }}
+    </span>
+    <span class="dash-fig{{ ' is-zero' if not r.pending }}" title="در انتظار تأیید">
+      <span data-icon="clock"></span>{{ r.pending | fa_num }}
+    </span>
+    <span class="dash-fig{{ ' is-zero' if not r.failed }}" title="تأیید نشده">
+      <span data-icon="shieldX"></span>{{ r.failed | fa_num }}
+    </span>
+    <span class="dash-fig{{ ' is-zero' if not r.streak }}" title="روزهای پیاپی">
+      <span data-icon="flame"></span>{{ r.streak | fa_num }}
+    </span>
+  </div>
+</div>
+{% endfor %}
