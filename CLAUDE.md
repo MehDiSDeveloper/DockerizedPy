@@ -6,7 +6,7 @@ Guidance for Claude Code (claude.ai/code) working in this repository.
 
 «چالش» / Challenge Manager — a FastAPI app where users create fitness/habit **challenges** (cadence-based: one-time, scheduled, recurring-days, recurring-quota) and **enroll** in each other's, then log progress as **check-ins** against a **Today** feed. A challenge is one shape of a more general **commitment** — three settable axes (who vouches, what counts as evidence, what became of a report), of which today's challenge is the all-defaults case. Two front doors over one model set: a JSON CRUD API and server-rendered Jinja2 pages (Farsi, RTL). Auth is hand-rolled cookie sessions. Groups let an organisation gather its people and hand out challenges.
 
-Source code: GitHub `MehDiSDeveloper/DockerizedPy` (private). The `.env` file was committed once in early history, so keep this repo private.
+Source code: GitHub `MehDiSDeveloper/DockerizedPy` (public). A `.env` file was committed once in early history and stays readable there: treat any secret it held as leaked and never reuse it.
 
 ## Commands
 
